@@ -1,0 +1,211 @@
+// services/database.ts
+// Thin Firestore data-access layer. Keep raw Firestore calls out of components/pages;
+// add a typed function here instead so the rest of the app stays backend-agnostic.
+
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit as fsLimit,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "./firebase";
+
+// ---- Generic helpers -------------------------------------------------
+
+export async function getById(colName: string, id: string) {
+  const snap = await getDoc(doc(db, colName, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function getAll(colName: string) {
+  const snap = await getDocs(collection(db, colName));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function create(colName: string, data: Record<string, unknown>) {
+  const ref = await addDoc(collection(db, colName), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function update(colName: string, id: string, data: Record<string, unknown>) {
+  await updateDoc(doc(db, colName, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function remove(colName: string, id: string) {
+  await deleteDoc(doc(db, colName, id));
+}
+
+// ---- Domain-specific queries -----------------------------------------
+
+/** Dashboard summary counts for the admin home page. */
+export async function getAdminStats() {
+  const [students, teachers, parents, classes, subjects] = await Promise.all([
+    getAll("students"),
+    getAll("teachers"),
+    getAll("parents"),
+    getAll("classes"),
+    getAll("subjects"),
+  ]);
+
+  return {
+    totalStudents: students.length,
+    totalTeachers: teachers.length,
+    totalParents: parents.length,
+    totalClasses: classes.length,
+    totalSubjects: subjects.length,
+  };
+}
+
+/** Most recent activity log entries, newest first. */
+export async function getRecentActivity(count = 10) {
+  const q = query(collection(db, "activityLog"), orderBy("createdAt", "desc"), fsLimit(count));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Writes one entry to the activity log (call this from any mutation you want audited). */
+export async function logActivity(action: string, actor: string, details?: string) {
+  await create("activityLog", { action, actor, details: details || "" });
+}
+
+/** Fetch all children linked to a parent account (for the parent dashboard). */
+export async function getChildrenForParent(parentUid: string) {
+  const q = query(collection(db, "students"), where("parentUid", "==", parentUid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// ---- Students ----------------------------------------------------------
+
+export async function getStudents() {
+  return getAll("students");
+}
+
+export async function getStudentsByClass(classId: string) {
+  const q = query(collection(db, "students"), where("classId", "==", classId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function createStudent(data: Record<string, unknown>) {
+  const id = await create("students", data);
+  await logActivity("Student added", data.createdBy as string, `${data.firstName} ${data.lastName}`);
+  return id;
+}
+
+export async function updateStudent(id: string, data: Record<string, unknown>) {
+  await update("students", id, data);
+}
+
+export async function deleteStudent(id: string) {
+  await remove("students", id);
+}
+
+/** Bulk-moves every student in `fromClassId` to `toClassId` (end-of-session promotion). */
+export async function promoteStudents(fromClassId: string, toClassId: string, actor: string) {
+  const students = await getStudentsByClass(fromClassId);
+  await Promise.all(students.map((s) => update("students", s.id, { classId: toClassId })));
+  await logActivity(
+    "Students promoted",
+    actor,
+    `${students.length} student(s) moved from ${fromClassId} to ${toClassId}`
+  );
+  return students.length;
+}
+
+// ---- Classes & Subjects -------------------------------------------------
+
+export async function getClasses() {
+  return getAll("classes");
+}
+
+export async function getSubjects() {
+  return getAll("subjects");
+}
+
+// ---- Attendance ----------------------------------------------------------
+
+/** Fetches the attendance session for a given class + date, if one already exists. */
+export async function getAttendanceSession(classId: string, date: string) {
+  const q = query(
+    collection(db, "attendance"),
+    where("classId", "==", classId),
+    where("date", "==", date)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+/** Creates or overwrites the attendance session for a class on a given date. */
+export async function submitAttendance(
+  classId: string,
+  date: string,
+  records: { studentId: string; status: string }[],
+  takenBy: string
+) {
+  const existing = await getAttendanceSession(classId, date);
+  if (existing) {
+    await update("attendance", existing.id, { records, takenBy });
+  } else {
+    await create("attendance", { classId, date, records, takenBy });
+  }
+  await logActivity("Attendance submitted", takenBy, `${records.length} student(s) — ${date}`);
+}
+
+// ---- Results ----------------------------------------------------------
+
+/** Fetches all result entries for a class/subject/term/session (used by the entry grid). */
+export async function getResultsFor(classId: string, subjectId: string, term: string, session: string) {
+  const q = query(
+    collection(db, "results"),
+    where("classId", "==", classId),
+    where("subjectId", "==", subjectId),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Fetches every result entry for a single student (used by the report card page). */
+export async function getResultsForStudent(studentId: string, term: string, session: string) {
+  const q = query(
+    collection(db, "results"),
+    where("studentId", "==", studentId),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Upserts one student's result for a subject (keyed on studentId+subjectId+term+session). */
+export async function saveResult(entry: Record<string, unknown>, actor: string) {
+  const q = query(
+    collection(db, "results"),
+    where("studentId", "==", entry.studentId),
+    where("subjectId", "==", entry.subjectId),
+    where("term", "==", entry.term),
+    where("session", "==", entry.session)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    await update("results", snap.docs[0].id, entry);
+  } else {
+    await create("results", entry);
+  }
+  await logActivity("Result uploaded", actor, `Subject ${entry.subjectId} — student ${entry.studentId}`);
+}
