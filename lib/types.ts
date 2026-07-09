@@ -48,6 +48,7 @@ export interface AttendanceSession {
 }
 
 export interface ResultEntry {
+  id?: string;
   studentId: string;
   subjectId: string;
   classId: string;
