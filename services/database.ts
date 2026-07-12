@@ -126,8 +126,36 @@ export async function promoteStudents(fromClassId: string, toClassId: string, ac
 
 // ---- Classes & Subjects -------------------------------------------------
 
+// Canonical Nigerian curriculum order, used to sort classes correctly since
+// Firestore doesn't preserve insertion order. Any class name not in this list
+// (e.g. a custom class an admin adds later) sorts alphabetically after these.
+const CLASS_ORDER = [
+  "Nursery 1",
+  "Nursery 2",
+  "Primary 1",
+  "Primary 2",
+  "Primary 3",
+  "Primary 4",
+  "Primary 5",
+  "Primary 6",
+  "JSS 1",
+  "JSS 2",
+  "JSS 3",
+  "SS 1",
+  "SS 2",
+  "SS 3",
+];
+
 export async function getClasses() {
-  return getAll("classes");
+  const classes = (await getAll("classes")) as { id: string; name?: string }[];
+  return classes.sort((a, b) => {
+    const aIndex = CLASS_ORDER.indexOf(a.name || "");
+    const bIndex = CLASS_ORDER.indexOf(b.name || "");
+    if (aIndex === -1 && bIndex === -1) return (a.name || "").localeCompare(b.name || "");
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
 }
 
 export async function getSubjects() {
@@ -208,4 +236,4 @@ export async function saveResult(entry: Record<string, unknown>, actor: string) 
     await create("results", entry);
   }
   await logActivity("Result uploaded", actor, `Subject ${entry.subjectId} — student ${entry.studentId}`);
-}
+                                }
