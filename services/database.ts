@@ -236,4 +236,92 @@ export async function saveResult(entry: Record<string, unknown>, actor: string) 
     await create("results", entry);
   }
   await logActivity("Result uploaded", actor, `Subject ${entry.subjectId} — student ${entry.studentId}`);
-                                }
+}
+
+// ---- Fees ----------------------------------------------------------
+
+/** Fetches the fee amount set for every class for a given term/session. */
+export async function getFeeStructure(term: string, session: string) {
+  const q = query(
+    collection(db, "feeStructure"),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as {
+    id: string;
+    classId: string;
+    term: string;
+    session: string;
+    amount: number;
+  }[];
+}
+
+/** Sets (or updates) the fee amount for one class for a term/session. */
+export async function setClassFee(
+  classId: string,
+  term: string,
+  session: string,
+  amount: number,
+  actor: string
+) {
+  const q = query(
+    collection(db, "feeStructure"),
+    where("classId", "==", classId),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    await update("feeStructure", snap.docs[0].id, { amount });
+  } else {
+    await create("feeStructure", { classId, term, session, amount });
+  }
+  await logActivity("Fee amount updated", actor, `Class ${classId} — ₦${amount} for ${term} ${session}`);
+}
+
+/** Fetches every payment a student has made for a term/session. */
+export async function getPaymentsForStudent(studentId: string, term: string, session: string) {
+  const q = query(
+    collection(db, "feePayments"),
+    where("studentId", "==", studentId),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as {
+    id: string;
+    amount: number;
+    datePaid: string;
+  }[];
+}
+
+/** Fetches every payment recorded for a term/session, across all students. */
+export async function getAllPayments(term: string, session: string) {
+  const q = query(
+    collection(db, "feePayments"),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as {
+    id: string;
+    studentId: string;
+    amount: number;
+    datePaid: string;
+  }[];
+}
+
+/** Records a single fee payment for a student. */
+export async function recordPayment(
+  studentId: string,
+  classId: string,
+  term: string,
+  session: string,
+  amount: number,
+  datePaid: string,
+  actor: string
+) {
+  await create("feePayments", { studentId, classId, term, session, amount, datePaid, recordedBy: actor });
+  await logActivity("Fees recorded", actor, `₦${amount} for student ${studentId}`);
+}
