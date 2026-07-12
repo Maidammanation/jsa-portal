@@ -7,6 +7,55 @@ import { DataTable, type Column } from "@/components/Tables";
 import { getClasses, getSubjects, create, remove } from "@/services/database";
 import type { ClassRoom, Subject } from "@/lib/types";
 
+// Standard Nigerian basic + secondary education levels, no A/B streams.
+const DEFAULT_CLASSES: { name: string; level: string }[] = [
+  { name: "Nursery 1", level: "Nursery" },
+  { name: "Nursery 2", level: "Nursery" },
+  { name: "Primary 1", level: "Primary" },
+  { name: "Primary 2", level: "Primary" },
+  { name: "Primary 3", level: "Primary" },
+  { name: "Primary 4", level: "Primary" },
+  { name: "Primary 5", level: "Primary" },
+  { name: "Primary 6", level: "Primary" },
+  { name: "JSS 1", level: "Junior Secondary" },
+  { name: "JSS 2", level: "Junior Secondary" },
+  { name: "JSS 3", level: "Junior Secondary" },
+  { name: "SS 1", level: "Senior Secondary" },
+  { name: "SS 2", level: "Senior Secondary" },
+  { name: "SS 3", level: "Senior Secondary" },
+];
+
+// A broad set covering common core + JSS + SS subjects across the Nigerian curriculum.
+// Not every subject applies to every class, but this covers the full spread you'll need.
+const DEFAULT_SUBJECTS: string[] = [
+  "English Language",
+  "Mathematics",
+  "Basic Science",
+  "Basic Technology",
+  "Agricultural Science",
+  "Social Studies",
+  "Civic Education",
+  "Christian Religious Studies",
+  "Islamic Religious Studies",
+  "Physical and Health Education",
+  "Computer Studies / ICT",
+  "French",
+  "Home Economics",
+  "Business Studies",
+  "Fine Arts",
+  "Music",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Further Mathematics",
+  "Economics",
+  "Government",
+  "Literature in English",
+  "Geography",
+  "Financial Accounting",
+  "Commerce",
+];
+
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -15,6 +64,7 @@ export default function ClassesPage() {
   const [newSubjectName, setNewSubjectName] = useState("");
   const [savingClass, setSavingClass] = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   const loadClasses = () => getClasses().then((d) => setClasses(d as ClassRoom[]));
   const loadSubjects = () => getSubjects().then((d) => setSubjects(d as Subject[]));
@@ -23,6 +73,23 @@ export default function ClassesPage() {
     loadClasses();
     loadSubjects();
   }, []);
+
+  const handleSeedDefaults = async () => {
+    if (
+      !confirm(
+        "This will add Nursery 1 through SS 3 as classes, plus the standard Nigerian curriculum subject list. Continue?"
+      )
+    )
+      return;
+    setSeeding(true);
+    try {
+      await Promise.all(DEFAULT_CLASSES.map((c) => create("classes", c)));
+      await Promise.all(DEFAULT_SUBJECTS.map((name) => create("subjects", { name })));
+      await Promise.all([loadClasses(), loadSubjects()]);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,11 +159,18 @@ export default function ClassesPage() {
 
   return (
     <div className="space-y-8 max-w-3xl">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800">Classes & Subjects</h1>
-        <p className="text-sm text-gray-500">
-          Classes need to exist here before you can assign students to them, take attendance, or enter results.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-800">Classes & Subjects</h1>
+          <p className="text-sm text-gray-500">
+            Classes need to exist here before you can assign students to them, take attendance, or enter results.
+          </p>
+        </div>
+        {classes.length === 0 && subjects.length === 0 && (
+          <Button onClick={handleSeedDefaults} disabled={seeding} variant="secondary">
+            {seeding ? "Setting up..." : "Set up Nursery – SS3 defaults"}
+          </Button>
+        )}
       </div>
 
       <section className="space-y-3">
@@ -105,7 +179,7 @@ export default function ClassesPage() {
           <div className="flex-1">
             <TextInput
               label="Class Name"
-              placeholder="e.g. JSS 1A"
+              placeholder="e.g. JSS 1"
               value={newClassName}
               onChange={(e) => setNewClassName(e.target.value)}
             />
@@ -113,7 +187,7 @@ export default function ClassesPage() {
           <div className="flex-1">
             <TextInput
               label="Level"
-              placeholder="e.g. JSS 1"
+              placeholder="e.g. Junior Secondary"
               value={newClassLevel}
               onChange={(e) => setNewClassLevel(e.target.value)}
             />
@@ -144,4 +218,4 @@ export default function ClassesPage() {
       </section>
     </div>
   );
-                 }
+} 
