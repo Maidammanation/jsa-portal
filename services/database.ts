@@ -96,9 +96,7 @@ export async function getStudentsByClass(classId: string) {
   const q = query(collection(db, "students"), where("classId", "==", classId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-export async function createStudent(data: Record<string, unknown>) {
+}export async function createStudent(data: Record<string, unknown>) {
   const id = await create("students", data);
   await logActivity("Student added", data.createdBy as string, `${data.firstName} ${data.lastName}`);
   return id;
@@ -197,8 +195,7 @@ export async function submitAttendance(
 
 /** Fetches all result entries for a class/subject/term/session (used by the entry grid). */
 export async function getResultsFor(classId: string, subjectId: string, term: string, session: string) {
-  const q = query(
-    collection(db, "results"),
+  const q = query(collection(db, "results"),
     where("classId", "==", classId),
     where("subjectId", "==", subjectId),
     where("term", "==", term),
@@ -297,8 +294,7 @@ export async function getPaymentsForStudent(studentId: string, term: string, ses
 }
 
 /** Fetches every payment recorded for a term/session, across all students. */
-export async function getAllPayments(term: string, session: string) {
-  const q = query(
+export async function getAllPayments(term: string, session: string) {const q = query(
     collection(db, "feePayments"),
     where("term", "==", term),
     where("session", "==", session)
@@ -324,4 +320,27 @@ export async function recordPayment(
 ) {
   await create("feePayments", { studentId, classId, term, session, amount, datePaid, recordedBy: actor });
   await logActivity("Fees recorded", actor, `₦${amount} for student ${studentId}`);
+}
+
+// ---- Announcements ----------------------------------------------------------
+
+/** Most recent announcements, newest first. */
+export async function getAnnouncements(count = 20) {
+  const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), fsLimit(count));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as {
+    id: string;
+    title: string;
+    body: string;
+    postedBy: string;
+  }[];
+}
+
+export async function createAnnouncement(title: string, body: string, actor: string) {
+  await create("announcements", { title, body, postedBy: actor });
+  await logActivity("Announcement posted", actor, title);
+}
+
+export async function deleteAnnouncement(id: string) {
+  await remove("announcements", id);
 }
