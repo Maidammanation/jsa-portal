@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StatCard, ActionCard, InfoCard } from "@/components/Cards";
-import { getAdminStats, getRecentActivity } from "@/services/database";
+import { getAdminStats, getRecentActivity, getAnnouncements } from "@/services/database";
 import { SCHOOL } from "@/settings/config";
 
 interface AdminStats {
@@ -25,12 +25,16 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [latestAnnouncement, setLatestAnnouncement] = useState<string | null>(null);
 
   useEffect(() => {
     getAdminStats().then(setStats).catch(() => setStats(null));
     getRecentActivity(8)
       .then((items) => setActivity(items as ActivityEntry[]))
       .catch(() => setActivity([]));
+    getAnnouncements(1)
+      .then((items) => setLatestAnnouncement((items[0] as { title?: string } | undefined)?.title || null))
+      .catch(() => setLatestAnnouncement(null));
   }, []);
 
   const quickActions = [
@@ -76,7 +80,7 @@ export default function AdminDashboardPage() {
             <p>Current Session: {SCHOOL.session}</p>
             <p>Current Term: {SCHOOL.term}</p>
             <p>New Admissions: —</p>
-            <p>Latest Announcement: —</p>
+            <p>Latest Announcement: {latestAnnouncement || "—"}</p>
           </InfoCard>
         </section>
 
@@ -111,4 +115,4 @@ export default function AdminDashboardPage() {
       </section>
     </div>
   );
-} 
+}
