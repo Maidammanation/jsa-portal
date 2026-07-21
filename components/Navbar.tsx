@@ -4,6 +4,8 @@ import Image from "next/image";
 import { SCHOOL } from "@/settings/config";
 import { logout } from "@/services/authentication";
 import { useRouter } from "next/navigation";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
+import { useClock } from "@/lib/useClock";
 
 interface NavbarProps {
   userName?: string;
@@ -12,11 +14,23 @@ interface NavbarProps {
 
 export default function Navbar({ userName, onMenuToggle }: NavbarProps) {
   const router = useRouter();
+  const { session, term } = useSchoolSettings();
+  const now = useClock();
 
   const handleLogout = async () => {
     await logout();
     router.push("/login");
   };
+
+  const dateStr = now.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <header className="flex items-center justify-between bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-30">
@@ -39,12 +53,16 @@ export default function Navbar({ userName, onMenuToggle }: NavbarProps) {
         <div className="leading-tight">
           <p className="font-semibold text-brand text-sm sm:text-base">{SCHOOL.name}</p>
           <p className="text-xs text-gray-500">
-            {SCHOOL.session} &middot; {SCHOOL.term}
+            {session} &middot; {term}
           </p>
         </div>
       </div>
 
       <div className="flex items-center gap-4">
+        <div className="hidden md:block text-xs text-gray-500 text-right leading-tight">
+          <p>{dateStr}</p>
+          <p>{timeStr}</p>
+        </div>
         <button className="relative p-2 rounded hover:bg-gray-100" aria-label="Notifications">
           🔔
         </button>
