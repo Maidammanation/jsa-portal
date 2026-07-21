@@ -47,7 +47,6 @@ export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
     { label: "Results", href: "/admin/results" },
     { label: "Fees", href: "/admin/fees" },
     { label: "Announcements", href: "/admin/announcements" },
-    { label: "Branding", href: "/admin/branding" },
     { label: "Activity Log", href: "/admin/activity" },
     { label: "Settings", href: "/admin/settings" },
   ],
