@@ -1,21 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
-import { TextInput } from "@/components/Forms";
+import { TextInput, SelectInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
 import { auth } from "@/services/firebase";
 import { useAuth } from "@/lib/useAuth";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
+import { updateSchoolSettings } from "@/services/database";
 import { SCHOOL } from "@/settings/config";
 
 export default function SettingsPage() {
   const { profile } = useAuth();
+  const { session, term } = useSchoolSettings();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const [sessionInput, setSessionInput] = useState(session);
+  const [termInput, setTermInput] = useState(term);
+  const [savingTerm, setSavingTerm] = useState(false);
+  const [termMessage, setTermMessage] = useState("");
+
+  useEffect(() => {
+    setSessionInput(session);
+    setTermInput(term);
+  }, [session, term]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +68,20 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveTerm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTermMessage("");
+    setSavingTerm(true);
+    try {
+      await updateSchoolSettings(sessionInput, termInput, profile?.name || profile?.email || "admin");
+      setTermMessage("Session/term updated. This applies across the whole portal immediately.");
+    } catch (err) {
+      setTermMessage(err instanceof Error ? err.message : "Could not update session/term.");
+    } finally {
+      setSavingTerm(false);
+    }
+  };
+
   return (
     <div className="max-w-xl space-y-6">
       <h1 className="text-xl font-semibold text-gray-800">Settings</h1>
@@ -65,8 +92,9 @@ export default function SettingsPage() {
           <p><span className="text-gray-500">Name:</span> {profile?.name || "—"}</p>
           <p><span className="text-gray-500">Email:</span> {profile?.email || "—"}</p>
           <p><span className="text-gray-500">Role:</span> {profile?.role || "—"}</p>
-        </div>
-      </section><section className="space-y-3">
+        </div></section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Change Password</h2>
 
         {error && (
@@ -107,17 +135,38 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">School Info</h2>
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4 text-sm space-y-1">
-          <p><span className="text-gray-500">School Name:</span> {SCHOOL.name}</p>
-          <p><span className="text-gray-500">Current Session:</span> {SCHOOL.session}</p>
-          <p><span className="text-gray-500">Current Term:</span> {SCHOOL.term}</p>
-          <p className="text-xs text-gray-400 pt-2">
-            These values come from environment variables in Vercel (NEXT_PUBLIC_SCHOOL_NAME,
-            NEXT_PUBLIC_CURRENT_SESSION, NEXT_PUBLIC_CURRENT_TERM). Update them there and
-            redeploy to change a new term/session — e.g. at the start of Second Term.
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">School Session &amp; Term</h2>
+        <p className="text-sm text-gray-500">
+          {SCHOOL.name}. Changing this here updates it live across the whole portal — no
+          redeploy needed. Do this at the start of each new term.
+        </p>
+
+        {termMessage && (
+          <p className="text-sm text-brand-dark bg-brand/5 rounded-lg px-3 py-2">{termMessage}</p>
+        )}
+
+        <form onSubmit={handleSaveTerm} className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-2">
+          <TextInput
+            label="Current Session"
+            placeholder="e.g. 2025/2026"
+            value={sessionInput}
+            onChange={(e) => setSessionInput(e.target.value)}
+            required
+          />
+          <SelectInput
+            label="Current Term"
+            value={termInput}
+            onChange={(e) => setTermInput(e.target.value)}
+            options={[
+              { label: "First Term", value: "First Term" },
+              { label: "Second Term", value: "Second Term" },
+              { label: "Third Term", value: "Third Term" },
+            ]}
+          />
+          <Button type="submit" disabled={savingTerm} className="mt-2">
+            {savingTerm ? "Saving..." : "Save Session & Term"}
+          </Button>
+        </form>
       </section>
     </div>
   );
