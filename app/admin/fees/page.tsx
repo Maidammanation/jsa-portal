@@ -12,7 +12,7 @@ import {
   recordPayment,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
-import { SCHOOL } from "@/settings/config";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 import type { ClassRoom, Student } from "@/lib/types";
 
 interface FeeRow {
@@ -30,6 +30,7 @@ interface PaymentRow {
 
 export default function FeesPage() {
   const { profile } = useAuth();
+  const { session, term } = useSchoolSettings();
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [feeStructure, setFeeStructure] = useState<FeeRow[]>([]);
@@ -38,6 +39,7 @@ export default function FeesPage() {
   const [savingClassId, setSavingClassId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Record-payment form
   const [payStudentId, setPayStudentId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -49,8 +51,8 @@ export default function FeesPage() {
     Promise.all([
       getClasses(),
       getStudents(),
-      getFeeStructure(SCHOOL.term, SCHOOL.session),
-      getAllPayments(SCHOOL.term, SCHOOL.session),
+      getFeeStructure(term, session),
+      getAllPayments(term, session),
     ]).then(([classList, studentList, fees, pays]) => {
       setClasses(classList as ClassRoom[]);
       setStudents(studentList as Student[]);
@@ -66,13 +68,15 @@ export default function FeesPage() {
     });
   };
 
-  useEffect(loadAll, []);
+  useEffect(() => {
+    loadAll();
+  }, [term, session]);
 
   const handleSaveFee = async (classId: string) => {
     const amount = Number(feeInputs[classId]) || 0;
     setSavingClassId(classId);
     try {
-      await setClassFee(classId, SCHOOL.term, SCHOOL.session, amount, profile?.name || "admin");
+      await setClassFee(classId, term, session, amount, profile?.name || "admin");
       loadAll();
     } finally {
       setSavingClassId(null);
@@ -88,9 +92,8 @@ export default function FeesPage() {
     try {
       await recordPayment(
         payStudentId,
-        student.classId,
-        SCHOOL.term,
-        SCHOOL.session,
+        student.classId,term,
+        session,
         Number(payAmount),
         payDate,
         profile?.name || "admin"
@@ -106,6 +109,7 @@ export default function FeesPage() {
     }
   };
 
+  // Build the per-student overview: fee due (from their class), total paid, balance.
   const overview = students.map((s) => {
     const fee = feeStructure.find((f) => f.classId === s.classId);
     const amountDue = fee?.amount || 0;
@@ -119,10 +123,11 @@ export default function FeesPage() {
   const formatNaira = (n: number) => `₦${n.toLocaleString()}`;
 
   return (
-    <div className="max-w-4xl space-y-8"><div>
+    <div className="max-w-4xl space-y-8">
+      <div>
         <h1 className="text-xl font-semibold text-gray-800">Fees</h1>
         <p className="text-sm text-gray-500">
-          {SCHOOL.session} &middot; {SCHOOL.term}
+          {session} &middot; {term}
         </p>
       </div>
 
@@ -130,6 +135,7 @@ export default function FeesPage() {
         <p className="text-sm text-gray-400">Loading...</p>
       ) : (
         <>
+          {/* Fee structure per class */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
               Set Fee Amount Per Class
@@ -164,6 +170,7 @@ export default function FeesPage() {
             </div>
           </section>
 
+          {/* Record a payment */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
               Record a Payment
@@ -179,8 +186,7 @@ export default function FeesPage() {
                 <SelectInput
                   label="Student"
                   value={payStudentId}
-                  onChange={(e) => setPayStudentId(e.target.value)}
-                  options={[
+                  onChange={(e) => setPayStudentId(e.target.value)}options={[
                     { label: "Select a student", value: "" },
                     ...students.map((s) => ({
                       label: `${s.firstName} ${s.lastName} (${s.className || s.classId})`,
@@ -208,6 +214,7 @@ export default function FeesPage() {
             </form>
           </section>
 
+          {/* Overview table */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
               Fee Overview
