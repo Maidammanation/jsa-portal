@@ -6,9 +6,11 @@ import { SelectInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
 import { getClasses, getStudentsByClass, getResultsForStudent, getSubjects } from "@/services/database";
 import { SCHOOL } from "@/settings/config";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 import type { ClassRoom, ResultEntry, Student, Subject } from "@/lib/types";
 
 export default function ReportCardsPage() {
+  const { session, term } = useSchoolSettings();
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classId, setClassId] = useState("");
@@ -36,10 +38,10 @@ export default function ReportCardsPage() {
       return;
     }
     setLoading(true);
-    getResultsForStudent(studentId, SCHOOL.term, SCHOOL.session)
+    getResultsForStudent(studentId, term, session)
       .then((d) => setResults(d as ResultEntry[]))
       .finally(() => setLoading(false));
-  }, [studentId]);
+  }, [studentId, term, session]);
 
   const subjectName = (id: string) => subjects.find((s) => s.id === id)?.name || id;
   const student = students.find((s) => s.id === studentId);
@@ -75,15 +77,14 @@ export default function ReportCardsPage() {
       {loading && <p className="text-sm text-gray-400 print:hidden">Loading results...</p>}
 
       {student && !loading && (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-8 print:shadow-none print:border-none">
-          <div className="flex items-center gap-4 border-b border-gray-100 pb-4 mb-4">
+        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-8 print:shadow-none print:border-none"><div className="flex items-center gap-4 border-b border-gray-100 pb-4 mb-4">
             <div className="w-14 h-14 relative shrink-0">
               <Image src={SCHOOL.logoPath} alt="School logo" fill className="object-contain" />
             </div>
             <div>
               <p className="font-bold text-brand-dark text-lg">{SCHOOL.name}</p>
               <p className="text-sm text-gray-500">
-                Report Card — {SCHOOL.session} &middot; {SCHOOL.term}
+                Report Card — {session} &middot; {term}
               </p>
             </div>
           </div>
