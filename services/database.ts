@@ -92,11 +92,12 @@ export async function getStudents() {
   return getAll("students");
 }
 
-export async function getStudentsByClass(classId: string) {
-  const q = query(collection(db, "students"), where("classId", "==", classId));
+export async function getStudentsByClass(classId: string) {const q = query(collection(db, "students"), where("classId", "==", classId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}export async function createStudent(data: Record<string, unknown>) {
+}
+
+export async function createStudent(data: Record<string, unknown>) {
   const id = await create("students", data);
   await logActivity("Student added", data.createdBy as string, `${data.firstName} ${data.lastName}`);
   return id;
@@ -185,8 +186,7 @@ export async function submitAttendance(
   const existing = await getAttendanceSession(classId, date);
   if (existing) {
     await update("attendance", existing.id, { records, takenBy });
-  } else {
-    await create("attendance", { classId, date, records, takenBy });
+  } else {await create("attendance", { classId, date, records, takenBy });
   }
   await logActivity("Attendance submitted", takenBy, `${records.length} student(s) — ${date}`);
 }
@@ -195,7 +195,8 @@ export async function submitAttendance(
 
 /** Fetches all result entries for a class/subject/term/session (used by the entry grid). */
 export async function getResultsFor(classId: string, subjectId: string, term: string, session: string) {
-  const q = query(collection(db, "results"),
+  const q = query(
+    collection(db, "results"),
     where("classId", "==", classId),
     where("subjectId", "==", subjectId),
     where("term", "==", term),
@@ -274,8 +275,7 @@ export async function setClassFee(
   } else {
     await create("feeStructure", { classId, term, session, amount });
   }
-  await logActivity("Fee amount updated", actor, `Class ${classId} — ₦${amount} for ${term} ${session}`);
-}
+  await logActivity("Fee amount updated", actor, `Class ${classId} — ₦${amount} for ${term} ${session}`);}
 
 /** Fetches every payment a student has made for a term/session. */
 export async function getPaymentsForStudent(studentId: string, term: string, session: string) {
@@ -294,7 +294,8 @@ export async function getPaymentsForStudent(studentId: string, term: string, ses
 }
 
 /** Fetches every payment recorded for a term/session, across all students. */
-export async function getAllPayments(term: string, session: string) {const q = query(
+export async function getAllPayments(term: string, session: string) {
+  const q = query(
     collection(db, "feePayments"),
     where("term", "==", term),
     where("session", "==", session)
@@ -343,4 +344,22 @@ export async function createAnnouncement(title: string, body: string, actor: str
 
 export async function deleteAnnouncement(id: string) {
   await remove("announcements", id);
+}
+
+// ---- School Settings (current term/session) --------------------------------
+
+/** Reads the current session/term. Falls back to null if not set yet (first run). */
+export async function getSchoolSettings() {
+  const snap = await getById("schoolSettings", "current");
+  return snap as { id: string; session: string; term: string } | null;
+}
+
+/** Updates the current session/term — used across attendance, results, and fees. */
+export async function updateSchoolSettings(session: string, term: string, actor: string) {
+  await updateDoc(doc(db, "schoolSettings", "current"), { session, term }).catch(async () => {
+    // Document doesn't exist yet — create it the first time this is used.
+    const { setDoc } = await import("firebase/firestore");
+    await setDoc(doc(db, "schoolSettings", "current"), { session, term });
+  });
+  await logActivity("School term/session updated", actor, `${session} — ${term}`);
 }
