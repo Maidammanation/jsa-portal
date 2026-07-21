@@ -7,13 +7,14 @@ import { Button } from "@/components/Buttons";
 import { getClasses, getSubjects, getStudentsByClass, getResultsFor, saveResult } from "@/services/database";
 import { computeTotal, computeGrade, computeRemark } from "@/lib/grading";
 import { useAuth } from "@/lib/useAuth";
-import { SCHOOL } from "@/settings/config";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 import type { ClassRoom, ResultEntry, Student, Subject } from "@/lib/types";
 
 type ScoreRow = { ca1: string; ca2: string; exam: string };
 
 export default function ResultsUploadPage() {
   const { profile } = useAuth();
+  const { session, term } = useSchoolSettings();
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classId, setClassId] = useState("");
@@ -39,7 +40,7 @@ export default function ResultsUploadPage() {
 
     Promise.all([
       getStudentsByClass(classId),
-      getResultsFor(classId, subjectId, SCHOOL.term, SCHOOL.session),
+      getResultsFor(classId, subjectId, term, session),
     ])
       .then(([studentList, existingResults]) => {
         const list = studentList as Student[];
@@ -58,7 +59,7 @@ export default function ResultsUploadPage() {
         setScores(initial);
       })
       .finally(() => setLoading(false));
-  }, [classId, subjectId]);
+  }, [classId, subjectId, term, session]);
 
   const setScore = (studentId: string, field: keyof ScoreRow, value: string) => {
     setScores((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
@@ -82,8 +83,8 @@ export default function ResultsUploadPage() {
               studentId: s.id,
               subjectId,
               classId,
-              term: SCHOOL.term,
-              session: SCHOOL.session,
+              term: term,
+              session: session,
               ca1,
               ca2,
               exam,
@@ -96,8 +97,7 @@ export default function ResultsUploadPage() {
         })
       );
       setMessage("Results saved successfully.");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not save results.");
+    } catch (err) {setMessage(err instanceof Error ? err.message : "Could not save results.");
     } finally {
       setSaving(false);
     }
@@ -112,7 +112,7 @@ export default function ResultsUploadPage() {
         </Link>
       </div>
       <p className="text-sm text-gray-500">
-        {SCHOOL.session} &middot; {SCHOOL.term}
+        {session} &middot; {term}
       </p>
 
       <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
