@@ -1,123 +1,65 @@
-"use client";
+import Link from "next/link";
+import Footer from "@/components/Footer";
+import { SCHOOL } from "@/settings/config";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { StatCard, ActionCard, InfoCard } from "@/components/Cards";
-import { getAdminStats, getRecentActivity, getAnnouncements } from "@/services/database";
-import { useSchoolSettings } from "@/lib/useSchoolSettings";
-
-interface AdminStats {
-  totalStudents: number;
-  totalTeachers: number;
-  totalParents: number;
-  totalClasses: number;
-  totalSubjects: number;
-}
-
-interface ActivityEntry {
-  id: string;
-  action: string;
-  actor: string;
-  details?: string;
-}
-
-export default function AdminDashboardPage() {
-  const router = useRouter();
-  const { session, term } = useSchoolSettings();
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [latestAnnouncement, setLatestAnnouncement] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Replace with real Firestore data once collections are populated.
-    getAdminStats().then(setStats).catch(() => setStats(null));
-    getRecentActivity(8)
-      .then((items) => setActivity(items as ActivityEntry[]))
-      .catch(() => setActivity([]));
-    getAnnouncements(1)
-      .then((items) => setLatestAnnouncement((items[0] as { title?: string } | undefined)?.title || null))
-      .catch(() => setLatestAnnouncement(null));
-  }, []);
-
-  const quickActions = [
-    { label: "Add Student", icon: "🧑‍🎓", href: "/admin/students/new" },
-    { label: "Add Teacher", icon: "🧑‍🏫", href: "/admin/teachers/new" },
-    { label: "Upload Results", icon: "📄", href: "/admin/results" },
-    { label: "Take Attendance", icon: "📝", href: "/admin/attendance" },
-    { label: "Generate Report Cards", icon: "📊", href: "/admin/results/report-cards" },
-    { label: "Promote Students", icon: "⬆️", href: "/admin/students/promote" },
-  ];
-
+export default function HomePage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          {session} &middot; {term}
-        </p>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
+        <span className="font-bold text-brand text-lg">{SCHOOL.name}</span>
+        <nav className="hidden sm:flex gap-6 text-sm font-medium text-gray-600">
+          <Link href="/website/about" className="hover:text-brand">About</Link>
+          <Link href="/website/admissions" className="hover:text-brand">Admissions</Link>
+          <Link href="/login" className="hover:text-brand">Portal Login</Link>
+        </nav>
+        <Link
+          href="/login"
+          className="bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-dark"
+        >
+          Login
+        </Link>
+      </header>
 
-      {/* Statistics */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          📊 Statistics
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard label="Total Students" value={stats?.totalStudents ?? "—"} icon="🧑‍🎓" accent="brand" />
-          <StatCard label="Total Teachers" value={stats?.totalTeachers ?? "—"} icon="🧑‍🏫" accent="accent" />
-          <StatCard label="Total Parents" value={stats?.totalParents ?? "—"} icon="👪" accent="brand" />
-          <StatCard label="Total Classes" value={stats?.totalClasses ?? "—"} icon="🏫" accent="accent" />
-          <StatCard label="Total Subjects" value={stats?.totalSubjects ?? "—"} icon="📚" accent="brand" />
-          <StatCard label="Attendance Today" value="—" icon="✅" accent="active" />
-          <StatCard label="Fees Collected" value="—" icon="💰" accent="active" />
-          <StatCard label="Outstanding Fees" value="—" icon="⚠️" accent="suspended" />
-        </div>
-      </section>
-
-      {/* Quick Information + Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-1">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            📅 Quick Information
-          </h2>
-          <InfoCard title="Session Overview">
-            <p>Current Session: {session}</p>
-            <p>Current Term: {term}</p>
-            <p>New Admissions: —</p>
-            <p>Latest Announcement: {latestAnnouncement || "—"}</p>
-          </InfoCard>
-        </section>
-
-        <section className="lg:col-span-2">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            ⚡ Quick Actions
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {quickActions.map((a) => (
-              <ActionCard key={a.label} label={a.label} icon={a.icon} onClick={() => router.push(a.href)} />
-            ))}
+      <main className="flex-1">
+        <section className="max-w-5xl mx-auto px-6 py-20 text-center">
+          <h1 className="text-3xl sm:text-5xl font-bold text-brand-dark mb-4">
+            Welcome to {SCHOOL.name}
+          </h1>
+          <p className="text-gray-600 max-w-2xl mx-auto mb-8">
+            Nurturing excellence, discipline, and character in every learner.
+            Explore our academic programs, admissions process, and school portal.
+          </p>
+          <div className="flex justify-center gap-4">
+            <Link
+              href="/website/admissions"
+              className="bg-accent text-brand-dark font-semibold px-6 py-3 rounded-lg hover:bg-accent-light"
+            >
+              Apply for Admission
+            </Link>
+            <Link
+              href="/login"
+              className="border border-brand text-brand font-semibold px-6 py-3 rounded-lg hover:bg-brand/5"
+            >
+              Portal Login
+            </Link>
           </div>
         </section>
-      </div>
 
-      {/* Activity Log */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          🕒 Recent Activity
-        </h2>
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm divide-y divide-gray-100">
-          {activity.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-gray-400">No recent activity yet.</p>
-          ) : (
-            activity.map((item) => (
-              <div key={item.id} className="px-4 py-3 text-sm flex justify-between">
-                <span className="text-gray-700">{item.action}</span>
-                <span className="text-gray-400">{item.actor}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+        <section className="max-w-5xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-3 gap-6 pb-20">
+          {[
+            { title: "Quality Education", body: "A balanced curriculum built for academic and moral excellence." },
+            { title: "Modern Facilities", body: "Well-equipped classrooms, labs, and library resources." },
+            { title: "Dedicated Staff", body: "Experienced teachers committed to every student's growth." },
+          ].map((f) => (
+            <div key={f.title} className="bg-white rounded-card shadow-sm border border-gray-100 p-6 text-left">
+              <p className="font-semibold text-brand mb-2">{f.title}</p>
+              <p className="text-sm text-gray-600">{f.body}</p>
+            </div>
+          ))}
+        </section>
+      </main>
+
+      <Footer />
     </div>
   );
 }
