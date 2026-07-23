@@ -47,8 +47,7 @@ export async function login(email: string, password: string): Promise<UserProfil
   return profile;
 }
 
-export async function logout(): Promise<void> {
-  await signOut(auth);
+export async function logout(): Promise<void> {await signOut(auth);
   await clearServerSession();
 }
 
@@ -84,4 +83,31 @@ export async function changePassword(user: User, newPassword: string): Promise<v
 /** Subscribe to auth state changes (use in a top-level provider/hook). */
 export function watchAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
+}
+
+/**
+ * Creates a login account (Firebase Auth + Firestore profile) for a teacher,
+ * student, or parent, via the server-side /api/admin/create-account route
+ * (which uses the Admin SDK so it doesn't sign the calling admin out).
+ * `linkCollection`/`linkId` point back to the staff/student record to tag
+ * with the new account's uid (e.g. "teachers", teacherDocId).
+ */
+export async function createLoginAccount(params: {
+  email: string;
+  password: string;
+  name: string;
+  role: "teacher" | "student" | "parent";
+  linkCollection?: string;
+  linkId?: string;
+}): Promise<string> {
+  const res = await fetch("/api/admin/create-account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Could not create account.");
+  }
+  return data.uid;
 }
