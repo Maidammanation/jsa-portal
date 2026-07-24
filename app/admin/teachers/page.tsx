@@ -13,6 +13,7 @@ interface Teacher {
   email: string;
   subject?: string;
   status: "active" | "suspended" | "disabled";
+  authUid?: string;
 }
 
 export default function TeachersListPage() {
@@ -48,12 +49,24 @@ export default function TeachersListPage() {
       render: (t) => <StatusBadge status={t.status} />,
     },
     {
+      header: "Login",
+      accessor: "authUid",
+      render: (t) => (t.authUid ? "✅ Active" : "—"),
+    },
+    {
       header: "Actions",
       accessor: "id",
       render: (t) => (
-        <button onClick={() => handleDelete(t.id)} className="text-status-disabled hover:underline">
-          Remove
-        </button>
+        <div className="flex gap-3">
+          {!t.authUid && (
+            <Link href={`/admin/teachers/${t.id}/create-login`} className="text-brand hover:underline">
+              Create Login
+            </Link>
+          )}
+          <button onClick={() => handleDelete(t.id)} className="text-status-disabled hover:underline">
+            Remove
+          </button>
+        </div>
       ),
     },
   ];
