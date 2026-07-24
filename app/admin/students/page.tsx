@@ -8,15 +8,17 @@ import { TextInput } from "@/components/Forms";
 import { getStudents, deleteStudent } from "@/services/database";
 import type { Student } from "@/lib/types";
 
+type StudentWithAuth = Student & { authUid?: string };
+
 export default function StudentsListPage() {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentWithAuth[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = () => {
     setLoading(true);
     getStudents()
-      .then((data) => setStudents(data as Student[]))
+      .then((data) => setStudents(data as StudentWithAuth[]))
       .finally(() => setLoading(false));
   };
 
@@ -36,7 +38,7 @@ export default function StudentsListPage() {
     load();
   };
 
-  const columns: Column<Student>[] = [
+  const columns: Column<StudentWithAuth>[] = [
     { header: "Admission No.", accessor: "admissionNo" },
     {
       header: "Name",
@@ -50,6 +52,10 @@ export default function StudentsListPage() {
       accessor: "status",
       render: (s) => <StatusBadge status={s.status} />,
     },
+    {header: "Login",
+      accessor: "authUid",
+      render: (s) => (s.authUid ? "✅ Active" : "—"),
+    },
     {
       header: "Actions",
       accessor: "id",
@@ -58,6 +64,11 @@ export default function StudentsListPage() {
           <Link href={`/admin/students/${s.id}/edit`} className="text-brand hover:underline">
             Edit
           </Link>
+          {!s.authUid && (
+            <Link href={`/admin/students/${s.id}/create-login`} className="text-brand hover:underline">
+              Create Login
+            </Link>
+          )}
           <button onClick={() => handleDelete(s.id)} className="text-status-disabled hover:underline">
             Remove
           </button>
