@@ -363,3 +363,22 @@ export async function updateSchoolSettings(session: string, term: string, actor:
   });
   await logActivity("School term/session updated", actor, `${session} — ${term}`);
 }
+// ---- Self-lookup (teacher/student finding their own record from their login) --
+
+/** Finds the teacher record linked to a given Firebase Auth uid. */
+export async function getTeacherByAuthUid(uid: string) {
+  const q = query(collection(db, "teachers"), where("authUid", "==", uid));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+/** Finds the student record linked to a given Firebase Auth uid. */
+export async function getStudentByAuthUid(uid: string) {
+  const q = query(collection(db, "students"), where("authUid", "==", uid));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
