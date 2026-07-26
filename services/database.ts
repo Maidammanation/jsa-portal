@@ -381,7 +381,8 @@ export async function getStudentByAuthUid(uid: string) {
   if (snap.empty) return null;
   const d = snap.docs[0];
   return { id: d.id, ...d.data() };
-}/** Fetches every attendance record for one student, across all dates for a class. */
+}
+/** Fetches every attendance record for one student, across all dates for a class. */
 export async function getAttendanceForStudent(classId: string, studentId: string) {
   const q = query(collection(db, "attendance"), where("classId", "==", classId));
   const snap = await getDocs(q);
