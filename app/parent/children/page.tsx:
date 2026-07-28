@@ -1,0 +1,64 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getParentByAuthUid, getChildrenForParent } from "@/services/database";
+import { useAuth } from "@/lib/useAuth";
+
+interface ParentRecord {
+  id: string;
+}
+
+interface ChildRecord {
+  id: string;
+  firstName: string;
+  lastName: string;
+  admissionNo: string;
+  className?: string;
+  classId: string;
+  gender: string;
+}
+
+export default function ParentChildrenPage() {
+  const { profile } = useAuth();
+  const [children, setChildren] = useState<ChildRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    getParentByAuthUid(profile.uid).then(async (data) => {
+      const p = data as ParentRecord | null;
+      if (!p) {
+        setLoading(false);
+        return;
+      }
+      const kids = await getChildrenForParent(p.id);
+      setChildren(kids as ChildRecord[]);
+      setLoading(false);
+    });
+  }, [profile?.uid]);
+
+  if (loading) return <p className="text-sm text-gray-400">Loading...</p>;
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <h1 className="text-xl font-semibold text-gray-800">My Children</h1>
+
+      {children.length === 0 ? (
+        <p className="text-sm text-status-disabled">
+          No children linked to your account yet. Contact your administrator.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {children.map((c) => (
+            <div key={c.id} className="bg-white rounded-card border border-gray-100 shadow-sm p-4 text-sm space-y-1">
+              <p className="font-semibold text-gray-800">{c.firstName} {c.lastName}</p>
+              <p><span className="text-gray-500">Admission No:</span> {c.admissionNo}</p>
+              <p><span className="text-gray-500">Class:</span> {c.className || c.classId}</p>
+              <p><span className="text-gray-500">Gender:</span> {c.gender}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
