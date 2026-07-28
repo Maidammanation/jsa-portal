@@ -71,7 +71,7 @@ export async function clearServerSession(): Promise<void> {
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return null;
-  return snap.data() as UserProfile;
+  return { ...(snap.data() as UserProfile), uid: snap.id };
 }
 
 /** Forces a password change on first login, then clears the mustChangePassword flag. */
