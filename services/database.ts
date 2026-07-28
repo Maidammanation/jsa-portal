@@ -395,3 +395,11 @@ export async function getAttendanceForStudent(classId: string, studentId: string
     .filter((r): r is { date: string; status: string } => r !== null)
     .sort((a, b) => b.date.localeCompare(a.date));
 }
+/** Finds the parent record linked to a given Firebase Auth uid. */
+export async function getParentByAuthUid(uid: string) {
+  const q = query(collection(db, "parents"), where("authUid", "==", uid));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
