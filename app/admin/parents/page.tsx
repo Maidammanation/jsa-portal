@@ -13,6 +13,7 @@ interface Parent {
   email: string;
   phone?: string;
   status: "active" | "suspended" | "disabled";
+  authUid?: string;
 }
 
 export default function ParentsListPage() {
@@ -48,12 +49,24 @@ export default function ParentsListPage() {
       render: (p) => <StatusBadge status={p.status} />,
     },
     {
+      header: "Login",
+      accessor: "authUid",
+      render: (p) => (p.authUid ? "✅ Active" : "—"),
+    },
+    {
       header: "Actions",
       accessor: "id",
       render: (p) => (
-        <button onClick={() => handleDelete(p.id)} className="text-status-disabled hover:underline">
-          Remove
-        </button>
+        <div className="flex gap-3">
+          {!p.authUid && (
+            <Link href={`/admin/parents/${p.id}/create-login`} className="text-brand hover:underline">
+              Create Login
+            </Link>
+          )}
+          <button onClick={() => handleDelete(p.id)} className="text-status-disabled hover:underline">
+            Remove
+          </button>
+        </div>
       ),
     },
   ];
