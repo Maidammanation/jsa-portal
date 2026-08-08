@@ -5,7 +5,9 @@ const SESSION_COOKIE_NAME = "jsa_session";
 
 /**
  * Creates a Firebase Auth account + matching Firestore `users` profile for a
- * teacher or student, and links it back to their staff/student record.
+ * teacher, student, parent, or super-admin (director). For staff/student
+ * roles it also links back to their staff/student record. For super-admin,
+ * no linked record is needed — it's a direct portal account.
  * Restricted to signed-in admins (checked via session cookie + Firestore role lookup).
  * Uses the Admin SDK, so — unlike client-side signup — this does NOT sign the
  * calling admin out or switch their session to the new account.
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (!email || !password || !name || !role) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
-    if (!["teacher", "student", "parent"].includes(role)) {
+    if (!["teacher", "student", "parent", "super-admin"].includes(role)) {
       return NextResponse.json({ error: "Invalid role for this action." }, { status: 400 });
     }
     if (password.length < 8) {
@@ -50,7 +52,8 @@ export async function POST(request: NextRequest) {
     });
 
     // 5. Link back to the student/teacher/parent record so the portal knows
-    // which staff/student record this login belongs to.
+    // which staff/student record this login belongs to. Not applicable to
+    // super-admin, which has no separate staff/student record.
     if (linkCollection && linkId) {
       await adminDb()
         .doc(`${linkCollection}/${linkId}`)
