@@ -40,18 +40,16 @@ export async function login(email: string, password: string): Promise<UserProfil
     throw new Error("This account has been disabled.");
   }
 
-  // Establish the httpOnly server session cookie that middleware.ts checks
-  // before allowing access to /admin, /teacher, /student, /parent, /super-admin.
   await establishServerSession(credential.user);
 
   return profile;
 }
 
-export async function logout(): Promise<void> {await signOut(auth);
+export async function logout(): Promise<void> {
+  await signOut(auth);
   await clearServerSession();
 }
 
-/** Exchanges the current Firebase ID token for a server session cookie (see /api/auth/session). */
 export async function establishServerSession(user: User): Promise<void> {
   const idToken = await user.getIdToken();
   const res = await fetch("/api/auth/session", {
@@ -74,29 +72,20 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   return { ...(snap.data() as UserProfile), uid: snap.id };
 }
 
-/** Forces a password change on first login, then clears the mustChangePassword flag. */
 export async function changePassword(user: User, newPassword: string): Promise<void> {
   await updatePassword(user, newPassword);
   await updateDoc(doc(db, "users", user.uid), { mustChangePassword: false });
 }
 
-/** Subscribe to auth state changes (use in a top-level provider/hook). */
 export function watchAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
 
-/**
- * Creates a login account (Firebase Auth + Firestore profile) for a teacher,
- * student, or parent, via the server-side /api/admin/create-account route
- * (which uses the Admin SDK so it doesn't sign the calling admin out).
- * `linkCollection`/`linkId` point back to the staff/student record to tag
- * with the new account's uid (e.g. "teachers", teacherDocId).
- */
 export async function createLoginAccount(params: {
   email: string;
   password: string;
   name: string;
-  role: "teacher" | "student" | "parent";
+  role: "teacher" | "student" | "parent" | "super-admin";
   linkCollection?: string;
   linkId?: string;
 }): Promise<string> {
