@@ -22,7 +22,7 @@ export type AccountStatus = "active" | "suspended" | "disabled";
 
 // Route each role lands on immediately after login.
 export const ROLE_HOME: Record<Role, string> = {
-  "super-admin": "/super-admin",
+  "super-admin": "/admin",
   admin: "/admin",
   teacher: "/teacher",
   student: "/student",
@@ -32,10 +32,18 @@ export const ROLE_HOME: Record<Role, string> = {
 // Sidebar menu items per role. Extend freely as features are built out.
 export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
   "super-admin": [
-    { label: "Dashboard", href: "/super-admin" },
-    { label: "Manage Admins", href: "/super-admin/admins" },
-    { label: "Schools/Branches", href: "/super-admin/branches" },
-    { label: "System Settings", href: "/super-admin/settings" },
+    { label: "Dashboard", href: "/admin" },
+    { label: "Students", href: "/admin/students" },
+    { label: "Teachers", href: "/admin/teachers" },
+    { label: "Parents", href: "/admin/parents" },
+    { label: "Classes & Subjects", href: "/admin/classes" },
+    { label: "Attendance", href: "/admin/attendance" },
+    { label: "Results", href: "/admin/results" },
+    { label: "Fees", href: "/admin/fees" },
+    { label: "Announcements", href: "/admin/announcements" },
+    { label: "Team", href: "/admin/team" },
+    { label: "Activity Log", href: "/admin/activity" },
+    { label: "Settings", href: "/admin/settings" },
   ],
   admin: [
     { label: "Dashboard", href: "/admin" },
@@ -47,6 +55,7 @@ export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
     { label: "Results", href: "/admin/results" },
     { label: "Fees", href: "/admin/fees" },
     { label: "Announcements", href: "/admin/announcements" },
+    { label: "Team", href: "/admin/team" },
     { label: "Activity Log", href: "/admin/activity" },
     { label: "Settings", href: "/admin/settings" },
   ],
