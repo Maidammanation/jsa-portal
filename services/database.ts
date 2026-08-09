@@ -125,35 +125,32 @@ export async function promoteStudents(fromClassId: string, toClassId: string, ac
 
 // ---- Classes & Subjects -------------------------------------------------
 
-// Canonical Nigerian curriculum order, used to sort classes correctly since
-// Firestore doesn't preserve insertion order. Any class name not in this list
-// (e.g. a custom class an admin adds later) sorts alphabetically after these.
-const CLASS_ORDER = [
-  "Nursery 1",
-  "Nursery 2",
-  "Primary 1",
-  "Primary 2",
-  "Primary 3",
-  "Primary 4",
-  "Primary 5",
-  "Primary 6",
-  "JSS 1",
-  "JSS 2",
-  "JSS 3",
-  "SS 1",
-  "SS 2",
-  "SS 3",
-];
+// Sorts classes by education level (Nursery < Primary < JSS < SS) and then by
+// the number in the name, so "Nursery 3", "Primary 7", etc. all sort correctly
+// even if they weren't in the original seed list.
+const LEVEL_RANK: Record<string, number> = {
+  nursery: 0,
+  primary: 1,
+  jss: 2,
+  ss: 3,
+};
+
+function parseClassName(name: string): { rank: number; num: number } {
+  const match = name.trim().match(/^(nursery|primary|jss|ss)\s*(\d+)?/i);
+  if (!match) return { rank: 99, num: 0 };
+  const level = match[1].toLowerCase();
+  const num = match[2] ? parseInt(match[2], 10) : 0;
+  return { rank: LEVEL_RANK[level] ?? 99, num };
+}
 
 export async function getClasses() {
   const classes = (await getAll("classes")) as { id: string; name?: string }[];
   return classes.sort((a, b) => {
-    const aIndex = CLASS_ORDER.indexOf(a.name || "");
-    const bIndex = CLASS_ORDER.indexOf(b.name || "");
-    if (aIndex === -1 && bIndex === -1) return (a.name || "").localeCompare(b.name || "");
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
+    const pa = parseClassName(a.name || "");
+    const pb = parseClassName(b.name || "");
+    if (pa.rank !== pb.rank) return pa.rank - pb.rank;
+    if (pa.num !== pb.num) return pa.num - pb.num;
+    return (a.name || "").localeCompare(b.name || "");
   });
 }
 
