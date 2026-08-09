@@ -7,7 +7,7 @@ export const SCHOOL = {
   shortName: "JSA",
   session: process.env.NEXT_PUBLIC_CURRENT_SESSION || "2025/2026",
   term: process.env.NEXT_PUBLIC_CURRENT_TERM || "First Term",
-  logoPath: "/assets/logo/school-logo.svg",
+  logoPath: "/assets/school-logo.png",
   stampPath: "/assets/logo/school-stamp.png",
 };
 
