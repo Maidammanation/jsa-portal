@@ -92,7 +92,7 @@ export default function ReportCardsPage() {
           <div className="grid grid-cols-2 gap-2 text-sm mb-6">
             <p><span className="text-gray-500">Name:</span> {student.firstName} {student.lastName}</p>
             <p><span className="text-gray-500">Admission No:</span> {student.admissionNo}</p>
-            <p><span className="text-gray-500">Class:</span> {student.className || student.classId}</p>
+            <p><span className="text-gray-500">Class:</span> {classes.find((c) => c.id === student.classId)?.name || student.classId}</p>
             <p><span className="text-gray-500">Gender:</span> {student.gender}</p>
           </div>
 
