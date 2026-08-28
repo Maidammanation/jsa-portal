@@ -64,7 +64,6 @@ export default function NewStudentPage() {
       });
 
       router.push("/admin/students");
-      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not save student."
@@ -76,7 +75,9 @@ export default function NewStudentPage() {
 
   return (
     <div className="max-w-xl space-y-4">
-      <h1 className="text-xl font-semibold text-gray-800">Add Student</h1>
+      <h1 className="text-xl font-semibold text-gray-800">
+        Add Student
+      </h1>
 
       {error && (
         <p className="text-sm text-status-disabled bg-status-disabled/10 rounded-lg px-3 py-2">
