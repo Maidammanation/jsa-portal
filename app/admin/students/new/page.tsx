@@ -114,14 +114,21 @@ export default function NewStudentPage() {
         </div>
 
         <div className="flex gap-3 mt-2">
-          <Button type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save Student"}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => router.push("/admin/students");
+  <Button type="submit" disabled={saving}>
+    {saving ? "Saving..." : "Save Student"}
+  </Button>
+
+  <Button
+    type="button"
+    variant="ghost"
+    onClick={() => {
+      router.push("/admin/students");
       router.refresh();
-            Cancel
-          </Button>
-        </div>
+    }}
+  >
+    Cancel
+  </Button>
+</div>
       </form>
     </div>
   );
