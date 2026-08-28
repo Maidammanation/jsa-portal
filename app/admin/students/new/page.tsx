@@ -117,7 +117,8 @@ export default function NewStudentPage() {
           <Button type="submit" disabled={saving}>
             {saving ? "Saving..." : "Save Student"}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => router.push("/admin/students")}>
+          <Button type="button" variant="ghost" onClick={() => router.push("/admin/students");
+      router.refresh();
             Cancel
           </Button>
         </div>
