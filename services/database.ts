@@ -400,3 +400,23 @@ export async function getParentByAuthUid(uid: string) {
   const d = snap.docs[0];
   return { id: d.id, ...d.data() };
 }
+// ---- Admission Numbers -------------------------------------------------
+
+/** Converts a class name like "Nursery 1" or "JSS 2" into a short code: N1, P1, JSS2, SS1. */
+export function getClassCode(className: string): string {
+  const match = className.trim().match(/^(nursery|primary|jss|ss)\s*(\d+)?/i);
+  if (!match) return "GEN";
+  const level = match[1].toLowerCase();
+  const num = match[2] || "";
+  const prefix = level === "nursery" ? "N" : level === "primary" ? "P" : level.toUpperCase();
+  return `${prefix}${num}`;
+}
+
+/** Generates the next admission number for a class, e.g. "JSA/N1/0001". */
+export async function generateAdmissionNumber(classId: string, className: string): Promise<string> {
+  const students = await getStudentsByClass(classId);
+  const seq = students.length + 1;
+  const code = getClassCode(className);
+  const padded = String(seq).padStart(4, "0");
+  return `JSA/${code}/${padded}`;
+}
