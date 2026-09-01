@@ -6,7 +6,6 @@ import { TextInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
 import { getById } from "@/services/database";
 import { createLoginAccount } from "@/services/authentication";
-import { generateTempPassword } from "@/lib/generatePassword";
 
 interface StudentRecord {
   id: string;
@@ -16,20 +15,28 @@ interface StudentRecord {
   authUid?: string;
 }
 
+// Builds a login email from the admission number, e.g. "JSA/N1/0001" -> "jsa.n1.0001@jsa.edu.ng"
+function emailFromAdmissionNo(admissionNo: string): string {
+  const sanitized = admissionNo.toLowerCase().replace(/\//g, ".");
+  return `${sanitized}@jsa.edu.ng`;
+}
+
 export default function CreateStudentLoginPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const [student, setStudent] = useState<StudentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(generateTempPassword());
+  const [password, setPassword] = useState("kaduna");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     getById("students", params.id).then((data) => {
-      setStudent(data as StudentRecord | null);
+      const s = data as StudentRecord | null;
+      setStudent(s);
+      if (s?.admissionNo) setEmail(emailFromAdmissionNo(s.admissionNo));
       setLoading(false);
     });
   }, [params.id]);
@@ -63,13 +70,14 @@ export default function CreateStudentLoginPage() {
     return (
       <div className="max-w-md space-y-4">
         <h1 className="text-xl font-semibold text-gray-800">Create Login</h1>
-        <p className="text-sm text-gray-600 bg-brand/5 rounded-lg px-3 py-2">
+<p className="text-sm text-gray-600 bg-brand/5 rounded-lg px-3 py-2">
           {student.firstName} {student.lastName} already has a login account.
         </p>
         <Button variant="ghost" onClick={() => router.push("/admin/students")}>
           Back to Students
         </Button>
-      </div>);
+      </div>
+    );
   }
 
   if (success) {
@@ -106,9 +114,8 @@ export default function CreateStudentLoginPage() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-2">
         <TextInput
-          label="Email"
+          label="Email (auto-generated from admission number)"
           type="email"
-          placeholder="Student's or parent's email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -119,13 +126,6 @@ export default function CreateStudentLoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button
-          type="button"
-          onClick={() => setPassword(generateTempPassword())}
-          className="text-xs text-brand hover:underline"
-        >
-          Generate new password
-        </button>
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={saving}>
             {saving ? "Creating..." : "Create Login"}
