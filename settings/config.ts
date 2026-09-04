@@ -32,6 +32,7 @@ export const ROLE_HOME: Record<Role, string> = {
 // Sidebar menu items per role. Extend freely as features are built out.
 export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
   "super-admin": [
+    {admin: [
     { label: "Dashboard", href: "/admin" },
     { label: "Students", href: "/admin/students" },
     { label: "Teachers", href: "/admin/teachers" },
@@ -60,7 +61,7 @@ export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
     { label: "Settings", href: "/admin/settings" },
   ],
   teacher: [
-    { label: "Dashboard", href: "/teacher" },
+    { label: "Dashboard", href: "/teacher" } 
     { label: "My Classes", href: "/teacher/classes" },
     { label: "Attendance", href: "/teacher/attendance" },
     { label: "Upload Results", href: "/teacher/results" },
