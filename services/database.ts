@@ -15,8 +15,8 @@ import {
   orderBy,
   limit as fsLimit,
   serverTimestamp,
+  writeBatch,
 } from "firebase/firestore";
-import { db } from "./firebase";
 
 // ---- Generic helpers -------------------------------------------------
 
