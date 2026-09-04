@@ -7,7 +7,7 @@ export const SCHOOL = {
   shortName: "JSA",
   session: process.env.NEXT_PUBLIC_CURRENT_SESSION || "2025/2026",
   term: process.env.NEXT_PUBLIC_CURRENT_TERM || "First Term",
-  logoPath: "/assets/school-logo.png",
+  logoPath: "/assets/logo/school-logo.svg",
   stampPath: "/assets/logo/school-stamp.png",
 };
 
@@ -32,7 +32,6 @@ export const ROLE_HOME: Record<Role, string> = {
 // Sidebar menu items per role. Extend freely as features are built out.
 export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
   "super-admin": [
-    {admin: [
     { label: "Dashboard", href: "/admin" },
     { label: "Students", href: "/admin/students" },
     { label: "Teachers", href: "/admin/teachers" },
@@ -61,7 +60,7 @@ export const ROLE_MENUS: Record<Role, { label: string; href: string }[]> = {
     { label: "Settings", href: "/admin/settings" },
   ],
   teacher: [
-    { label: "Dashboard", href: "/teacher" } 
+    { label: "Dashboard", href: "/teacher" },
     { label: "My Classes", href: "/teacher/classes" },
     { label: "Attendance", href: "/teacher/attendance" },
     { label: "Upload Results", href: "/teacher/results" },
