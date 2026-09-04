@@ -81,10 +81,14 @@ export default function StudentsListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-gray-800">Students</h1>
-        <Link href="/admin/students/new">
-          <Button>+ Add Student</Button>
-        </Link>
-      </div>
+        <div className="flex gap-2">
+          <Link href="/admin/students/new">
+            <Button>+ Add Student</Button>
+          </Link>
+          <Link href="/admin/students/bulk-add">
+            <Button variant="secondary">+ Bulk Add</Button>
+          </Link>
+        </div>
 
       <div className="max-w-sm">
         <TextInput
