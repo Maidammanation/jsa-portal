@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StatCard, ActionCard, InfoCard } from "@/components/Cards";
 import { getAdminStats, getRecentActivity, getAnnouncements } from "@/services/database";
-import { SCHOOL } from "@/settings/config";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
 interface AdminStats {
   totalStudents: number;
@@ -23,6 +23,7 @@ interface ActivityEntry {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const { session, term } = useSchoolSettings();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [latestAnnouncement, setLatestAnnouncement] = useState<string | null>(null);
@@ -51,13 +52,13 @@ export default function AdminDashboardPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-800">Admin Dashboard</h1>
         <p className="text-sm text-gray-500">
-          {SCHOOL.session} &middot; {SCHOOL.term}
+          {session} &middot; {term}
         </p>
       </div>
 
       <section>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          📊 Statistics
+📊 Statistics
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatCard label="Total Students" value={stats?.totalStudents ?? "—"} icon="🧑‍🎓" accent="brand" />
@@ -77,8 +78,8 @@ export default function AdminDashboardPage() {
             📅 Quick Information
           </h2>
           <InfoCard title="Session Overview">
-            <p>Current Session: {SCHOOL.session}</p>
-            <p>Current Term: {SCHOOL.term}</p>
+            <p>Current Session: {session}</p>
+            <p>Current Term: {term}</p>
             <p>New Admissions: —</p>
             <p>Latest Announcement: {latestAnnouncement || "—"}</p>
           </InfoCard>
