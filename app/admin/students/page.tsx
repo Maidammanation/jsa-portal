@@ -17,6 +17,7 @@ export default function StudentsListPage() {
 
   const load = () => {
     setLoading(true);
+
     getStudents()
       .then((data) => setStudents(data as StudentWithAuth[]))
       .finally(() => setLoading(false));
@@ -26,33 +27,49 @@ export default function StudentsListPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+
     if (!term) return students;
+
     return students.filter((s) =>
-      `${s.firstName} ${s.lastName} ${s.admissionNo}`.toLowerCase().includes(term)
+      `${s.firstName} ${s.lastName} ${s.admissionNo}`
+        .toLowerCase()
+        .includes(term)
     );
   }, [search, students]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this student record? This cannot be undone.")) return;
+
     await deleteStudent(id);
     load();
   };
 
   const columns: Column<StudentWithAuth>[] = [
-    { header: "Admission No.", accessor: "admissionNo" },
+    {
+      header: "Admission No.",
+      accessor: "admissionNo",
+    },
     {
       header: "Name",
       accessor: "firstName",
       render: (s) => `${s.firstName} ${s.lastName}`,
     },
-    { header: "Class", accessor: "className", render: (s) => s.className || s.classId },
-    { header: "Gender", accessor: "gender" },
+    {
+      header: "Class",
+      accessor: "className",
+      render: (s) => s.className || s.classId,
+    },
+    {
+      header: "Gender",
+      accessor: "gender",
+    },
     {
       header: "Status",
       accessor: "status",
       render: (s) => <StatusBadge status={s.status} />,
     },
-    {header: "Login",
+    {
+      header: "Login",
       accessor: "authUid",
       render: (s) => (s.authUid ? "✅ Active" : "—"),
     },
@@ -61,15 +78,26 @@ export default function StudentsListPage() {
       accessor: "id",
       render: (s) => (
         <div className="flex gap-3">
-          <Link href={`/admin/students/${s.id}/edit`} className="text-brand hover:underline">
+          <Link
+            href={`/admin/students/${s.id}/edit`}
+            className="text-brand hover:underline"
+          >
             Edit
           </Link>
+
           {!s.authUid && (
-            <Link href={`/admin/students/${s.id}/create-login`} className="text-brand hover:underline">
+            <Link
+              href={`/admin/students/${s.id}/create-login`}
+              className="text-brand hover:underline"
+            >
               Create Login
             </Link>
           )}
-          <button onClick={() => handleDelete(s.id)} className="text-status-disabled hover:underline">
+
+          <button
+            onClick={() => handleDelete(s.id)}
+            className="text-status-disabled hover:underline"
+          >
             Remove
           </button>
         </div>
@@ -81,14 +109,17 @@ export default function StudentsListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-gray-800">Students</h1>
+
         <div className="flex gap-2">
           <Link href="/admin/students/new">
             <Button>+ Add Student</Button>
           </Link>
+
           <Link href="/admin/students/bulk-add">
             <Button variant="secondary">+ Bulk Add</Button>
           </Link>
         </div>
+      </div>
 
       <div className="max-w-sm">
         <TextInput
@@ -102,7 +133,11 @@ export default function StudentsListPage() {
       {loading ? (
         <p className="text-sm text-gray-400">Loading students...</p>
       ) : (
-        <DataTable columns={columns} data={filtered} emptyMessage="No students found." />
+        <DataTable
+          columns={columns}
+          data={filtered}
+          emptyMessage="No students found."
+        />
       )}
     </div>
   );
