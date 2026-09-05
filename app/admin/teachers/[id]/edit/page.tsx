@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { TextInput, SelectInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
 import {
+  getAll,
   getById,
   getClasses,
   getSubjects,
   update,
-  getAll,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
 import type { ClassRoom, Subject } from "@/lib/types";
@@ -27,19 +27,16 @@ interface Teacher {
   classIds?: string[];
 
   formClassId?: string | null;
-
   formMasterClassId?: string | null;
   formMasterClassName?: string;
 
   status?: "active" | "suspended" | "disabled";
-
   authUid?: string;
 }
 
 export default function EditTeacherPage() {
   const router = useRouter();
   const params = useParams();
-
   const { profile } = useAuth();
 
   const teacherId = Array.isArray(params?.id)
@@ -54,6 +51,9 @@ export default function EditTeacherPage() {
 
   const [subjects, setSubjects] =
     useState<Subject[]>([]);
+
+  const [teachers, setTeachers] =
+    useState<Teacher[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -82,7 +82,8 @@ export default function EditTeacherPage() {
     );
 
   /*
-   * Load teacher, classes and subjects.
+   * Load the teacher being edited,
+   * plus classes, subjects and all teachers.
    */
   useEffect(() => {
     if (!teacherId) {
@@ -102,10 +103,12 @@ export default function EditTeacherPage() {
           teacherData,
           classData,
           subjectData,
+          teacherList,
         ] = await Promise.all([
           getById("teachers", teacherId),
           getClasses(),
           getSubjects(),
+          getAll("teachers"),
         ]);
 
         if (!mounted) return;
@@ -118,7 +121,19 @@ export default function EditTeacherPage() {
         const teacherRecord =
           teacherData as Teacher;
 
+        const loadedClasses =
+          classData as ClassRoom[];
+
+        const loadedSubjects =
+          subjectData as Subject[];
+
+        const loadedTeachers =
+          teacherList as Teacher[];
+
         setTeacher(teacherRecord);
+        setClasses(loadedClasses);
+        setSubjects(loadedSubjects);
+        setTeachers(loadedTeachers);
 
         setForm({
           firstName:
@@ -130,16 +145,19 @@ export default function EditTeacherPage() {
         });
 
         /*
-         * Prefer the new subjectIds field.
+         * Load subject assignments.
          *
-         * Fall back to subjects[] or the old
-         * comma-separated subject field.
+         * New format:
+         * subjectIds
+         *
+         * Legacy fallback:
+         * subjects[]
+         *
+         * Older fallback:
+         * subject string
          */
         let subjectIds =
           teacherRecord.subjectIds || [];
-
-        const loadedSubjects =
-          subjectData as Subject[];
 
         if (
           subjectIds.length === 0 &&
@@ -177,8 +195,7 @@ export default function EditTeacherPage() {
         setSelectedSubjects(subjectIds);
 
         /*
-         * Prefer formClassId.
-         * Fall back to formMasterClassId.
+         * Existing Form Master assignment.
          */
         const existingFormClassId =
           teacherRecord.formClassId ||
@@ -191,14 +208,6 @@ export default function EditTeacherPage() {
 
         setStatus(
           teacherRecord.status || "active"
-        );
-
-        setClasses(
-          classData as ClassRoom[]
-        );
-
-        setSubjects(
-          loadedSubjects
         );
       } catch (err) {
         if (!mounted) return;
@@ -228,7 +237,7 @@ export default function EditTeacherPage() {
   }, [teacherId]);
 
   /*
-   * Update text fields.
+   * Handle teacher information changes.
    */
   const handleChange =
     (field: keyof typeof form) =>
@@ -257,7 +266,7 @@ export default function EditTeacherPage() {
   };
 
   /*
-   * Select every available subject.
+   * Select all subjects.
    */
   const selectAllSubjects = () => {
     setSelectedSubjects(
@@ -268,14 +277,50 @@ export default function EditTeacherPage() {
   };
 
   /*
-   * Remove all subject assignments.
+   * Clear all subjects.
    */
   const clearAllSubjects = () => {
     setSelectedSubjects([]);
   };
 
   /*
-   * Save teacher changes.
+   * Find classes already assigned to
+   * another teacher as Form Master.
+   *
+   * IMPORTANT:
+   * The current teacher is excluded so
+   * they can keep their existing class.
+   */
+  const assignedByOtherTeachers =
+    new Set(
+      teachers
+        .filter(
+          (item) =>
+            item.id !== teacherId
+        )
+        .flatMap((item) => [
+          item.formClassId || "",
+          item.formMasterClassId || "",
+        ])
+        .filter(Boolean)
+    );
+
+  /*
+   * Classes available to this teacher.
+   *
+   * Their current Form Master class is
+   * deliberately included.
+   */
+  const availableFormMasterClasses =
+    classes.filter(
+      (classRoom) =>
+        !assignedByOtherTeachers.has(
+          classRoom.id
+        )
+    );
+
+  /*
+   * Save changes.
    */
   const handleSubmit = async (
     e: React.FormEvent
@@ -318,13 +363,25 @@ export default function EditTeacherPage() {
       return;
     }
 
+    /*
+     * Final protection against assigning
+     * a class that belongs to another Form Master.
+     */
+    if (
+      formMasterClassId &&
+      assignedByOtherTeachers.has(
+        formMasterClassId
+      )
+    ) {
+      setError(
+        "This class already has another Form Master. Please select another class."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
-      /*
-       * Convert selected subject IDs
-       * into subject names.
-       */
       const selectedSubjectNames =
         subjects
           .filter((subject) =>
@@ -336,9 +393,6 @@ export default function EditTeacherPage() {
             (subject) => subject.name
           );
 
-      /*
-       * Find the selected Form Master class.
-       */
       const selectedClass =
         classes.find(
           (classRoom) =>
@@ -346,19 +400,6 @@ export default function EditTeacherPage() {
             formMasterClassId
         );
 
-      /*
-       * IMPORTANT:
-       *
-       * Keep the existing teacher schema:
-       *
-       * subjectIds
-       * subjects
-       * subject
-       * classIds
-       * formClassId
-       * formMasterClassId
-       * formMasterClassName
-       */
       await update(
         "teachers",
         teacherId,
@@ -374,14 +415,13 @@ export default function EditTeacherPage() {
             selectedSubjects,
 
           /*
-           * Subject names for display/
-           * backwards compatibility.
+           * Subject names.
            */
           subjects:
             selectedSubjectNames,
 
           /*
-           * Legacy single-string field.
+           * Legacy subject field.
            */
           subject:
             selectedSubjectNames.join(
@@ -389,8 +429,11 @@ export default function EditTeacherPage() {
             ),
 
           /*
-           * The Form Master class is
-           * the teacher's assigned class.
+           * Assigned class.
+           *
+           * The Form Master class is also
+           * the teacher's assigned class
+           * under the current portal design.
            */
           classIds:
             formMasterClassId
@@ -398,8 +441,7 @@ export default function EditTeacherPage() {
               : [],
 
           /*
-           * Main field used by the
-           * teacher dashboard.
+           * Main Form Master field.
            */
           formClassId:
             formMasterClassId || null,
@@ -445,7 +487,7 @@ export default function EditTeacherPage() {
   };
 
   /*
-   * Form Master options.
+   * Form Master dropdown.
    */
   const formMasterOptions = [
     {
@@ -454,7 +496,7 @@ export default function EditTeacherPage() {
       value: "",
     },
 
-    ...classes.map(
+    ...availableFormMasterClasses.map(
       (classRoom) => ({
         label: classRoom.name,
         value: classRoom.id,
@@ -463,7 +505,7 @@ export default function EditTeacherPage() {
   ];
 
   /*
-   * Loading state.
+   * Loading screen.
    */
   if (loading) {
     return (
@@ -513,7 +555,7 @@ export default function EditTeacherPage() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      {/* Page heading */}
+      {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
           Edit Teacher
@@ -578,7 +620,7 @@ export default function EditTeacherPage() {
           </div>
         </section>
 
-        {/* Subject Assignment */}
+        {/* Subjects */}
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
@@ -704,9 +746,10 @@ export default function EditTeacherPage() {
           </h2>
 
           <p className="text-xs text-gray-400 mb-3">
-            Select the class this
-            teacher is responsible for
-            as Form Master.
+            Each class can have only one
+            Form Master. Your current
+            assignment remains available
+            when editing.
           </p>
 
           {classes.length === 0 ? (
@@ -714,12 +757,6 @@ export default function EditTeacherPage() {
               <p className="text-sm text-gray-500">
                 No classes have been
                 created yet.
-              </p>
-
-              <p className="text-xs text-gray-400 mt-1">
-                Go to Classes &amp;
-                Subjects and create the
-                classes first.
               </p>
             </div>
           ) : (
@@ -745,11 +782,6 @@ export default function EditTeacherPage() {
           <h2 className="text-sm font-semibold text-gray-700 mb-1">
             Account Status
           </h2>
-
-          <p className="text-xs text-gray-400 mb-3">
-            Change the current status
-            of this teacher record.
-          </p>
 
           <SelectInput
             label="Status"
@@ -779,7 +811,7 @@ export default function EditTeacherPage() {
           />
         </section>
 
-        {/* Assignment Summary */}
+        {/* Summary */}
         <section className="rounded-lg bg-gray-50 border border-gray-100 p-4">
           <h2 className="text-sm font-semibold text-gray-700 mb-2">
             Assignment Summary
