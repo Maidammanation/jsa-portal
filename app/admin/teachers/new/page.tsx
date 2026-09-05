@@ -4,9 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TextInput, SelectInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
-import { create, getClasses, getSubjects } from "@/services/database";
+import {
+  create,
+  getAll,
+  getClasses,
+  getSubjects,
+} from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
 import type { ClassRoom, Subject } from "@/lib/types";
+
+interface TeacherRecord {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  formClassId?: string | null;
+  formMasterClassId?: string | null;
+}
 
 export default function NewTeacherPage() {
   const router = useRouter();
@@ -14,6 +27,7 @@ export default function NewTeacherPage() {
 
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -25,26 +39,39 @@ export default function NewTeacherPage() {
     email: "",
   });
 
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [formMasterClassId, setFormMasterClassId] = useState("");
+  const [selectedSubjects, setSelectedSubjects] =
+    useState<string[]>([]);
+
+  const [formMasterClassId, setFormMasterClassId] =
+    useState("");
 
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([getClasses(), getSubjects()])
-      .then(([classList, subjectList]) => {
+    Promise.all([
+      getClasses(),
+      getSubjects(),
+      getAll("teachers"),
+    ])
+      .then(([classList, subjectList, teacherList]) => {
         if (!mounted) return;
 
         setClasses(classList as ClassRoom[]);
         setSubjects(subjectList as Subject[]);
+        setTeachers(teacherList as TeacherRecord[]);
       })
       .catch((err) => {
         if (!mounted) return;
 
+        console.error(
+          "Could not load teacher options:",
+          err
+        );
+
         setError(
           err instanceof Error
             ? err.message
-            : "Could not load classes and subjects."
+            : "Could not load classes, subjects and teachers."
         );
       })
       .finally(() => {
@@ -61,29 +88,54 @@ export default function NewTeacherPage() {
   const handleChange =
     (field: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setForm((prev) => ({
-        ...prev,
+      setForm((previous) => ({
+        ...previous,
         [field]: e.target.value,
       }));
     };
 
   const toggleSubject = (subjectId: string) => {
-    setSelectedSubjects((prev) =>
-      prev.includes(subjectId)
-        ? prev.filter((id) => id !== subjectId)
-        : [...prev, subjectId]
+    setSelectedSubjects((previous) =>
+      previous.includes(subjectId)
+        ? previous.filter((id) => id !== subjectId)
+        : [...previous, subjectId]
     );
   };
 
   const selectAllSubjects = () => {
-    setSelectedSubjects(subjects.map((subject) => subject.id));
+    setSelectedSubjects(
+      subjects.map((subject) => subject.id)
+    );
   };
 
   const clearAllSubjects = () => {
     setSelectedSubjects([]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /*
+   * Find classes that are already assigned
+   * to another teacher as Form Master.
+   */
+  const assignedFormMasterClassIds = new Set(
+    teachers
+      .flatMap((teacher) => [
+        teacher.formClassId || "",
+        teacher.formMasterClassId || "",
+      ])
+      .filter(Boolean)
+  );
+
+  const availableFormMasterClasses =
+    classes.filter(
+      (classRoom) =>
+        !assignedFormMasterClassIds.has(
+          classRoom.id
+        )
+    );
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     setError("");
@@ -93,12 +145,33 @@ export default function NewTeacherPage() {
     const email = form.email.trim().toLowerCase();
 
     if (!firstName || !lastName || !email) {
-      setError("Please fill in the first name, last name and email.");
+      setError(
+        "Please fill in the first name, last name and email."
+      );
       return;
     }
 
     if (selectedSubjects.length === 0) {
-      setError("Please assign at least one subject to this teacher.");
+      setError(
+        "Please assign at least one subject to this teacher."
+      );
+      return;
+    }
+
+    /*
+     * Extra protection:
+     * Re-check that the selected Form Master
+     * class has not already been assigned.
+     */
+    if (
+      formMasterClassId &&
+      assignedFormMasterClassIds.has(
+        formMasterClassId
+      )
+    ) {
+      setError(
+        "This class already has a Form Master. Please select another class."
+      );
       return;
     }
 
@@ -106,57 +179,57 @@ export default function NewTeacherPage() {
 
     try {
       const selectedSubjectNames = subjects
-        .filter((subject) => selectedSubjects.includes(subject.id))
+        .filter((subject) =>
+          selectedSubjects.includes(subject.id)
+        )
         .map((subject) => subject.name);
 
       const selectedClass = classes.find(
-        (classRoom) => classRoom.id === formMasterClassId
+        (classRoom) =>
+          classRoom.id === formMasterClassId
       );
-
-      /*
-       * IMPORTANT:
-       *
-       * The existing teacher dashboard/results pages already use:
-       *
-       *   subjectIds
-       *   classIds
-       *   formClassId
-       *
-       * Therefore we save those exact fields here.
-       */
 
       await create("teachers", {
         firstName,
         lastName,
         email,
 
-        // Subjects this teacher is allowed to teach.
+        /*
+         * Multiple subjects.
+         */
         subjectIds: selectedSubjects,
 
-        // Subject names retained for convenient display/backwards compatibility.
+        /*
+         * Subject names retained for display
+         * and backwards compatibility.
+         */
         subjects: selectedSubjectNames,
 
-        // Old single subject field retained for compatibility.
+        /*
+         * Legacy subject field.
+         */
         subject: selectedSubjectNames.join(", "),
 
         /*
-         * The Form Master class is also the teacher's assigned class.
-         * Existing teacher pages read classIds.
+         * Assigned class.
          */
         classIds: formMasterClassId
           ? [formMasterClassId]
           : [],
 
         /*
-         * Existing teacher dashboard reads formClassId.
+         * Main Form Master field.
          */
         formClassId: formMasterClassId || null,
 
         /*
-         * Keep these fields too for easy administration/display.
+         * Compatibility fields.
          */
-        formMasterClassId: formMasterClassId || "",
-        formMasterClassName: selectedClass?.name || "",
+        formMasterClassId:
+          formMasterClassId || "",
+
+        formMasterClassName:
+          selectedClass?.name || "",
 
         status: "active",
 
@@ -168,6 +241,11 @@ export default function NewTeacherPage() {
 
       router.push("/admin/teachers");
     } catch (err) {
+      console.error(
+        "Could not save teacher:",
+        err
+      );
+
       setError(
         err instanceof Error
           ? err.message
@@ -183,10 +261,13 @@ export default function NewTeacherPage() {
       label: "Not a Form Master",
       value: "",
     },
-    ...classes.map((classRoom) => ({
-      label: classRoom.name,
-      value: classRoom.id,
-    })),
+
+    ...availableFormMasterClasses.map(
+      (classRoom) => ({
+        label: classRoom.name,
+        value: classRoom.id,
+      })
+    ),
   ];
 
   return (
@@ -197,14 +278,16 @@ export default function NewTeacherPage() {
         </h1>
 
         <p className="text-sm text-gray-500 mt-1">
-          Create a teacher, assign one or more subjects, and optionally assign
-          the teacher as Form Master of a class.
+          Create a teacher, assign multiple subjects,
+          and optionally assign the teacher as Form
+          Master of a class.
         </p>
       </div>
 
       <div className="text-sm text-gray-500 bg-brand/5 rounded-lg px-3 py-3">
-        This creates the teacher&apos;s staff record. To allow the teacher to
-        log in, you will also need to create their Firebase Auth account and
+        This creates the teacher&apos;s staff record.
+        To allow the teacher to log in, you will also
+        need to create their Firebase Auth account and
         matching <code>users</code> profile with{" "}
         <code>role: &quot;teacher&quot;</code>.
       </div>
@@ -261,29 +344,31 @@ export default function NewTeacherPage() {
               </h2>
 
               <p className="text-xs text-gray-400 mt-1">
-                Select all subjects this teacher is allowed to teach.
+                Select all subjects this teacher is
+                allowed to teach.
               </p>
             </div>
 
-            {!loadingOptions && subjects.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={selectAllSubjects}
-                  className="text-xs text-brand hover:underline"
-                >
-                  Select all
-                </button>
+            {!loadingOptions &&
+              subjects.length > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllSubjects}
+                    className="text-xs text-brand hover:underline"
+                  >
+                    Select all
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={clearAllSubjects}
-                  className="text-xs text-gray-500 hover:underline"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={clearAllSubjects}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
           </div>
 
           {loadingOptions ? (
@@ -297,14 +382,18 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Go to Classes &amp; Subjects and add subjects first.
+                Go to Classes &amp; Subjects and add
+                subjects first.
               </p>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {subjects.map((subject) => {
-                  const checked = selectedSubjects.includes(subject.id);
+                  const checked =
+                    selectedSubjects.includes(
+                      subject.id
+                    );
 
                   return (
                     <label
@@ -318,7 +407,9 @@ export default function NewTeacherPage() {
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleSubject(subject.id)}
+                        onChange={() =>
+                          toggleSubject(subject.id)
+                        }
                         className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
                       />
 
@@ -338,7 +429,10 @@ export default function NewTeacherPage() {
 
               <p className="text-xs text-gray-400 mt-2">
                 {selectedSubjects.length} subject
-                {selectedSubjects.length === 1 ? "" : "s"} selected.
+                {selectedSubjects.length === 1
+                  ? ""
+                  : "s"}{" "}
+                selected.
               </p>
             </>
           )}
@@ -351,7 +445,9 @@ export default function NewTeacherPage() {
           </h2>
 
           <p className="text-xs text-gray-400 mb-3">
-            Select the class this teacher is responsible for as Form Master.
+            Each class can have only one Form Master.
+            Classes already assigned to another Form
+            Master are hidden.
           </p>
 
           {loadingOptions ? (
@@ -365,14 +461,44 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Go to Classes &amp; Subjects and create the classes first.
+                Go to Classes &amp; Subjects and create
+                the classes first.
               </p>
+            </div>
+          ) : availableFormMasterClasses.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 p-4">
+              <p className="text-sm text-gray-500">
+                All classes already have Form Masters.
+              </p>
+
+              <p className="text-xs text-gray-400 mt-1">
+                You can still create the teacher without
+                assigning a Form Master.
+              </p>
+
+              <div className="mt-3">
+                <SelectInput
+                  label="Form Master Class"
+                  value=""
+                  onChange={() => {
+                    setFormMasterClassId("");
+                  }}
+                  options={[
+                    {
+                      label: "Not a Form Master",
+                      value: "",
+                    },
+                  ]}
+                />
+              </div>
             </div>
           ) : (
             <SelectInput
               label="Form Master Class"
               value={formMasterClassId}
-              onChange={(e) => setFormMasterClassId(e.target.value)}
+              onChange={(e) =>
+                setFormMasterClassId(e.target.value)
+              }
               options={formMasterOptions}
             />
           )}
@@ -386,11 +512,15 @@ export default function NewTeacherPage() {
 
           <div className="space-y-1 text-sm">
             <p className="text-gray-600">
-              <span className="font-medium">Subjects:</span>{" "}
+              <span className="font-medium">
+                Subjects:
+              </span>{" "}
               {selectedSubjects.length > 0
                 ? subjects
                     .filter((subject) =>
-                      selectedSubjects.includes(subject.id)
+                      selectedSubjects.includes(
+                        subject.id
+                      )
                     )
                     .map((subject) => subject.name)
                     .join(", ")
@@ -398,11 +528,14 @@ export default function NewTeacherPage() {
             </p>
 
             <p className="text-gray-600">
-              <span className="font-medium">Form Master:</span>{" "}
+              <span className="font-medium">
+                Form Master:
+              </span>{" "}
               {formMasterClassId
                 ? classes.find(
                     (classRoom) =>
-                      classRoom.id === formMasterClassId
+                      classRoom.id ===
+                      formMasterClassId
                   )?.name || "Selected class"
                 : "No"}
             </p>
@@ -416,17 +549,20 @@ export default function NewTeacherPage() {
             disabled={
               saving ||
               loadingOptions ||
-              subjects.length === 0 ||
-              classes.length === 0
+              subjects.length === 0
             }
           >
-            {saving ? "Saving..." : "Save Teacher"}
+            {saving
+              ? "Saving..."
+              : "Save Teacher"}
           </Button>
 
           <Button
             type="button"
             variant="ghost"
-            onClick={() => router.push("/admin/teachers")}
+            onClick={() =>
+              router.push("/admin/teachers")
+            }
             disabled={saving}
           >
             Cancel
