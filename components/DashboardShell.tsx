@@ -68,7 +68,7 @@ export default function DashboardShell({
             <p className="text-xs text-gray-400">
               Designed &amp; Developed by{" "}
               <span className="font-semibold text-gray-500">
-                Maidammanation Tech Company
+                Maidammanation Tech Company ⚙️
               </span>
             </p>
 
