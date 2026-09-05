@@ -53,12 +53,29 @@ export default function DashboardShell({
           open={sidebarOpen}
         />
 
-        <main className="flex-1 p-4 sm:p-6 bg-gray-50 min-w-0">
-          {loading || !hasAccess ? (
-            <p className="text-sm text-gray-400">Loading...</p>
-          ) : (
-            children
-          )}
+        <main className="flex-1 p-4 sm:p-6 bg-gray-50 min-w-0 flex flex-col">
+          {/* Main portal content */}
+          <div className="flex-1">
+            {loading || !hasAccess ? (
+              <p className="text-sm text-gray-400">Loading...</p>
+            ) : (
+              children
+            )}
+          </div>
+
+          {/* Portal Developer Branding */}
+          <footer className="pt-8 pb-2 text-center">
+            <p className="text-xs text-gray-400">
+              Designed &amp; Developed by{" "}
+              <span className="font-semibold text-gray-500">
+                Maidammanation Tech Company
+              </span>
+            </p>
+
+            <p className="text-[11px] text-gray-400 mt-1">
+              08032191668 / 08117106867
+            </p>
+          </footer>
         </main>
       </div>
     </div>
