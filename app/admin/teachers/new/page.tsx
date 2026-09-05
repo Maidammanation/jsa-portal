@@ -31,10 +31,7 @@ export default function NewTeacherPage() {
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([
-      getClasses(),
-      getSubjects(),
-    ])
+    Promise.all([getClasses(), getSubjects()])
       .then(([classList, subjectList]) => {
         if (!mounted) return;
 
@@ -116,34 +113,57 @@ export default function NewTeacherPage() {
         (classRoom) => classRoom.id === formMasterClassId
       );
 
+      /*
+       * IMPORTANT:
+       *
+       * The existing teacher dashboard/results pages already use:
+       *
+       *   subjectIds
+       *   classIds
+       *   formClassId
+       *
+       * Therefore we save those exact fields here.
+       */
+
       await create("teachers", {
         firstName,
         lastName,
         email,
 
-        // New multi-subject assignment.
-        // IDs are stored so the teacher can be matched
-        // against the subjects collection later.
+        // Subjects this teacher is allowed to teach.
         subjectIds: selectedSubjects,
 
-        // Subject names are also stored for convenient display
-        // in existing/admin screens.
+        // Subject names retained for convenient display/backwards compatibility.
         subjects: selectedSubjectNames,
 
-        // Keep the old single "subject" field for compatibility
-        // with any existing teacher screen that still expects it.
+        // Old single subject field retained for compatibility.
         subject: selectedSubjectNames.join(", "),
 
-        // Form Master assignment.
-        // Empty string means the teacher is not a Form Master.
-        formMasterClassId: formMasterClassId || "",
+        /*
+         * The Form Master class is also the teacher's assigned class.
+         * Existing teacher pages read classIds.
+         */
+        classIds: formMasterClassId
+          ? [formMasterClassId]
+          : [],
 
-        // Also store the class name for easy display.
+        /*
+         * Existing teacher dashboard reads formClassId.
+         */
+        formClassId: formMasterClassId || null,
+
+        /*
+         * Keep these fields too for easy administration/display.
+         */
+        formMasterClassId: formMasterClassId || "",
         formMasterClassName: selectedClass?.name || "",
 
         status: "active",
 
-        createdBy: profile?.name || profile?.email || "admin",
+        createdBy:
+          profile?.name ||
+          profile?.email ||
+          "admin",
       });
 
       router.push("/admin/teachers");
@@ -177,18 +197,16 @@ export default function NewTeacherPage() {
         </h1>
 
         <p className="text-sm text-gray-500 mt-1">
-          Create a teacher record, assign one or more subjects, and optionally
-          assign the teacher as Form Master of a class.
+          Create a teacher, assign one or more subjects, and optionally assign
+          the teacher as Form Master of a class.
         </p>
       </div>
 
       <div className="text-sm text-gray-500 bg-brand/5 rounded-lg px-3 py-3">
-        <p>
-          This creates the teacher&apos;s staff record. To let the teacher log
-          in, you&apos;ll also need to create their Firebase Auth account and a
-          matching <code>users</code> profile with{" "}
-          <code>role: &quot;teacher&quot;</code>.
-        </p>
+        This creates the teacher&apos;s staff record. To allow the teacher to
+        log in, you will also need to create their Firebase Auth account and
+        matching <code>users</code> profile with{" "}
+        <code>role: &quot;teacher&quot;</code>.
       </div>
 
       {error && (
@@ -201,7 +219,7 @@ export default function NewTeacherPage() {
         onSubmit={handleSubmit}
         className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-6"
       >
-        {/* Basic Information */}
+        {/* Teacher Information */}
         <section>
           <h2 className="text-sm font-semibold text-gray-700 mb-3">
             Teacher Information
@@ -279,8 +297,7 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Go to Classes &amp; Subjects and add the subjects before
-                creating a teacher.
+                Go to Classes &amp; Subjects and add subjects first.
               </p>
             </div>
           ) : (
@@ -327,14 +344,14 @@ export default function NewTeacherPage() {
           )}
         </section>
 
-        {/* Form Master Assignment */}
+        {/* Form Master */}
         <section>
           <h2 className="text-sm font-semibold text-gray-700 mb-1">
             Form Master Assignment
           </h2>
 
           <p className="text-xs text-gray-400 mb-3">
-            If this teacher is responsible for a class, select the class below.
+            Select the class this teacher is responsible for as Form Master.
           </p>
 
           {loadingOptions ? (
@@ -348,8 +365,7 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Go to Classes &amp; Subjects and create the school classes
-                first.
+                Go to Classes &amp; Subjects and create the classes first.
               </p>
             </div>
           ) : (
@@ -385,7 +401,8 @@ export default function NewTeacherPage() {
               <span className="font-medium">Form Master:</span>{" "}
               {formMasterClassId
                 ? classes.find(
-                    (classRoom) => classRoom.id === formMasterClassId
+                    (classRoom) =>
+                      classRoom.id === formMasterClassId
                   )?.name || "Selected class"
                 : "No"}
             </p>
