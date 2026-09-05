@@ -1,20 +1,37 @@
+import Image from "next/image";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import { SCHOOL } from "@/settings/config";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white">
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
-        <span className="font-bold text-brand text-lg">{SCHOOL.name}</span>
+        <div className="flex items-center gap-3">
+          <div className="relative w-11 h-11 shrink-0">
+            <Image
+              src={SCHOOL.logoPath}
+              alt={`${SCHOOL.name} logo`}
+              fill
+              priority
+              className="object-contain"
+            />
+          </div>
+
+          <span className="font-bold text-brand text-lg">
+            {SCHOOL.name}
+          </span>
+        </div>
 
         <nav className="hidden sm:flex gap-6 text-sm font-medium text-gray-600">
           <Link href="/website/about" className="hover:text-brand">
             About
           </Link>
+
           <Link href="/website/admissions" className="hover:text-brand">
             Admissions
           </Link>
+
           <Link href="/login" className="hover:text-brand">
             Portal Login
           </Link>
@@ -30,6 +47,18 @@ export default function HomePage() {
 
       <main className="flex-1">
         <section className="max-w-5xl mx-auto px-6 py-20 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-28 h-28 sm:w-32 sm:h-32">
+              <Image
+                src={SCHOOL.logoPath}
+                alt={`${SCHOOL.name} logo`}
+                fill
+                priority
+                className="object-contain"
+              />
+            </div>
+          </div>
+
           <h1 className="text-3xl sm:text-5xl font-bold text-brand-dark mb-4">
             Welcome to {SCHOOL.name}
           </h1>
@@ -75,14 +104,19 @@ export default function HomePage() {
               key={f.title}
               className="bg-white rounded-card shadow-sm border border-gray-100 p-6 text-left"
             >
-              <p className="font-semibold text-brand mb-2">{f.title}</p>
-              <p className="text-sm text-gray-600">{f.body}</p>
+              <p className="font-semibold text-brand mb-2">
+                {f.title}
+              </p>
+
+              <p className="text-sm text-gray-600">
+                {f.body}
+              </p>
             </div>
           ))}
         </section>
       </main>
 
-      {/* Portal Developer Credit */}
+      {/* Developer Credit */}
       <div className="text-center pb-5 px-4">
         <p className="text-xs text-gray-400">
           Designed &amp; Developed by{" "}
