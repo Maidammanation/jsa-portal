@@ -6,11 +6,12 @@ import { SCHOOL } from "@/settings/config";
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3">
           <div className="relative w-11 h-11 shrink-0">
             <Image
-              src={SCHOOL.logoPath}
+              src="/assets/school-logo.png"
               alt={`${SCHOOL.name} logo`}
               fill
               priority
@@ -18,12 +19,17 @@ export default function HomePage() {
             />
           </div>
 
-          <span className="font-bold text-brand text-lg">
-            {SCHOOL.name}
-          </span>
-        </div>
+          <div className="leading-tight">
+            <span className="font-bold text-brand text-lg block">
+              {SCHOOL.name}
+            </span>
+            <span className="text-xs text-gray-500">
+              {SCHOOL.shortName}
+            </span>
+          </div>
+        </Link>
 
-        <nav className="hidden sm:flex gap-6 text-sm font-medium text-gray-600">
+        <nav className="hidden sm:flex items-center gap-6 text-sm font-medium text-gray-600">
           <Link href="/website/about" className="hover:text-brand">
             About
           </Link>
@@ -45,12 +51,15 @@ export default function HomePage() {
         </Link>
       </header>
 
+      {/* Main Content */}
       <main className="flex-1">
-        <section className="max-w-5xl mx-auto px-6 py-20 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative w-28 h-28 sm:w-32 sm:h-32">
+        {/* Hero Section */}
+        <section className="max-w-5xl mx-auto px-6 py-16 sm:py-20 text-center">
+          {/* School Logo */}
+          <div className="flex justify-center mb-8">
+            <div className="relative w-32 h-32 sm:w-40 sm:h-40">
               <Image
-                src={SCHOOL.logoPath}
+                src="/assets/school-logo.png"
                 alt={`${SCHOOL.name} logo`}
                 fill
                 priority
@@ -65,10 +74,11 @@ export default function HomePage() {
 
           <p className="text-gray-600 max-w-2xl mx-auto mb-8">
             Nurturing excellence, discipline, and character in every learner.
-            Explore our academic programs, admissions process, and school portal.
+            Explore our academic programs, admissions process, and school
+            portal.
           </p>
 
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link
               href="/website/admissions"
               className="bg-accent text-brand-dark font-semibold px-6 py-3 rounded-lg hover:bg-accent-light"
@@ -85,7 +95,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="max-w-5xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-3 gap-6 pb-20">
+        {/* Features */}
+        <section className="max-w-5xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-3 gap-6 pb-16 sm:pb-20">
           {[
             {
               title: "Quality Education",
@@ -104,13 +115,8 @@ export default function HomePage() {
               key={f.title}
               className="bg-white rounded-card shadow-sm border border-gray-100 p-6 text-left"
             >
-              <p className="font-semibold text-brand mb-2">
-                {f.title}
-              </p>
-
-              <p className="text-sm text-gray-600">
-                {f.body}
-              </p>
+              <p className="font-semibold text-brand mb-2">{f.title}</p>
+              <p className="text-sm text-gray-600">{f.body}</p>
             </div>
           ))}
         </section>
@@ -130,6 +136,7 @@ export default function HomePage() {
         </p>
       </div>
 
+      {/* Existing Footer */}
       <Footer />
     </div>
   );
