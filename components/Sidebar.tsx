@@ -15,10 +15,10 @@ export default function Sidebar({ role, open }: SidebarProps) {
 
   return (
     <aside
-      className={`bg-brand-dark text-white w-64 shrink-0 flex flex-col fixed lg:static inset-y-0 left-0 z-20 transform transition-transform duration-200 ${
-        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      }`}
-    >
+  className={`bg-brand-dark text-white w-64 shrink-0 flex flex-col fixed lg:static top-[73px] bottom-0 left-0 z-20 transform transition-transform duration-200 ${
+    open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+  }`}
+>
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-3">
           {items.map((item) => {
