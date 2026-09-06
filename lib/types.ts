@@ -1,7 +1,13 @@
 // lib/types.ts
-// Shared domain types for the admin features (students, attendance, results).
+// Shared domain types for the admin features.
 
 import type { AccountStatus } from "@/settings/config";
+
+export type SchoolLevel =
+  | "nursery"
+  | "primary"
+  | "jss"
+  | "ss";
 
 export interface Student {
   id: string;
@@ -9,7 +15,7 @@ export interface Student {
   firstName: string;
   lastName: string;
   classId: string;
-  className?: string; // denormalized for display convenience
+  className?: string;
   gender: "male" | "female";
   dateOfBirth?: string;
   parentUid?: string;
@@ -20,8 +26,8 @@ export interface Student {
 
 export interface ClassRoom {
   id: string;
-  name: string; // e.g. "JSS 1A"
-  level: string; // e.g. "JSS 1"
+  name: string;
+  level: string;
   classTeacherUid?: string;
   classTeacherName?: string;
 }
@@ -30,9 +36,23 @@ export interface Subject {
   id: string;
   name: string;
   code?: string;
+
+  /**
+   * School levels where this subject is offered.
+   *
+   * Example:
+   * ["nursery", "primary", "jss"]
+   *
+   * This is optional for backward compatibility
+   * with subjects already stored in Firestore.
+   */
+  levels?: SchoolLevel[];
 }
 
-export type AttendanceStatus = "present" | "absent" | "late";
+export type AttendanceStatus =
+  | "present"
+  | "absent"
+  | "late";
 
 export interface AttendanceRecord {
   studentId: string;
@@ -42,7 +62,7 @@ export interface AttendanceRecord {
 export interface AttendanceSession {
   id: string;
   classId: string;
-  date: string; // ISO date, e.g. "2026-07-09"
+  date: string;
   records: AttendanceRecord[];
   takenBy: string;
 }
@@ -54,10 +74,10 @@ export interface ResultEntry {
   classId: string;
   session: string;
   term: string;
-  ca1?: number; // first CA score
-  ca2?: number; // second CA score
-  exam?: number; // exam score
-  total?: number; // computed
-  grade?: string; // computed
+  ca1?: number;
+  ca2?: number;
+  exam?: number;
+  total?: number;
+  grade?: string;
   remark?: string;
 }
