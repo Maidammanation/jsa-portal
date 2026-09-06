@@ -278,36 +278,6 @@ export async function getAttendanceSession(
   };
 }
 
-/** Creates or overwrites the attendance session for a class on a given date. */
-export async function submitAttendance(
-  classId: string,
-  date: string,
-  records: { studentId: string; status: string }[],
-  takenBy: string
-) {
-  const existing = await getAttendanceSession(classId, date);
-
-  if (existing) {
-    await update("attendance", existing.id, {
-      records,
-      takenBy,
-    });
-  } else {
-    await create("attendance", {
-      classId,
-      date,
-      records,
-      takenBy,
-    });
-  }
-
-  await logActivity(
-    "Attendance submitted",
-    takenBy,
-    `${records.length} student(s) — ${date}`
-  );
-}
-
 /** Fetches every attendance record for one student, across all dates for a class. */
 export async function getAttendanceForStudent(
   classId: string,
