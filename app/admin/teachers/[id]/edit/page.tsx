@@ -708,6 +708,9 @@ export default function EditTeacherPage() {
       const canUploadAllResults =
         Boolean(formMasterClassId);
 
+      /*
+       * UPDATE TEACHER RECORD
+       */
       await update(
         "teachers",
         teacherId,
@@ -765,6 +768,61 @@ export default function EditTeacherPage() {
           updatedAt: new Date(),
         }
       );
+
+      /*
+       * SYNCHRONIZE TEACHER SECURITY PERMISSIONS
+       *
+       * The teacher's classes, subjects and Form Master
+       * assignment are mirrored into users/{authUid}.
+       *
+       * This allows Firestore Security Rules to enforce
+       * teacher permissions using the authenticated UID.
+       */
+      if (teacher.authUid) {
+        const syncResponse = await fetch(
+          "/api/admin/sync-teacher-account",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              teacherId,
+              authUid: teacher.authUid,
+
+              firstName,
+              lastName,
+              email,
+
+              classIds: selectedClasses,
+              subjectIds: selectedSubjects,
+
+              formClassId:
+                formMasterClassId || "",
+
+              formMasterClassId:
+                formMasterClassId || "",
+
+              formMasterClassName:
+                formMasterClass?.name || "",
+
+              canUploadAllResults,
+
+              status,
+            }),
+          }
+        );
+
+        const syncData =
+          await syncResponse.json();
+
+        if (!syncResponse.ok) {
+          throw new Error(
+            syncData.error ||
+              "Teacher account permissions could not be synchronized."
+          );
+        }
+      }
 
       setSuccess(
         "Teacher information updated successfully."
