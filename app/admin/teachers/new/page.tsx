@@ -22,17 +22,26 @@ interface TeacherRecord {
   formMasterClassId?: string | null;
 }
 
-function getClassLevel(level?: string, name?: string): SchoolLevel | "" {
+function getClassLevel(
+  level?: string,
+  name?: string
+): SchoolLevel | "" {
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
   if (value.includes("nursery")) return "nursery";
   if (value.includes("primary")) return "primary";
 
-  if (value.includes("jss") || value.includes("junior")) {
+  if (
+    value.includes("jss") ||
+    value.includes("junior")
+  ) {
     return "jss";
   }
 
-  if (value.includes("ss ") || value.startsWith("ss")) {
+  if (
+    value.includes("ss ") ||
+    value.startsWith("ss")
+  ) {
     return "ss";
   }
 
@@ -71,21 +80,46 @@ export default function NewTeacherPage() {
         setLoadingOptions(true);
         setError("");
 
-        const [classList, subjectList, teacherList] = await Promise.all([
-          getClasses(),
-          getSubjects(),
-          getAll("teachers"),
-        ]);
+        const [classList, subjectList, teacherList] =
+          await Promise.all([
+            getClasses(),
+            getSubjects(),
+            getAll("teachers"),
+          ]);
 
         if (!mounted) return;
 
-        setClasses(classList || []);
+        const normalizedClasses: ClassRoom[] = (
+          classList || []
+        ).map((classroom) => ({
+          id: classroom.id,
+          name: classroom.name || "",
+          level:
+            (classroom as {
+              level?: string;
+            }).level || "",
+          classTeacherUid:
+            (classroom as {
+              classTeacherUid?: string;
+            }).classTeacherUid,
+          classTeacherName:
+            (classroom as {
+              classTeacherName?: string;
+            }).classTeacherName,
+        }));
+
+        setClasses(normalizedClasses);
         setSubjects(subjectList || []);
-        setTeachers((teacherList || []) as TeacherRecord[]);
+        setTeachers(
+          (teacherList || []) as TeacherRecord[]
+        );
       } catch (err) {
         console.error(err);
+
         if (mounted) {
-          setError("Unable to load classes and subjects.");
+          setError(
+            "Unable to load classes and subjects."
+          );
         }
       } finally {
         if (mounted) {
@@ -105,7 +139,9 @@ export default function NewTeacherPage() {
     const levels = new Set<SchoolLevel>();
 
     selectedClasses.forEach((classId) => {
-      const classroom = classes.find((item) => item.id === classId);
+      const classroom = classes.find(
+        (item) => item.id === classId
+      );
 
       if (!classroom) return;
 
@@ -122,16 +158,6 @@ export default function NewTeacherPage() {
     return Array.from(levels);
   }, [classes, selectedClasses]);
 
-  /**
-   * Subjects now come directly from the curriculum configured
-   * in Admin > Classes & Subjects.
-   *
-   * If level-aware subjects exist, only subjects assigned to the
-   * selected class levels are shown.
-   *
-   * The legacy fallback is only used when the entire subject
-   * collection predates the `levels` field.
-   */
   const availableSubjects = useMemo(() => {
     if (selectedLevels.length === 0) {
       return [];
@@ -139,8 +165,8 @@ export default function NewTeacherPage() {
 
     const selectedLevelSet = new Set(selectedLevels);
 
-    const hasLevelAwareSubjects = subjects.some((subject) =>
-      Array.isArray(subject.levels)
+    const hasLevelAwareSubjects = subjects.some(
+      (subject) => Array.isArray(subject.levels)
     );
 
     if (hasLevelAwareSubjects) {
@@ -152,14 +178,15 @@ export default function NewTeacherPage() {
               selectedLevelSet.has(level)
             )
         )
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
     }
 
-    /**
-     * Legacy fallback for older Firestore subject records.
-     * Music is intentionally excluded.
-     */
-    const legacyByLevel: Record<SchoolLevel, string[]> = {
+    const legacyByLevel: Record<
+      SchoolLevel,
+      string[]
+    > = {
       nursery: [
         "English Language",
         "Mathematics",
@@ -249,62 +276,86 @@ export default function NewTeacherPage() {
 
     const allowed = new Set(
       selectedLevels
-        .flatMap((level) => legacyByLevel[level])
-        .map((name) => name.trim().toLowerCase())
+        .flatMap(
+          (level) => legacyByLevel[level]
+        )
+        .map((name) =>
+          name.trim().toLowerCase()
+        )
     );
 
     return subjects
       .filter((subject) =>
-        allowed.has(subject.name.trim().toLowerCase())
+        allowed.has(
+          subject.name.trim().toLowerCase()
+        )
       )
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
   }, [subjects, selectedLevels]);
 
   useEffect(() => {
     const availableIds = new Set(
-      availableSubjects.map((subject) => subject.id)
+      availableSubjects.map(
+        (subject) => subject.id
+      )
     );
 
     setSelectedSubjects((current) =>
-      current.filter((id) => availableIds.has(id))
+      current.filter((id) =>
+        availableIds.has(id)
+      )
     );
   }, [availableSubjects]);
 
-  const unavailableFormMasterClassIds = useMemo(() => {
-    const ids = new Set<string>();
+  const unavailableFormMasterClassIds =
+    useMemo(() => {
+      const ids = new Set<string>();
 
-    teachers.forEach((teacher) => {
-      const assignedId =
-        teacher.formMasterClassId ||
-        teacher.formClassId ||
-        "";
+      teachers.forEach((teacher) => {
+        const assignedId =
+          teacher.formMasterClassId ||
+          teacher.formClassId ||
+          "";
 
-      if (assignedId) {
-        ids.add(assignedId);
-      }
-    });
+        if (assignedId) {
+          ids.add(assignedId);
+        }
+      });
 
-    return ids;
-  }, [teachers]);
+      return ids;
+    }, [teachers]);
 
-  const availableFormMasterClasses = useMemo(() => {
-    return classes.filter((classroom) => {
-      if (selectedClasses.includes(classroom.id)) {
-        return true;
-      }
+  const availableFormMasterClasses =
+    useMemo(() => {
+      return classes.filter((classroom) => {
+        if (
+          selectedClasses.includes(
+            classroom.id
+          )
+        ) {
+          return true;
+        }
 
-      return !unavailableFormMasterClassIds.has(classroom.id);
-    });
-  }, [
-    classes,
-    selectedClasses,
-    unavailableFormMasterClassIds,
-  ]);
+        return !unavailableFormMasterClassIds.has(
+          classroom.id
+        );
+      });
+    }, [
+      classes,
+      selectedClasses,
+      unavailableFormMasterClassIds,
+    ]);
 
   const selectedClassNames = useMemo(() => {
     return selectedClasses
       .map(
-        (id) => classes.find((classroom) => classroom.id === id)?.name
+        (id) =>
+          classes.find(
+            (classroom) =>
+              classroom.id === id
+          )?.name
       )
       .filter(Boolean) as string[];
   }, [classes, selectedClasses]);
@@ -312,27 +363,40 @@ export default function NewTeacherPage() {
   const selectedSubjectNames = useMemo(() => {
     return selectedSubjects
       .map(
-        (id) => subjects.find((subject) => subject.id === id)?.name
+        (id) =>
+          subjects.find(
+            (subject) =>
+              subject.id === id
+          )?.name
       )
       .filter(Boolean) as string[];
   }, [subjects, selectedSubjects]);
 
-  const selectedFormMasterClass = useMemo(() => {
-    return classes.find(
-      (classroom) => classroom.id === formMasterClassId
-    );
-  }, [classes, formMasterClassId]);
+  const selectedFormMasterClass =
+    useMemo(() => {
+      return classes.find(
+        (classroom) =>
+          classroom.id ===
+          formMasterClassId
+      );
+    }, [classes, formMasterClassId]);
 
   function toggleClass(classId: string) {
     setSelectedClasses((current) => {
-      const exists = current.includes(classId);
+      const exists = current.includes(
+        classId
+      );
 
       if (exists) {
-        if (formMasterClassId === classId) {
+        if (
+          formMasterClassId === classId
+        ) {
           setFormMasterClassId("");
         }
 
-        return current.filter((id) => id !== classId);
+        return current.filter(
+          (id) => id !== classId
+        );
       }
 
       return [...current, classId];
@@ -342,7 +406,9 @@ export default function NewTeacherPage() {
   function toggleSubject(subjectId: string) {
     setSelectedSubjects((current) => {
       if (current.includes(subjectId)) {
-        return current.filter((id) => id !== subjectId);
+        return current.filter(
+          (id) => id !== subjectId
+        );
       }
 
       return [...current, subjectId];
@@ -351,7 +417,9 @@ export default function NewTeacherPage() {
 
   function selectAllSubjects() {
     setSelectedSubjects(
-      availableSubjects.map((subject) => subject.id)
+      availableSubjects.map(
+        (subject) => subject.id
+      )
     );
   }
 
@@ -359,48 +427,71 @@ export default function NewTeacherPage() {
     setSelectedSubjects([]);
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setError("");
 
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
-    const email = form.email.trim().toLowerCase();
+    const firstName =
+      form.firstName.trim();
+    const lastName =
+      form.lastName.trim();
+    const email =
+      form.email.trim().toLowerCase();
 
     if (!firstName) {
-      setError("Please enter the teacher's first name.");
+      setError(
+        "Please enter the teacher's first name."
+      );
       return;
     }
 
     if (!lastName) {
-      setError("Please enter the teacher's last name.");
+      setError(
+        "Please enter the teacher's last name."
+      );
       return;
     }
 
     if (!email) {
-      setError("Please enter the teacher's email address.");
+      setError(
+        "Please enter the teacher's email address."
+      );
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
+      setError(
+        "Please enter a valid email address."
+      );
       return;
     }
 
     if (selectedClasses.length === 0) {
-      setError("Please assign at least one teaching class.");
+      setError(
+        "Please assign at least one teaching class."
+      );
       return;
     }
 
     if (selectedSubjects.length === 0) {
-      setError("Please assign at least one subject.");
+      setError(
+        "Please assign at least one subject."
+      );
       return;
     }
 
     if (
       formMasterClassId &&
-      !selectedClasses.includes(formMasterClassId)
+      !selectedClasses.includes(
+        formMasterClassId
+      )
     ) {
       setError(
         "The Form Master class must also be included in Teaching Classes."
@@ -408,10 +499,13 @@ export default function NewTeacherPage() {
       return;
     }
 
-    const duplicateEmail = teachers.some(
-      (teacher) =>
-        teacher.email?.trim().toLowerCase() === email
-    );
+    const duplicateEmail =
+      teachers.some(
+        (teacher) =>
+          teacher.email
+            ?.trim()
+            .toLowerCase() === email
+      );
 
     if (duplicateEmail) {
       setError(
@@ -422,7 +516,9 @@ export default function NewTeacherPage() {
 
     if (
       formMasterClassId &&
-      unavailableFormMasterClassIds.has(formMasterClassId)
+      unavailableFormMasterClassIds.has(
+        formMasterClassId
+      )
     ) {
       setError(
         "This class already has a Form Master. Please choose another class."
@@ -445,12 +541,18 @@ export default function NewTeacherPage() {
 
         subjectIds: selectedSubjects,
         subjects: selectedSubjectNames,
-        subject: selectedSubjectNames.join(", "),
+        subject:
+          selectedSubjectNames.join(", "),
 
-        formClassId: formMasterClassId || null,
-        formMasterClassId: formMasterClassId || "",
+        formClassId:
+          formMasterClassId || null,
+
+        formMasterClassId:
+          formMasterClassId || "",
+
         formMasterClassName:
-          selectedFormMasterClass?.name || "",
+          selectedFormMasterClass?.name ||
+          "",
 
         canUploadAllResults,
 
@@ -496,8 +598,9 @@ export default function NewTeacherPage() {
         </h1>
 
         <p className="mt-1 text-sm text-gray-500">
-          Create a teacher account and assign teaching classes,
-          subjects, and Form Master responsibilities.
+          Create a teacher account and assign
+          teaching classes, subjects, and Form
+          Master responsibilities.
         </p>
       </div>
 
@@ -518,7 +621,8 @@ export default function NewTeacherPage() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Enter the teacher's basic information.
+              Enter the teacher's basic
+              information.
             </p>
           </div>
 
@@ -529,7 +633,8 @@ export default function NewTeacherPage() {
               onChange={(event) =>
                 setForm({
                   ...form,
-                  firstName: event.target.value,
+                  firstName:
+                    event.target.value,
                 })
               }
               placeholder="Enter first name"
@@ -542,7 +647,8 @@ export default function NewTeacherPage() {
               onChange={(event) =>
                 setForm({
                   ...form,
-                  lastName: event.target.value,
+                  lastName:
+                    event.target.value,
                 })
               }
               placeholder="Enter last name"
@@ -556,7 +662,8 @@ export default function NewTeacherPage() {
               onChange={(event) =>
                 setForm({
                   ...form,
-                  email: event.target.value,
+                  email:
+                    event.target.value,
                 })
               }
               placeholder="teacher@example.com"
@@ -572,27 +679,32 @@ export default function NewTeacherPage() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Select every class this teacher is assigned to teach.
+              Select every class this teacher
+              is assigned to teach.
             </p>
           </div>
 
           {classes.length === 0 ? (
             <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
-              No classes have been created yet.
+              No classes have been created
+              yet.
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {classes.map((classroom) => {
-                const selected = selectedClasses.includes(
-                  classroom.id
-                );
+                const selected =
+                  selectedClasses.includes(
+                    classroom.id
+                  );
 
                 return (
                   <button
                     key={classroom.id}
                     type="button"
                     onClick={() =>
-                      toggleClass(classroom.id)
+                      toggleClass(
+                        classroom.id
+                      )
                     }
                     className={`rounded-lg border p-4 text-left transition ${
                       selected
@@ -634,7 +746,9 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="mt-1 text-sm text-blue-700">
-                {selectedClassNames.join(", ")}
+                {selectedClassNames.join(
+                  ", "
+                )}
               </p>
             </div>
           )}
@@ -648,16 +762,21 @@ export default function NewTeacherPage() {
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                Subjects are automatically filtered according to
-                the curriculum levels of the selected classes.
+                Subjects are automatically
+                filtered according to the
+                curriculum levels of the
+                selected classes.
               </p>
             </div>
 
-            {availableSubjects.length > 0 && (
+            {availableSubjects.length >
+              0 && (
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={selectAllSubjects}
+                  onClick={
+                    selectAllSubjects
+                  }
                   className="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50"
                 >
                   Select All
@@ -674,99 +793,126 @@ export default function NewTeacherPage() {
             )}
           </div>
 
-          {selectedLevels.length === 0 ? (
+          {selectedLevels.length ===
+          0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
-              Select at least one teaching class to see the
-              appropriate subjects.
+              Select at least one teaching
+              class to see the appropriate
+              subjects.
             </div>
-          ) : availableSubjects.length === 0 ? (
+          ) : availableSubjects.length ===
+            0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
-              No subjects are configured for the selected class
-              level. Go to Classes &amp; Subjects to add subjects
-              to the curriculum.
+              No subjects are configured for
+              the selected class level. Go to
+              Classes &amp; Subjects to add
+              subjects to the curriculum.
             </div>
           ) : (
             <>
               <div className="mb-4 flex flex-wrap gap-2">
-                {selectedLevels.map((level) => (
-                  <span
-                    key={level}
-                    className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700"
-                  >
-                    {level}
-                  </span>
-                ))}
+                {selectedLevels.map(
+                  (level) => (
+                    <span
+                      key={level}
+                      className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700"
+                    >
+                      {level}
+                    </span>
+                  )
+                )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {availableSubjects.map((subject) => {
-                  const selected = selectedSubjects.includes(
-                    subject.id
-                  );
+                {availableSubjects.map(
+                  (subject) => {
+                    const selected =
+                      selectedSubjects.includes(
+                        subject.id
+                      );
 
-                  return (
-                    <button
-                      key={subject.id}
-                      type="button"
-                      onClick={() =>
-                        toggleSubject(subject.id)
-                      }
-                      className={`rounded-lg border p-4 text-left transition ${
-                        selected
-                          ? "border-green-600 bg-green-50"
-                          : "border-gray-200 bg-white hover:border-gray-400"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-gray-900">
-                          {subject.name}
-                        </span>
+                    return (
+                      <button
+                        key={subject.id}
+                        type="button"
+                        onClick={() =>
+                          toggleSubject(
+                            subject.id
+                          )
+                        }
+                        className={`rounded-lg border p-4 text-left transition ${
+                          selected
+                            ? "border-green-600 bg-green-50"
+                            : "border-gray-200 bg-white hover:border-gray-400"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-gray-900">
+                            {subject.name}
+                          </span>
 
-                        <span
-                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${
-                            selected
-                              ? "border-green-600 bg-green-600 text-white"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {selected ? "✓" : ""}
-                        </span>
-                      </div>
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${
+                              selected
+                                ? "border-green-600 bg-green-600 text-white"
+                                : "border-gray-300"
+                            }`}
+                          >
+                            {selected
+                              ? "✓"
+                              : ""}
+                          </span>
+                        </div>
 
-                      {subject.code && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          {subject.code}
-                        </p>
-                      )}
-
-                      {Array.isArray(subject.levels) &&
-                        subject.levels.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {subject.levels.map((level) => (
-                              <span
-                                key={level}
-                                className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] capitalize text-gray-600"
-                              >
-                                {level}
-                              </span>
-                            ))}
-                          </div>
+                        {subject.code && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {subject.code}
+                          </p>
                         )}
-                    </button>
-                  );
-                })}
+
+                        {Array.isArray(
+                          subject.levels
+                        ) &&
+                          subject.levels
+                            .length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {subject.levels.map(
+                                (
+                                  level
+                                ) => (
+                                  <span
+                                    key={
+                                      level
+                                    }
+                                    className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] capitalize text-gray-600"
+                                  >
+                                    {
+                                      level
+                                    }
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          )}
+                      </button>
+                    );
+                  }
+                )}
               </div>
             </>
           )}
 
-          {selectedSubjectNames.length > 0 && (
+          {selectedSubjectNames.length >
+            0 && (
             <div className="mt-5 rounded-lg bg-green-50 p-4">
               <p className="text-sm font-medium text-green-900">
                 Selected Subjects
               </p>
 
               <p className="mt-1 text-sm text-green-700">
-                {selectedSubjectNames.join(", ")}
+                {selectedSubjectNames.join(
+                  ", "
+                )}
               </p>
             </div>
           )}
@@ -779,9 +925,11 @@ export default function NewTeacherPage() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              A Form Master can upload results for all subjects in
-              their assigned Form Master class when a subject teacher
-              is unavailable.
+              A Form Master can upload
+              results for all subjects in
+              their assigned Form Master class
+              when a subject teacher is
+              unavailable.
             </p>
           </div>
 
@@ -790,17 +938,22 @@ export default function NewTeacherPage() {
               label="Form Master Class"
               value={formMasterClassId}
               onChange={(event) =>
-                setFormMasterClassId(event.target.value)
+                setFormMasterClassId(
+                  event.target.value
+                )
               }
               options={[
                 {
-                  label: "Not a Form Master",
+                  label:
+                    "Not a Form Master",
                   value: "",
                 },
                 ...availableFormMasterClasses.map(
                   (classroom) => ({
-                    label: classroom.name,
-                    value: classroom.id,
+                    label:
+                      classroom.name,
+                    value:
+                      classroom.id,
                   })
                 ),
               ]}
@@ -814,10 +967,13 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="mt-1 text-sm text-purple-700">
-                This teacher will be able to upload results for all
-                subjects in{" "}
+                This teacher will be able to
+                upload results for all subjects
+                in{" "}
                 <strong>
-                  {selectedFormMasterClass?.name}
+                  {
+                    selectedFormMasterClass?.name
+                  }
                 </strong>
                 .
               </p>
@@ -857,7 +1013,9 @@ export default function NewTeacherPage() {
               </p>
 
               <p className="mt-1 text-2xl font-bold text-gray-900">
-                {formMasterClassId ? "Yes" : "No"}
+                {formMasterClassId
+                  ? "Yes"
+                  : "No"}
               </p>
             </div>
           </div>
@@ -868,7 +1026,9 @@ export default function NewTeacherPage() {
             type="button"
             variant="secondary"
             onClick={() =>
-              router.push("/admin/teachers")
+              router.push(
+                "/admin/teachers"
+              )
             }
             disabled={saving}
           >
@@ -879,7 +1039,9 @@ export default function NewTeacherPage() {
             type="submit"
             disabled={saving}
           >
-            {saving ? "Creating Teacher..." : "Create Teacher"}
+            {saving
+              ? "Creating Teacher..."
+              : "Create Teacher"}
           </Button>
         </div>
       </form>
