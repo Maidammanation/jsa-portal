@@ -1170,7 +1170,3 @@ export default function EditTeacherPage() {
     </div>
   );
 }
-
-Replace the entire "app/admin/teachers/[id]/edit/page.tsx" with that code.
-
-Important: after this deploys successfully, the next file we should change is "app/teacher/results/page.tsx". That is what will actually enforce the new rule that Form Masters can upload all results, while normal teachers can select only their assigned classes and subjects.
