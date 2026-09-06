@@ -30,11 +30,9 @@ interface TeacherRecord {
 id: string;
 classIds?: string[];
 subjectIds?: string[];
-
 formClassId?: string | null;
 formMasterClassId?: string | null;
 formMasterClassName?: string;
-
 canUploadAllResults?: boolean;
 }
 
