@@ -108,8 +108,28 @@ export default function NewTeacherPage() {
             }).classTeacherName,
         }));
 
+        const normalizedSubjects: Subject[] = (
+          subjectList || []
+        )
+          .map((subject) => ({
+            id: subject.id,
+            name:
+              (subject as {
+                name?: string;
+              }).name || "",
+            code:
+              (subject as {
+                code?: string;
+              }).code,
+            levels:
+              (subject as {
+                levels?: SchoolLevel[];
+              }).levels,
+          }))
+          .filter((subject) => subject.name.trim());
+
         setClasses(normalizedClasses);
-        setSubjects(subjectList || []);
+        setSubjects(normalizedSubjects);
         setTeachers(
           (teacherList || []) as TeacherRecord[]
         );
