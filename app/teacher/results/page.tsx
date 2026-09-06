@@ -21,6 +21,7 @@ import { useSchoolSettings } from "@/lib/useSchoolSettings";
 import type {
   ClassRoom,
   ResultEntry,
+  SchoolLevel,
   Student,
   Subject,
 } from "@/lib/types";
@@ -28,29 +29,14 @@ import type {
 interface TeacherRecord {
   id: string;
 
-  /*
-   * Classes the teacher normally teaches.
-   */
   classIds?: string[];
 
-  /*
-   * Subjects the teacher normally teaches.
-   */
   subjectIds?: string[];
 
-  /*
-   * Form Master assignment.
-   */
   formClassId?: string | null;
   formMasterClassId?: string | null;
   formMasterClassName?: string;
 
-  /*
-   * New permission field.
-   *
-   * Form Masters receive this automatically when
-   * they are assigned a Form Master class.
-   */
   canUploadAllResults?: boolean;
 }
 
@@ -71,12 +57,19 @@ const emptyScore = (): ScoreRow => ({
 /*
  * Determine the school level of a class.
  */
-function getClassLevel(level?: string, name?: string) {
+function getClassLevel(
+  level?: string,
+  name?: string
+): SchoolLevel | "" {
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
-  if (value.includes("nursery")) return "nursery";
+  if (value.includes("nursery")) {
+    return "nursery";
+  }
 
-  if (value.includes("primary")) return "primary";
+  if (value.includes("primary")) {
+    return "primary";
+  }
 
   if (
     value.includes("jss") ||
@@ -92,99 +85,12 @@ function getClassLevel(level?: string, name?: string) {
     return "ss";
   }
 
-  if (value.includes("senior")) return "ss";
+  if (value.includes("senior")) {
+    return "ss";
+  }
 
   return "";
 }
-
-/*
- * Subjects applicable to each school level.
- *
- * This does not change the existing subjects collection.
- * It only determines which subjects are available to a
- * Form Master when they need to upload all results for
- * their Form Master class.
- */
-const LEVEL_SUBJECTS: Record<string, string[]> = {
-  nursery: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Social Studies",
-    "Civic Education",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Fine Arts",
-    "Music",
-    "Islamic Religious Studies",
-    "Christian Religious Studies",
-  ],
-
-  primary: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Basic Technology",
-    "Agricultural Science",
-    "Social Studies",
-    "Civic Education",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Home Economics",
-    "Fine Arts",
-    "Music",
-  ],
-
-  jss: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Basic Technology",
-    "Agricultural Science",
-    "Social Studies",
-    "Civic Education",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Home Economics",
-    "Business Studies",
-    "Fine Arts",
-    "Music",
-    "Economics",
-    "Geography",
-    "Literature in English",
-  ],
-
-  ss: [
-    "English Language",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Further Mathematics",
-    "Economics",
-    "Government",
-    "Literature in English",
-    "Geography",
-    "Financial Accounting",
-    "Commerce",
-    "Agricultural Science",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Civic Education",
-    "Computer Studies / ICT",
-    "French",
-    "Physical and Health Education",
-    "Fine Arts",
-    "Music",
-  ],
-};
 
 export default function TeacherResultsPage() {
   const { profile } = useAuth();
@@ -279,9 +185,9 @@ export default function TeacherResultsPage() {
   /*
    * Resolve Form Master class.
    *
-   * The new field is formClassId.
+   * formClassId is the current field.
    * formMasterClassId remains supported for
-   * older records.
+   * older teacher records.
    */
   const formMasterClassId =
     teacher?.formClassId ||
@@ -289,12 +195,8 @@ export default function TeacherResultsPage() {
     "";
 
   /*
-   * A teacher is considered a Form Master when
-   * a Form Master class is assigned.
-   *
-   * This also keeps existing Form Masters working
-   * even if canUploadAllResults has not yet been
-   * written to their Firestore record.
+   * A teacher is a Form Master when they have
+   * a Form Master class or the permission flag.
    */
   const isFormMaster =
     Boolean(formMasterClassId) ||
@@ -322,12 +224,11 @@ export default function TeacherResultsPage() {
   /*
    * Classes available on the result page.
    *
-   * Normal teachers:
-   *   Only assigned classes.
+   * Normal teacher:
+   *   Assigned classes only.
    *
-   * Form Masters:
-   *   Assigned classes PLUS their Form Master
-   *   class, if it is not already included.
+   * Form Master:
+   *   Assigned classes + Form Master class.
    */
   const myClasses = useMemo(() => {
     const map = new Map<string, ClassRoom>();
@@ -354,7 +255,7 @@ export default function TeacherResultsPage() {
   ]);
 
   /*
-   * Subjects the teacher normally teaches.
+   * Subjects directly assigned to the teacher.
    */
   const mySubjects = useMemo(() => {
     return subjects.filter((subject) =>
@@ -364,7 +265,7 @@ export default function TeacherResultsPage() {
 
   /*
    * Determine whether the selected class is
-   * the Form Master's class.
+   * the teacher's Form Master class.
    */
   const selectedClassIsFormMasterClass =
     Boolean(
@@ -374,85 +275,145 @@ export default function TeacherResultsPage() {
     );
 
   /*
-   * Get all subjects applicable to a class.
+   * Get the selected class.
+   */
+  const selectedClass = useMemo(() => {
+    return classes.find(
+      (classRoom) =>
+        classRoom.id === classId
+    );
+  }, [classes, classId]);
+
+  /*
+   * Get the level of the selected class.
+   */
+  const selectedClassLevel = useMemo(() => {
+    if (!selectedClass) {
+      return "";
+    }
+
+    return getClassLevel(
+      selectedClass.level,
+      selectedClass.name
+    );
+  }, [selectedClass]);
+
+  /*
+   * Get all subjects configured for a school level.
    *
-   * This is used only when a Form Master is
-   * uploading results for their Form Master class.
+   * IMPORTANT:
+   * This uses Subject.levels from the actual
+   * Classes & Subjects configuration.
+   *
+   * There is deliberately NO hard-coded subject list.
    */
   const getSubjectsForClass = (
     selectedClassId: string
   ) => {
-    const selectedClass = classes.find(
+    const classroom = classes.find(
       (classRoom) =>
         classRoom.id === selectedClassId
     );
 
-    if (!selectedClass) {
+    if (!classroom) {
       return [];
     }
 
     const level = getClassLevel(
-      selectedClass.level,
-      selectedClass.name
+      classroom.level,
+      classroom.name
     );
 
-    const allowedNames =
-      new Set(
-        (LEVEL_SUBJECTS[level] || []).map(
-          (name) =>
-            name.trim().toLowerCase()
-        )
+    if (!level) {
+      return [];
+    }
+
+    return subjects.filter((subject) => {
+      return Boolean(
+        subject.levels?.includes(level)
       );
-
-    return subjects.filter((subject) =>
-      allowedNames.has(
-        subject.name
-          .trim()
-          .toLowerCase()
-      )
-    );
+    });
   };
 
   /*
-   * Subjects available for the currently
-   * selected class.
+   * Subjects available for the selected class.
    *
    * Normal teacher:
-   *   Assigned subjects only.
+   *   Only their assigned subjects that are
+   *   applicable to the selected class level.
    *
-   * Form Master class:
-   *   All subjects applicable to that class.
-   *
-   * Form Master teaching another assigned class:
-   *   Their normal assigned subjects only.
+   * Form Master:
+   *   All subjects configured for their
+   *   Form Master class.
    */
   const availableSubjects = useMemo(() => {
     if (!classId) {
       return [];
     }
 
-    if (
-      selectedClassIsFormMasterClass
-    ) {
+    /*
+     * Form Master gets all configured subjects
+     * for the Form Master class.
+     */
+    if (selectedClassIsFormMasterClass) {
       return getSubjectsForClass(classId);
     }
 
-    return mySubjects;
+    /*
+     * Normal teacher gets only assigned subjects.
+     *
+     * We also check Subject.levels so a subject
+     * assigned to a teacher cannot accidentally
+     * appear for an unrelated school level.
+     *
+     * If an older subject has no levels field,
+     * it remains available to the teacher for
+     * backward compatibility.
+     */
+    return mySubjects.filter((subject) => {
+      if (!selectedClassLevel) {
+        return true;
+      }
+
+      if (
+        !subject.levels ||
+        subject.levels.length === 0
+      ) {
+        return true;
+      }
+
+      return subject.levels.includes(
+        selectedClassLevel
+      );
+    });
   }, [
     classId,
     selectedClassIsFormMasterClass,
+    selectedClassLevel,
     mySubjects,
     subjects,
     classes,
   ]);
 
   /*
-   * Make sure the selected subject is still
-   * valid when the class changes.
+   * A Form Master may have no subjectIds because
+   * Form Master access is separate from subject
+   * assignment.
+   */
+  const hasResultAccess =
+    myClasses.length > 0 &&
+    (mySubjects.length > 0 ||
+      isFormMaster);
+
+  /*
+   * Make sure selected subject is still valid
+   * whenever the class changes.
    */
   useEffect(() => {
     if (!classId) {
       setSubjectId("");
+      setStudents([]);
+      setScores({});
       return;
     }
 
@@ -478,7 +439,7 @@ export default function TeacherResultsPage() {
   ]);
 
   /*
-   * Clear subject/results when class changes.
+   * Handle class change.
    */
   const handleClassChange = (
     value: string
@@ -515,13 +476,7 @@ export default function TeacherResultsPage() {
     }
 
     /*
-     * Final permission protection.
-     *
-     * Normal teachers can only use assigned
-     * classes and subjects.
-     *
-     * Form Masters can use all subjects for
-     * their Form Master class.
+     * Final class permission check.
      */
     const classAllowed =
       myClasses.some(
@@ -529,6 +484,9 @@ export default function TeacherResultsPage() {
           classRoom.id === classId
       );
 
+    /*
+     * Final subject permission check.
+     */
     const subjectAllowed =
       availableSubjects.some(
         (subject) =>
@@ -644,7 +602,7 @@ export default function TeacherResultsPage() {
   ]);
 
   /*
-   * Set individual score.
+   * Set an individual score.
    */
   const setScore = (
     studentId: string,
@@ -711,7 +669,7 @@ export default function TeacherResultsPage() {
     }
 
     /*
-     * Final permission check before saving.
+     * Final class permission check.
      */
     const classAllowed =
       myClasses.some(
@@ -719,6 +677,9 @@ export default function TeacherResultsPage() {
           classRoom.id === classId
       );
 
+    /*
+     * Final subject permission check.
+     */
     const subjectAllowed =
       availableSubjects.some(
         (subject) =>
@@ -911,9 +872,10 @@ export default function TeacherResultsPage() {
           </p>
 
           <p className="text-xs text-gray-500 mt-1">
-            You can upload results for all applicable
-            subjects in your Form Master class when a
-            subject teacher is unavailable.
+            You can upload results for all
+            subjects configured for your Form
+            Master class when a subject teacher
+            is unavailable.
           </p>
         </div>
       )}
@@ -932,31 +894,13 @@ export default function TeacherResultsPage() {
         </div>
       )}
 
-      {myClasses.length === 0 ||
-      mySubjects.length === 0 ? (
+      {!hasResultAccess ? (
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
-          {isFormMaster &&
-          formMasterClass ? (
-            <div>
-              <p className="text-sm text-gray-600">
-                You are assigned as Form Master of{" "}
-                <span className="font-medium">
-                  {formMasterClass.name}
-                </span>
-                .
-              </p>
-
-              <p className="text-xs text-gray-400 mt-1">
-                Select your Form Master class above to
-                access all applicable subjects.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              You have no classes or subjects assigned
-              yet. Contact your administrator.
-            </p>
-          )}
+          <p className="text-sm text-gray-500">
+            You have no classes or subjects
+            assigned yet. Contact your
+            administrator.
+          </p>
         </div>
       ) : (
         <>
@@ -1026,11 +970,12 @@ export default function TeacherResultsPage() {
                 </p>
 
                 <p className="text-xs text-gray-500 mt-1">
-                  All subjects applicable to{" "}
+                  All subjects configured for{" "}
                   <span className="font-medium">
                     {formMasterClass?.name}
                   </span>{" "}
-                  are available for result entry.
+                  are available for result
+                  entry.
                 </p>
               </div>
             )}
@@ -1040,8 +985,10 @@ export default function TeacherResultsPage() {
               classId && (
                 <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3">
                   <p className="text-xs text-gray-500">
-                    You can upload results only for
-                    subjects assigned to you.
+                    You can upload results only
+                    for subjects assigned to you
+                    and applicable to the selected
+                    class.
                   </p>
                 </div>
               )}
@@ -1075,8 +1022,8 @@ export default function TeacherResultsPage() {
 
                 {selectedClassIsFormMasterClass && (
                   <p className="text-xs text-brand mt-2">
-                    Uploaded by Form Master for this
-                    subject.
+                    Uploaded by Form Master for
+                    this subject.
                   </p>
                 )}
               </div>
