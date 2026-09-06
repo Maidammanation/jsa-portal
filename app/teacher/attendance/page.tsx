@@ -8,7 +8,6 @@ import {
   getClasses,
   getStudentsByClass,
   getAttendanceSession,
-  submitAttendance,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
 import type {
@@ -23,11 +22,16 @@ interface TeacherRecord {
   lastName?: string;
   email?: string;
 
-  // Primary Form Master field.
   formClassId?: string | null;
-
-  // Compatibility with the admin teacher assignment.
   formMasterClassId?: string | null;
+}
+
+interface AttendancePermissions {
+  canMarkAttendance: boolean;
+  attendanceClassIds: string[];
+  formMasterClassId: string;
+  isFormMaster: boolean;
+  singleTeacherClassIds: string[];
 }
 
 interface ExistingAttendanceRecord {
@@ -89,8 +93,14 @@ export default function TeacherAttendancePage() {
   const [teacher, setTeacher] =
     useState<TeacherRecord | null>(null);
 
-  const [formClass, setFormClass] =
-    useState<ClassRoom | null>(null);
+  const [classes, setClasses] =
+    useState<ClassRoom[]>([]);
+
+  const [permissions, setPermissions] =
+    useState<AttendancePermissions | null>(null);
+
+  const [selectedClassId, setSelectedClassId] =
+    useState("");
 
   const [date, setDate] = useState(
     getTodayLocalDate()
@@ -120,7 +130,8 @@ export default function TeacherAttendancePage() {
     useState("");
 
   /*
-   * Load teacher record and classes.
+   * Load teacher information, classes and
+   * server-side attendance permissions.
    */
   useEffect(() => {
     if (!profile?.uid) return;
@@ -133,45 +144,74 @@ export default function TeacherAttendancePage() {
     Promise.all([
       getTeacherByAuthUid(profile.uid),
       getClasses(),
-    ])
-      .then(([teacherRecord, classList]) => {
-        if (!mounted) return;
-
-        const t =
-          teacherRecord as TeacherRecord | null;
-
-        const allClasses =
-          classList as ClassRoom[];
-
-        setTeacher(t);
-
-        /*
-         * formClassId is the primary field.
-         * formMasterClassId is supported as a fallback.
-         */
-        const assignedFormClassId =
-          t?.formClassId ||
-          t?.formMasterClassId ||
-          "";
-
-        if (assignedFormClassId) {
-          const cls = allClasses.find(
-            (c) =>
-              c.id === assignedFormClassId
-          );
-
-          setFormClass(cls || null);
-        } else {
-          setFormClass(null);
+      fetch(
+        "/api/teacher/attendance-permissions",
+        {
+          method: "GET",
+          cache: "no-store",
         }
-      })
+      ),
+    ])
+      .then(
+        async ([
+          teacherRecord,
+          classList,
+          permissionResponse,
+        ]) => {
+          if (!mounted) return;
+
+          const t =
+            teacherRecord as TeacherRecord | null;
+
+          const allClasses =
+            classList as ClassRoom[];
+
+          if (!permissionResponse.ok) {
+            const data =
+              await permissionResponse.json().catch(
+                () => ({})
+              );
+
+            throw new Error(
+              data.error ||
+                "Could not determine attendance permissions."
+            );
+          }
+
+          const permissionData =
+            (await permissionResponse.json()) as AttendancePermissions;
+
+          if (!mounted) return;
+
+          setTeacher(t);
+          setClasses(allClasses);
+          setPermissions(permissionData);
+
+          /*
+           * Prefer the Form Master class.
+           * Otherwise use the first permitted class.
+           */
+          const preferredClassId =
+            permissionData.formMasterClassId &&
+            permissionData.attendanceClassIds.includes(
+              permissionData.formMasterClassId
+            )
+              ? permissionData.formMasterClassId
+              : permissionData.attendanceClassIds[0] ||
+                "";
+
+          setSelectedClassId(
+            preferredClassId
+          );
+        }
+      )
       .catch((err) => {
         if (!mounted) return;
 
         setError(
           err instanceof Error
             ? err.message
-            : "Could not load teacher information."
+            : "Could not load attendance permissions."
         );
       })
       .finally(() => {
@@ -186,19 +226,51 @@ export default function TeacherAttendancePage() {
   }, [profile?.uid]);
 
   /*
-   * Resolve the Form Master class ID.
+   * Resolve the currently selected class.
    */
-  const formClassId =
-    teacher?.formClassId ||
-    teacher?.formMasterClassId ||
-    "";
+  const selectedClass =
+    classes.find(
+      (cls) => cls.id === selectedClassId
+    ) || null;
+
+  /*
+   * Determine whether the selected class is
+   * the teacher's Form Master class.
+   */
+  const isSelectedFormMaster =
+    Boolean(
+      permissions?.formMasterClassId &&
+        selectedClassId ===
+          permissions.formMasterClassId
+    );
+
+  /*
+   * Determine whether the selected class is
+   * a single-teacher class.
+   */
+  const isSelectedSingleTeacherClass =
+    Boolean(
+      permissions?.singleTeacherClassIds.includes(
+        selectedClassId
+      )
+    );
 
   /*
    * Load students and existing attendance
-   * whenever the Form Master class or date changes.
+   * whenever the selected class or date changes.
    */
   useEffect(() => {
-    if (!formClassId || !date) {
+    if (!selectedClassId || !date) {
+      setStudents([]);
+      setMarks({});
+      return;
+    }
+
+    if (
+      !permissions?.attendanceClassIds.includes(
+        selectedClassId
+      )
+    ) {
       setStudents([]);
       setMarks({});
       return;
@@ -211,9 +283,9 @@ export default function TeacherAttendancePage() {
     setError("");
 
     Promise.all([
-      getStudentsByClass(formClassId),
+      getStudentsByClass(selectedClassId),
       getAttendanceSession(
-        formClassId,
+        selectedClassId,
         date
       ),
     ])
@@ -282,7 +354,24 @@ export default function TeacherAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [formClassId, date]);
+  }, [
+    selectedClassId,
+    date,
+    permissions,
+  ]);
+
+  /*
+   * Change the selected class.
+   */
+  const handleClassChange = (
+    classId: string
+  ) => {
+    setSelectedClassId(classId);
+    setMessage("");
+    setError("");
+    setStudents([]);
+    setMarks({});
+  };
 
   /*
    * Change one student's attendance status.
@@ -321,12 +410,24 @@ export default function TeacherAttendancePage() {
   };
 
   /*
-   * Submit attendance.
+   * Submit attendance securely through the
+   * server-side attendance endpoint.
    */
   const handleSubmit = async () => {
-    if (!formClassId) {
+    if (!selectedClassId) {
       setError(
-        "You are not assigned as a Form Master."
+        "Please select a class."
+      );
+      return;
+    }
+
+    if (
+      !permissions?.attendanceClassIds.includes(
+        selectedClassId
+      )
+    ) {
+      setError(
+        "You are not authorized to take attendance for this class."
       );
       return;
     }
@@ -356,17 +457,37 @@ export default function TeacherAttendancePage() {
         })
       );
 
-      await submitAttendance(
-        formClassId,
-        date,
-        records,
-        profile?.name ||
-          profile?.email ||
-          "teacher"
+      const response = await fetch(
+        "/api/teacher/submit-attendance",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            classId: selectedClassId,
+            date,
+            records,
+          }),
+        }
       );
 
+      const data =
+        await response.json().catch(
+          () => ({})
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Could not submit attendance."
+        );
+      }
+
       setMessage(
-        "Attendance submitted successfully."
+        data.message ||
+          "Attendance submitted successfully."
       );
     } catch (err) {
       setError(
@@ -397,9 +518,13 @@ export default function TeacherAttendancePage() {
   }
 
   /*
-   * No Form Master assignment.
+   * No teacher record or no attendance permission.
    */
-  if (!teacher || !formClassId) {
+  if (
+    !teacher ||
+    !permissions?.canMarkAttendance ||
+    permissions.attendanceClassIds.length === 0
+  ) {
     return (
       <div className="space-y-4">
         <div>
@@ -414,12 +539,45 @@ export default function TeacherAttendancePage() {
 
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
           <p className="text-sm text-status-disabled">
-            You are not assigned as a Form Master.
+            You are not authorized to take attendance
+            for any assigned class.
           </p>
 
           <p className="text-sm text-gray-400 mt-1">
             Contact your administrator if you believe
             this is incorrect.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * If the selected class has somehow become
+   * unavailable, stop before displaying attendance.
+   */
+  if (
+    !selectedClassId ||
+    !permissions.attendanceClassIds.includes(
+      selectedClassId
+    )
+  ) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-800">
+            Take Attendance
+          </h1>
+
+          <p className="text-sm text-gray-500 mt-1">
+            Attendance
+          </p>
+        </div>
+
+        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+          <p className="text-sm text-status-disabled">
+            No authorized attendance class is
+            currently selected.
           </p>
         </div>
       </div>
@@ -435,20 +593,82 @@ export default function TeacherAttendancePage() {
         </h1>
 
         <p className="text-sm text-gray-500 mt-1">
-          Form Master:{" "}
+          {isSelectedFormMaster
+            ? "Form Master"
+            : "Class Teacher"}
+          :{" "}
           <span className="font-medium text-gray-700">
-            {formClass?.name || "Assigned Class"}
+            {selectedClass?.name ||
+              "Assigned Class"}
           </span>
         </p>
       </div>
 
-      {/* Form Master notice */}
+      {/* Class selector */}
+      {permissions.attendanceClassIds.length >
+        1 && (
+        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6 max-w-sm">
+          <label
+            htmlFor="attendance-class"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Attendance Class
+          </label>
+
+          <select
+            id="attendance-class"
+            value={selectedClassId}
+            onChange={(e) =>
+              handleClassChange(
+                e.target.value
+              )
+            }
+            disabled={saving}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:opacity-50"
+          >
+            {permissions.attendanceClassIds.map(
+              (classId) => {
+                const cls =
+                  classes.find(
+                    (item) =>
+                      item.id === classId
+                  );
+
+                const isFormMaster =
+                  classId ===
+                  permissions.formMasterClassId;
+
+                return (
+                  <option
+                    key={classId}
+                    value={classId}
+                  >
+                    {cls?.name ||
+                      "Assigned Class"}
+                    {isFormMaster
+                      ? " — Form Master"
+                      : ""}
+                  </option>
+                );
+              }
+            )}
+          </select>
+        </div>
+      )}
+
+      {/* Attendance notice */}
       <div className="bg-brand/5 border border-brand/10 rounded-card px-4 py-3">
         <p className="text-sm text-brand-dark">
-          You are taking attendance as the Form Master
+          You are taking attendance as{" "}
+          <span className="font-semibold">
+            {isSelectedFormMaster
+              ? "the Form Master"
+              : "the Class Teacher"}
+          </span>{" "}
           of{" "}
           <span className="font-semibold">
-            {formClass?.name || "this class"}
+            {selectedClass?.name ||
+              "this class"}
           </span>
           .
         </p>
@@ -656,7 +876,7 @@ export default function TeacherAttendancePage() {
             <p className="text-sm text-gray-400">
               No students found in{" "}
               <span className="font-medium text-gray-600">
-                {formClass?.name ||
+                {selectedClass?.name ||
                   "this class"}
               </span>
               .
