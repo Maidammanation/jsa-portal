@@ -8,10 +8,7 @@ import {
   type Column,
 } from "@/components/Tables";
 import { Button } from "@/components/Buttons";
-import {
-  getAll,
-  remove,
-} from "@/services/database";
+import { getAll, remove } from "@/services/database";
 
 interface Teacher {
   id: string;
@@ -19,7 +16,6 @@ interface Teacher {
   lastName: string;
   email: string;
 
-  // New assignment structure
   subjectIds?: string[];
   subjects?: string[];
   subject?: string;
@@ -27,15 +23,10 @@ interface Teacher {
   classIds?: string[];
 
   formClassId?: string | null;
-
-  // Compatibility fields
   formMasterClassId?: string | null;
   formMasterClassName?: string;
 
-  status:
-    | "active"
-    | "suspended"
-    | "disabled";
+  status: "active" | "suspended" | "disabled";
 
   authUid?: string;
 }
@@ -51,48 +42,28 @@ interface Subject {
 }
 
 export default function TeachersListPage() {
-  const [teachers, setTeachers] =
-    useState<Teacher[]>([]);
-
-  const [classes, setClasses] =
-    useState<ClassRoom[]>([]);
-
-  const [subjects, setSubjects] =
-    useState<Subject[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
 
     try {
-      const [
-        teacherData,
-        classData,
-        subjectData,
-      ] = await Promise.all([
-        getAll("teachers"),
-        getAll("classes"),
-        getAll("subjects"),
-      ]);
+      const [teacherData, classData, subjectData] =
+        await Promise.all([
+          getAll("teachers"),
+          getAll("classes"),
+          getAll("subjects"),
+        ]);
 
-      setTeachers(
-        teacherData as Teacher[]
-      );
-
-      setClasses(
-        classData as ClassRoom[]
-      );
-
-      setSubjects(
-        subjectData as Subject[]
-      );
+      setTeachers(teacherData as Teacher[]);
+      setClasses(classData as ClassRoom[]);
+      setSubjects(subjectData as Subject[]);
     } catch (error) {
-      console.error(
-        "Could not load teachers:",
-        error
-      );
+      console.error("Could not load teachers:", error);
     } finally {
       setLoading(false);
     }
@@ -102,15 +73,7 @@ export default function TeachersListPage() {
     load();
   }, []);
 
-  /*
-   * Convert subject IDs into subject names.
-   *
-   * The page also supports the older `subject`
-   * field so existing teachers do not appear blank.
-   */
-  const getTeacherSubjects = (
-    teacher: Teacher
-  ) => {
+  const getTeacherSubjects = (teacher: Teacher) => {
     if (
       teacher.subjectIds &&
       teacher.subjectIds.length > 0
@@ -119,8 +82,7 @@ export default function TeachersListPage() {
         .map(
           (subjectId) =>
             subjects.find(
-              (subject) =>
-                subject.id === subjectId
+              (subject) => subject.id === subjectId
             )?.name
         )
         .filter(Boolean) as string[];
@@ -147,12 +109,7 @@ export default function TeachersListPage() {
     return [];
   };
 
-  /*
-   * Convert class IDs into class names.
-   */
-  const getTeacherClasses = (
-    teacher: Teacher
-  ) => {
+  const getTeacherClasses = (teacher: Teacher) => {
     if (
       !teacher.classIds ||
       teacher.classIds.length === 0
@@ -171,12 +128,7 @@ export default function TeachersListPage() {
       .filter(Boolean) as string[];
   };
 
-  /*
-   * Resolve Form Master class.
-   */
-  const getFormMasterClass = (
-    teacher: Teacher
-  ) => {
+  const getFormMasterClass = (teacher: Teacher) => {
     const formClassId =
       teacher.formClassId ||
       teacher.formMasterClassId ||
@@ -184,8 +136,7 @@ export default function TeachersListPage() {
 
     if (formClassId) {
       const classRoom = classes.find(
-        (item) =>
-          item.id === formClassId
+        (item) => item.id === formClassId
       );
 
       if (classRoom) {
@@ -200,20 +151,73 @@ export default function TeachersListPage() {
     return "";
   };
 
-  const handleDelete = async (
-    id: string
-  ) => {
-    if (
-      !confirm(
-        "Remove this teacher record? This cannot be undone."
-      )
-    ) {
+  const handleDelete = async (teacher: Teacher) => {
+    if (deletingId) {
       return;
     }
 
+    const teacherName =
+      `${teacher.firstName} ${teacher.lastName}`.trim();
+
+    const confirmed = confirm(
+      teacher.authUid
+        ? `Remove ${teacherName}?\n\nThis will permanently remove the teacher record and their portal login account. Their email can then be used again.\n\nThis action cannot be undone.`
+        : `Remove ${teacherName}?\n\nThis teacher does not have a portal login account. Only the teacher record will be removed.\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(teacher.id);
+
     try {
-      await remove("teachers", id);
+      /*
+       * If the teacher has a portal login, remove the
+       * Firebase Authentication account first.
+       *
+       * The API also removes the linked users/{uid}
+       * profile and teacher record.
+       */
+      if (teacher.authUid) {
+        const response = await fetch(
+          "/api/admin/delete-account",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              uid: teacher.authUid,
+              teacherId: teacher.id,
+              email: teacher.email,
+            }),
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result?.error ||
+              "Could not delete the teacher login account."
+          );
+        }
+      } else {
+        /*
+         * No login account exists, so just remove
+         * the teacher Firestore record.
+         */
+        await remove("teachers", teacher.id);
+      }
+
       await load();
+
+      alert(
+        teacher.authUid
+          ? "Teacher and login account removed successfully."
+          : "Teacher removed successfully."
+      );
     } catch (error) {
       console.error(
         "Could not remove teacher:",
@@ -221,8 +225,12 @@ export default function TeachersListPage() {
       );
 
       alert(
-        "Could not remove this teacher. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Could not remove this teacher. Please try again."
       );
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -368,12 +376,13 @@ export default function TeachersListPage() {
 
           <button
             type="button"
-            onClick={() =>
-              handleDelete(teacher.id)
-            }
-            className="text-status-disabled hover:underline text-sm"
+            disabled={deletingId === teacher.id}
+            onClick={() => handleDelete(teacher)}
+            className="text-status-disabled hover:underline text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Remove
+            {deletingId === teacher.id
+              ? "Removing..."
+              : "Remove"}
           </button>
         </div>
       ),
@@ -382,7 +391,6 @@ export default function TeachersListPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
@@ -401,7 +409,6 @@ export default function TeachersListPage() {
         </Link>
       </div>
 
-      {/* Summary */}
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
@@ -423,8 +430,7 @@ export default function TeachersListPage() {
               {
                 teachers.filter(
                   (teacher) =>
-                    teacher.status ===
-                    "active"
+                    teacher.status === "active"
                 ).length
               }
             </p>
@@ -450,7 +456,6 @@ export default function TeachersListPage() {
         </div>
       )}
 
-      {/* Teacher table */}
       {loading ? (
         <p className="text-sm text-gray-400">
           Loading teachers...
