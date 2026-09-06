@@ -17,6 +17,7 @@ interface TeacherRecord {
   id: string;
   firstName?: string;
   lastName?: string;
+  email?: string;
   formClassId?: string | null;
   formMasterClassId?: string | null;
 }
@@ -26,12 +27,21 @@ function getClassLevel(level?: string, name?: string) {
 
   if (value.includes("nursery")) return "nursery";
   if (value.includes("primary")) return "primary";
-  if (value.includes("jss") || value.includes("junior")) {
+
+  if (
+    value.includes("jss") ||
+    value.includes("junior")
+  ) {
     return "jss";
   }
-  if (value.includes("ss ") || value.startsWith("ss")) {
+
+  if (
+    value.includes("ss ") ||
+    value.startsWith("ss")
+  ) {
     return "ss";
   }
+
   if (value.includes("senior")) return "ss";
 
   return "";
@@ -40,9 +50,9 @@ function getClassLevel(level?: string, name?: string) {
 /*
  * Subjects allowed for each school level.
  *
- * We keep the existing global subjects collection unchanged.
- * This only controls which subjects are offered when assigning
- * a teacher to a class.
+ * The existing global subjects collection is not changed.
+ * This only controls which subjects are available when
+ * assigning a teacher to selected teaching classes.
  */
 const LEVEL_SUBJECTS: Record<string, string[]> = {
   nursery: [
@@ -147,16 +157,12 @@ export default function AddTeacherPage() {
   /*
    * Classes the teacher is actually assigned to teach.
    */
-  const [selectedClasses, setSelectedClasses] = useState<string[]>(
-    []
-  );
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
   /*
-   * Subjects the teacher is allowed to teach / enter results for.
+   * Subjects the teacher normally teaches / enters results for.
    */
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(
-    []
-  );
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
 
   /*
    * Separate Form Master responsibility.
@@ -184,6 +190,11 @@ export default function AddTeacherPage() {
       .catch((err) => {
         if (!mounted) return;
 
+        console.error(
+          "Could not load teacher options:",
+          err
+        );
+
         setError(
           err instanceof Error
             ? err.message
@@ -202,8 +213,8 @@ export default function AddTeacherPage() {
   }, []);
 
   /*
-   * Determine which curriculum levels are represented by
-   * the selected teaching classes.
+   * Determine the school levels represented by
+   * the teacher's selected teaching classes.
    */
   const selectedLevels = useMemo(() => {
     const levels = new Set<string>();
@@ -227,10 +238,10 @@ export default function AddTeacherPage() {
   }, [selectedClasses, classes]);
 
   /*
-   * Subjects available for the selected teaching classes.
+   * Subjects available for the selected classes.
    *
-   * If multiple levels are selected, the available list is the
-   * combined list for those levels.
+   * If multiple school levels are selected,
+   * the subjects are combined without duplicates.
    */
   const availableSubjects = useMemo(() => {
     if (selectedLevels.length === 0) {
@@ -241,21 +252,20 @@ export default function AddTeacherPage() {
 
     selectedLevels.forEach((level) => {
       (LEVEL_SUBJECTS[level] || []).forEach((name) => {
-        allowedNames.add(name.toLowerCase());
+        allowedNames.add(name.trim().toLowerCase());
       });
     });
 
     return subjects.filter((subject) =>
-      allowedNames.has(subject.name.trim().toLowerCase())
+      allowedNames.has(
+        subject.name.trim().toLowerCase()
+      )
     );
   }, [subjects, selectedLevels]);
 
   /*
-   * Remove subjects that are no longer valid when the teacher's
-   * selected classes change.
-   *
-   * This prevents a teacher from retaining a subject that is not
-   * applicable to any of their assigned classes.
+   * Remove subjects that become invalid when
+   * teaching classes are changed.
    */
   useEffect(() => {
     if (selectedLevels.length === 0) {
@@ -273,7 +283,8 @@ export default function AddTeacherPage() {
   }, [availableSubjects, selectedLevels.length]);
 
   /*
-   * Form Master classes already assigned to another teacher.
+   * Find classes already assigned to another
+   * teacher as Form Master.
    */
   const unavailableFormMasterClassIds = useMemo(() => {
     const ids = new Set<string>();
@@ -293,7 +304,8 @@ export default function AddTeacherPage() {
   }, [teachers]);
 
   /*
-   * Form Master options.
+   * Only classes without another Form Master
+   * can be selected.
    */
   const availableFormMasterClasses = useMemo(() => {
     return classes.filter(
@@ -322,16 +334,38 @@ export default function AddTeacherPage() {
     (classRoom) => classRoom.id === formMasterClassId
   );
 
+  /*
+   * Select / remove a teaching class.
+   */
   const toggleClass = (classId: string) => {
-    setSelectedClasses((previous) =>
-      previous.includes(classId)
+    setSelectedClasses((previous) => {
+      const isSelected = previous.includes(classId);
+
+      const next = isSelected
         ? previous.filter((id) => id !== classId)
-        : [...previous, classId]
-    );
+        : [...previous, classId];
+
+      /*
+       * If the Form Master class is removed from
+       * teaching classes, remove the Form Master
+       * assignment too.
+       */
+      if (
+        isSelected &&
+        formMasterClassId === classId
+      ) {
+        setFormMasterClassId("");
+      }
+
+      return next;
+    });
 
     setError("");
   };
 
+  /*
+   * Select / remove a subject.
+   */
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((previous) =>
       previous.includes(subjectId)
@@ -342,6 +376,9 @@ export default function AddTeacherPage() {
     setError("");
   };
 
+  /*
+   * Select all available subjects.
+   */
   const selectAllSubjects = () => {
     setSelectedSubjects(
       availableSubjects.map((subject) => subject.id)
@@ -350,11 +387,17 @@ export default function AddTeacherPage() {
     setError("");
   };
 
+  /*
+   * Clear all subjects.
+   */
   const clearSubjects = () => {
     setSelectedSubjects([]);
     setError("");
   };
 
+  /*
+   * Create the teacher.
+   */
   const handleSubmit = async () => {
     setError("");
 
@@ -363,40 +406,61 @@ export default function AddTeacherPage() {
     const email = form.email.trim().toLowerCase();
 
     if (!firstName) {
-      setError("Please enter the teacher's first name.");
+      setError(
+        "Please enter the teacher's first name."
+      );
       return;
     }
 
     if (!lastName) {
-      setError("Please enter the teacher's last name.");
+      setError(
+        "Please enter the teacher's last name."
+      );
       return;
     }
 
     if (!email) {
-      setError("Please enter the teacher's email address.");
+      setError(
+        "Please enter the teacher's email address."
+      );
       return;
     }
 
     if (!email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    if (selectedClasses.length === 0) {
-      setError("Please assign at least one teaching class.");
-      return;
-    }
-
-    if (selectedSubjects.length === 0) {
-      setError("Please assign at least one teaching subject.");
+      setError(
+        "Please enter a valid email address."
+      );
       return;
     }
 
     /*
-     * A Form Master must be one of the teacher's assigned classes.
+     * Teacher must have at least one
+     * teaching class.
+     */
+    if (selectedClasses.length === 0) {
+      setError(
+        "Please assign at least one teaching class."
+      );
+      return;
+    }
+
+    /*
+     * Teacher must have at least one
+     * normal subject assignment.
      *
-     * This keeps the responsibilities logically connected while
-     * still storing Form Master separately from classIds.
+     * Form Master permission is additional;
+     * it does not replace subject assignment.
+     */
+    if (selectedSubjects.length === 0) {
+      setError(
+        "Please assign at least one teaching subject."
+      );
+      return;
+    }
+
+    /*
+     * A Form Master class must also be one
+     * of the teacher's assigned teaching classes.
      */
     if (
       formMasterClassId &&
@@ -410,6 +474,9 @@ export default function AddTeacherPage() {
 
     /*
      * Prevent duplicate email records.
+     *
+     * TeacherRecord now correctly includes
+     * email?: string.
      */
     const emailExists = teachers.some(
       (teacher) =>
@@ -423,21 +490,47 @@ export default function AddTeacherPage() {
       return;
     }
 
+    /*
+     * Final duplicate Form Master protection.
+     */
+    if (
+      formMasterClassId &&
+      unavailableFormMasterClassIds.has(
+        formMasterClassId
+      )
+    ) {
+      setError(
+        "This class already has a Form Master. Please select another class."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
+      /*
+       * A Form Master is allowed to upload
+       * results for ALL subjects in their
+       * Form Master class.
+       *
+       * Normal teachers remain restricted
+       * to their subjectIds.
+       */
+      const canUploadAllResults =
+        Boolean(formMasterClassId);
+
       await create("teachers", {
         firstName,
         lastName,
         email,
 
         /*
-         * Teaching assignment.
+         * Teaching class assignments.
          */
         classIds: selectedClasses,
 
         /*
-         * Subject assignment.
+         * Normal subject assignments.
          */
         subjectIds: selectedSubjects,
 
@@ -448,12 +541,27 @@ export default function AddTeacherPage() {
         subject: selectedSubjectNames.join(", "),
 
         /*
-         * Form Master is deliberately stored separately.
+         * Form Master assignment.
          */
         formClassId: formMasterClassId || null,
-        formMasterClassId: formMasterClassId || "",
+
+        formMasterClassId:
+          formMasterClassId || "",
+
         formMasterClassName:
           selectedFormMasterClass?.name || "",
+
+        /*
+         * Form Master result permission.
+         *
+         * TRUE:
+         * Can upload all subjects for the
+         * Form Master class.
+         *
+         * FALSE:
+         * Can upload only assigned subjects.
+         */
+        canUploadAllResults,
 
         status: "active",
 
@@ -461,10 +569,17 @@ export default function AddTeacherPage() {
           profile?.name ||
           profile?.email ||
           "admin",
+
+        createdAt: new Date(),
       });
 
       router.push("/admin/teachers");
     } catch (err) {
+      console.error(
+        "Could not create teacher:",
+        err
+      );
+
       setError(
         err instanceof Error
           ? err.message
@@ -475,6 +590,9 @@ export default function AddTeacherPage() {
     }
   };
 
+  /*
+   * Loading screen.
+   */
   if (loadingOptions) {
     return (
       <div className="max-w-4xl space-y-4">
@@ -512,7 +630,7 @@ export default function AddTeacherPage() {
         </div>
       )}
 
-      {/* Personal Information */}
+      {/* Teacher Information */}
       <section className="bg-white rounded-card border border-gray-100 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">
@@ -574,9 +692,9 @@ export default function AddTeacherPage() {
           </h2>
 
           <p className="text-xs text-gray-400 mt-1">
-            Select the classes this teacher is assigned to
-            teach. This is separate from Form Master
-            responsibility.
+            Select the classes this teacher is assigned
+            to teach. Form Master responsibility is
+            stored separately.
           </p>
         </div>
 
@@ -588,9 +706,8 @@ export default function AddTeacherPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {classes.map((classRoom) => {
-                const checked = selectedClasses.includes(
-                  classRoom.id
-                );
+                const checked =
+                  selectedClasses.includes(classRoom.id);
 
                 return (
                   <label
@@ -610,9 +727,17 @@ export default function AddTeacherPage() {
                       className="h-4 w-4"
                     />
 
-                    <span className="text-sm text-gray-700">
-                      {classRoom.name}
-                    </span>
+                    <div>
+                      <span className="text-sm text-gray-700">
+                        {classRoom.name}
+                      </span>
+
+                      {classRoom.level && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {classRoom.level}
+                        </p>
+                      )}
+                    </div>
                   </label>
                 );
               })}
@@ -731,9 +856,9 @@ export default function AddTeacherPage() {
           </h2>
 
           <p className="text-xs text-gray-400 mt-1">
-            Form Master is a separate responsibility. A
-            teacher can have a Form Master class in addition
-            to their subject and teaching assignments.
+            A Form Master can manage the assigned class
+            and upload results for all subjects in that
+            class when a subject teacher is unavailable.
           </p>
         </div>
 
@@ -765,20 +890,30 @@ export default function AddTeacherPage() {
             !selectedClasses.includes(
               formMasterClassId
             ) && (
-              <p className="text-xs text-status-disabled mt-3">
-                The selected Form Master class must also be
-                included in Teaching Classes.
-              </p>
+              <div className="mt-3 rounded-lg bg-status-disabled/10 px-4 py-3">
+                <p className="text-xs text-status-disabled">
+                  The selected Form Master class must
+                  also be included in Teaching Classes.
+                </p>
+              </div>
             )}
 
           {selectedFormMasterClass && (
             <div className="mt-4 rounded-lg bg-brand/5 border border-brand/10 px-4 py-3">
               <p className="text-xs text-brand">
-                Form Master
+                Form Master Result Permission
               </p>
 
               <p className="text-sm font-medium text-gray-700 mt-1">
+                All subjects in{" "}
                 {selectedFormMasterClass.name}
+              </p>
+
+              <p className="text-xs text-gray-500 mt-1">
+                This teacher will be able to upload
+                results for any subject in this Form
+                Master class when the subject teacher
+                is unavailable.
               </p>
             </div>
           )}
@@ -826,6 +961,18 @@ export default function AddTeacherPage() {
                 "Not assigned"}
             </span>
           </div>
+
+          {formMasterClassId && (
+            <div className="flex flex-col sm:flex-row gap-1">
+              <span className="text-gray-500 sm:w-40">
+                Result Upload:
+              </span>
+
+              <span className="text-gray-700">
+                All subjects in Form Master class
+              </span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -833,8 +980,10 @@ export default function AddTeacherPage() {
       <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
         <Button
           type="button"
-          variant="secondary"
-          onClick={() => router.push("/admin/teachers")}
+          variant="ghost"
+          onClick={() =>
+            router.push("/admin/teachers")
+          }
           disabled={saving}
         >
           Cancel
@@ -843,9 +992,15 @@ export default function AddTeacherPage() {
         <Button
           type="button"
           onClick={handleSubmit}
-          disabled={saving}
+          disabled={
+            saving ||
+            classes.length === 0 ||
+            subjects.length === 0
+          }
         >
-          {saving ? "Creating Teacher..." : "Create Teacher"}
+          {saving
+            ? "Creating Teacher..."
+            : "Create Teacher"}
         </Button>
       </div>
 
