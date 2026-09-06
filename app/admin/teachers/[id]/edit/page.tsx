@@ -778,7 +778,7 @@ export default function EditTeacherPage() {
        * This allows Firestore Security Rules to enforce
        * teacher permissions using the authenticated UID.
        */
-      if (teacher.authUid) {
+      if (teacher?.authUid) {
         const syncResponse = await fetch(
           "/api/admin/sync-teacher-account",
           {
