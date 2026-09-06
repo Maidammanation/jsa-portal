@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TextInput, SelectInput } from "@/components/Forms";
-import { Button } from "@/components/Buttons";
 import {
   getAll,
   getById,
@@ -12,7 +16,7 @@ import {
   update,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
-import type { ClassRoom, Subject } from "@/lib/types";
+import type { ClassRoom, SchoolLevel, Subject } from "@/lib/types";
 
 interface Teacher {
   id: string;
@@ -36,109 +40,48 @@ interface Teacher {
   authUid?: string;
 }
 
-function getClassLevel(level?: string, name?: string) {
+function getClassLevel(
+  level?: string,
+  name?: string
+): SchoolLevel | "" {
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
   if (value.includes("nursery")) return "nursery";
+
   if (value.includes("primary")) return "primary";
-  if (value.includes("jss") || value.includes("junior")) {
+
+  if (
+    value.includes("jss") ||
+    value.includes("junior")
+  ) {
     return "jss";
   }
-  if (value.includes("ss ") || value.startsWith("ss")) {
+
+  if (
+    value.includes("ss ") ||
+    value.startsWith("ss") ||
+    value.includes("senior")
+  ) {
     return "ss";
   }
-  if (value.includes("senior")) return "ss";
 
   return "";
 }
 
-/*
- * Subjects allowed for each school level.
- *
- * The existing global subjects collection remains unchanged.
- * This mapping only controls which subjects can be assigned
- * to a teacher based on their teaching classes.
- */
-const LEVEL_SUBJECTS: Record<string, string[]> = {
-  nursery: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Social Studies",
-    "Civic Education",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Fine Arts",
-    "Music",
-    "Islamic Religious Studies",
-    "Christian Religious Studies",
-  ],
-
-  primary: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Basic Technology",
-    "Agricultural Science",
-    "Social Studies",
-    "Civic Education",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Home Economics",
-    "Fine Arts",
-    "Music",
-  ],
-
-  jss: [
-    "English Language",
-    "Mathematics",
-    "Basic Science",
-    "Basic Technology",
-    "Agricultural Science",
-    "Social Studies",
-    "Civic Education",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Physical and Health Education",
-    "Computer Studies / ICT",
-    "French",
-    "Home Economics",
-    "Business Studies",
-    "Fine Arts",
-    "Music",
-    "Economics",
-    "Geography",
-    "Literature in English",
-  ],
-
-  ss: [
-    "English Language",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Further Mathematics",
-    "Economics",
-    "Government",
-    "Literature in English",
-    "Geography",
-    "Financial Accounting",
-    "Commerce",
-    "Agricultural Science",
-    "Christian Religious Studies",
-    "Islamic Religious Studies",
-    "Civic Education",
-    "Computer Studies / ICT",
-    "French",
-    "Physical and Health Education",
-    "Fine Arts",
-    "Music",
-  ],
-};
+function getLevelLabel(level: SchoolLevel | "") {
+  switch (level) {
+    case "nursery":
+      return "Nursery";
+    case "primary":
+      return "Primary";
+    case "jss":
+      return "JSS";
+    case "ss":
+      return "SS";
+    default:
+      return "";
+  }
+}
 
 export default function EditTeacherPage() {
   const router = useRouter();
@@ -149,15 +92,25 @@ export default function EditTeacherPage() {
     ? params.id[0]
     : params?.id;
 
-  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [teacher, setTeacher] =
+    useState<Teacher | null>(null);
 
-  const [classes, setClasses] = useState<ClassRoom[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>(
+    []
+  );
+
+  const [subjects, setSubjects] = useState<Subject[]>(
+    []
+  );
+
+  const [teachers, setTeachers] = useState<Teacher[]>(
+    []
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [form, setForm] = useState({
     firstName: "",
@@ -165,31 +118,21 @@ export default function EditTeacherPage() {
     email: "",
   });
 
-  /*
-   * Classes the teacher is actually assigned to teach.
-   */
-  const [selectedClasses, setSelectedClasses] = useState<string[]>(
-    []
-  );
+  const [selectedClasses, setSelectedClasses] =
+    useState<string[]>([]);
 
-  /*
-   * Subjects the teacher is assigned to teach.
-   */
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(
-    []
-  );
+  const [selectedSubjects, setSelectedSubjects] =
+    useState<string[]>([]);
 
-  /*
-   * Separate Form Master responsibility.
-   */
-  const [formMasterClassId, setFormMasterClassId] = useState("");
+  const [formMasterClassId, setFormMasterClassId] =
+    useState("");
 
   const [status, setStatus] = useState<
     "active" | "suspended" | "disabled"
   >("active");
 
   /*
-   * Load teacher, classes, subjects and all teachers.
+   * LOAD TEACHER DATA
    */
   useEffect(() => {
     if (!teacherId) {
@@ -224,10 +167,17 @@ export default function EditTeacherPage() {
           return;
         }
 
-        const teacherRecord = teacherData as Teacher;
-        const loadedClasses = classData as ClassRoom[];
-        const loadedSubjects = subjectData as Subject[];
-        const loadedTeachers = teacherList as Teacher[];
+        const teacherRecord =
+          teacherData as Teacher;
+
+        const loadedClasses =
+          (classData || []) as ClassRoom[];
+
+        const loadedSubjects =
+          (subjectData || []) as Subject[];
+
+        const loadedTeachers =
+          (teacherList || []) as Teacher[];
 
         setTeacher(teacherRecord);
         setClasses(loadedClasses);
@@ -235,27 +185,30 @@ export default function EditTeacherPage() {
         setTeachers(loadedTeachers);
 
         setForm({
-          firstName: teacherRecord.firstName || "",
-          lastName: teacherRecord.lastName || "",
-          email: teacherRecord.email || "",
+          firstName:
+            teacherRecord.firstName || "",
+          lastName:
+            teacherRecord.lastName || "",
+          email:
+            teacherRecord.email || "",
         });
 
         /*
-         * Load teaching classes.
-         *
-         * New records already use classIds.
-         *
-         * For older records, if classIds does not exist,
-         * preserve the old Form Master class as a teaching
-         * class where possible.
+         * LOAD TEACHING CLASSES
          */
-        let classIds = teacherRecord.classIds || [];
+        let classIds =
+          teacherRecord.classIds || [];
 
         const existingFormClassId =
           teacherRecord.formClassId ||
           teacherRecord.formMasterClassId ||
           "";
 
+        /*
+         * Legacy compatibility:
+         * if an old teacher has no classIds but has
+         * a Form Master class, preserve it.
+         */
         if (
           classIds.length === 0 &&
           existingFormClassId
@@ -266,13 +219,19 @@ export default function EditTeacherPage() {
         setSelectedClasses(classIds);
 
         /*
-         * Load subject assignments.
+         * LOAD SUBJECT ASSIGNMENTS
          *
-         * New format: subjectIds
-         * Legacy format: subjects[]
-         * Older format: subject string
+         * New format:
+         * subjectIds
+         *
+         * Legacy:
+         * subjects[]
+         *
+         * Older:
+         * subject = "English, Mathematics"
          */
-        let subjectIds = teacherRecord.subjectIds || [];
+        let subjectIds =
+          teacherRecord.subjectIds || [];
 
         if (
           subjectIds.length === 0 &&
@@ -284,7 +243,9 @@ export default function EditTeacherPage() {
               teacherRecord.subjects?.some(
                 (name) =>
                   name.trim().toLowerCase() ===
-                  subject.name.trim().toLowerCase()
+                  subject.name
+                    .trim()
+                    .toLowerCase()
               )
             )
             .map((subject) => subject.id);
@@ -297,13 +258,17 @@ export default function EditTeacherPage() {
           const oldSubjectNames =
             teacherRecord.subject
               .split(",")
-              .map((item) => item.trim().toLowerCase())
+              .map((item) =>
+                item.trim().toLowerCase()
+              )
               .filter(Boolean);
 
           subjectIds = loadedSubjects
             .filter((subject) =>
               oldSubjectNames.includes(
-                subject.name.trim().toLowerCase()
+                subject.name
+                  .trim()
+                  .toLowerCase()
               )
             )
             .map((subject) => subject.id);
@@ -311,12 +276,13 @@ export default function EditTeacherPage() {
 
         setSelectedSubjects(subjectIds);
 
-        /*
-         * Existing Form Master assignment.
-         */
-        setFormMasterClassId(existingFormClassId);
+        setFormMasterClassId(
+          existingFormClassId
+        );
 
-        setStatus(teacherRecord.status || "active");
+        setStatus(
+          teacherRecord.status || "active"
+        );
       } catch (err) {
         if (!mounted) return;
 
@@ -345,20 +311,21 @@ export default function EditTeacherPage() {
   }, [teacherId]);
 
   /*
-   * Determine the school levels represented by the
-   * teacher's selected teaching classes.
+   * SELECTED SCHOOL LEVELS
    */
   const selectedLevels = useMemo(() => {
-    const levels = new Set<string>();
+    const levels = new Set<SchoolLevel>();
 
     selectedClasses.forEach((classId) => {
-      const selectedClass = classes.find(
-        (classRoom) => classRoom.id === classId
+      const classroom = classes.find(
+        (item) => item.id === classId
       );
 
+      if (!classroom) return;
+
       const level = getClassLevel(
-        selectedClass?.level,
-        selectedClass?.name
+        classroom.level,
+        classroom.name
       );
 
       if (level) {
@@ -370,58 +337,111 @@ export default function EditTeacherPage() {
   }, [selectedClasses, classes]);
 
   /*
-   * Subjects allowed for the selected teaching classes.
+   * WHETHER SUBJECT RECORDS USE THE NEW LEVEL SYSTEM
+   */
+  const hasLevelAwareSubjects = useMemo(() => {
+    return subjects.some(
+      (subject) =>
+        Array.isArray(subject.levels) &&
+        subject.levels.length > 0
+    );
+  }, [subjects]);
+
+  /*
+   * SUBJECTS AVAILABLE FOR THE SELECTED CLASSES
+   *
+   * IMPORTANT:
+   * We now use Subject.levels from the
+   * Classes & Subjects page.
+   *
+   * Music is always excluded.
    */
   const availableSubjects = useMemo(() => {
     if (selectedLevels.length === 0) {
       return [];
     }
 
-    const allowedNames = new Set<string>();
+    return subjects.filter((subject) => {
+      const subjectName =
+        subject.name.trim().toLowerCase();
 
-    selectedLevels.forEach((level) => {
-      (LEVEL_SUBJECTS[level] || []).forEach((name) => {
-        allowedNames.add(name.trim().toLowerCase());
-      });
+      /*
+       * Music is intentionally not part of JSA.
+       */
+      if (subjectName === "music") {
+        return false;
+      }
+
+      /*
+       * New level-aware curriculum.
+       */
+      if (
+        Array.isArray(subject.levels) &&
+        subject.levels.length > 0
+      ) {
+        return selectedLevels.some((level) =>
+          subject.levels?.includes(level)
+        );
+      }
+
+      /*
+       * Legacy compatibility.
+       *
+       * If the database has not yet been migrated
+       * to level-aware subjects, allow old subjects
+       * except Music.
+       */
+      if (!hasLevelAwareSubjects) {
+        return true;
+      }
+
+      return false;
     });
-
-    return subjects.filter((subject) =>
-      allowedNames.has(
-        subject.name.trim().toLowerCase()
-      )
-    );
-  }, [subjects, selectedLevels]);
+  }, [
+    subjects,
+    selectedLevels,
+    hasLevelAwareSubjects,
+  ]);
 
   /*
-   * Remove subjects that are no longer valid when
-   * teaching classes are changed.
+   * KEEP ONLY VALID SUBJECT ASSIGNMENTS
+   *
+   * We intentionally do NOT clear existing subjects
+   * when the teacher is a Form Master with no subjects.
    */
   useEffect(() => {
     if (selectedLevels.length === 0) {
-      setSelectedSubjects([]);
       return;
     }
 
     const availableIds = new Set(
-      availableSubjects.map((subject) => subject.id)
+      availableSubjects.map(
+        (subject) => subject.id
+      )
     );
 
     setSelectedSubjects((previous) =>
-      previous.filter((id) => availableIds.has(id))
+      previous.filter((id) =>
+        availableIds.has(id)
+      )
     );
-  }, [availableSubjects, selectedLevels.length]);
+  }, [
+    availableSubjects,
+    selectedLevels.length,
+  ]);
 
   /*
-   * Find classes already assigned to another teacher
-   * as Form Master.
+   * FORM MASTER CLASSES ALREADY ASSIGNED
    *
-   * The current teacher is excluded so they can keep
+   * Exclude the current teacher so they can keep
    * their existing Form Master class.
    */
   const assignedByOtherTeachers = useMemo(() => {
     return new Set(
       teachers
-        .filter((item) => item.id !== teacherId)
+        .filter(
+          (item) => item.id !== teacherId
+        )
         .flatMap((item) => [
           item.formClassId || "",
           item.formMasterClassId || "",
@@ -431,144 +451,207 @@ export default function EditTeacherPage() {
   }, [teachers, teacherId]);
 
   /*
-   * Classes available for Form Master assignment.
+   * FORM MASTER CLASS OPTIONS
    */
-  const availableFormMasterClasses = useMemo(() => {
-    return classes.filter(
-      (classRoom) =>
-        !assignedByOtherTeachers.has(classRoom.id)
-    );
-  }, [classes, assignedByOtherTeachers]);
+  const availableFormMasterClasses =
+    useMemo(() => {
+      return classes.filter(
+        (classroom) =>
+          !assignedByOtherTeachers.has(
+            classroom.id
+          )
+      );
+    }, [
+      classes,
+      assignedByOtherTeachers,
+    ]);
 
+  /*
+   * SELECTED CLASS NAMES
+   */
   const selectedClassNames = useMemo(() => {
     return classes
-      .filter((classRoom) =>
-        selectedClasses.includes(classRoom.id)
+      .filter((classroom) =>
+        selectedClasses.includes(
+          classroom.id
+        )
       )
-      .map((classRoom) => classRoom.name);
+      .map((classroom) => classroom.name);
   }, [classes, selectedClasses]);
 
+  /*
+   * SELECTED SUBJECT NAMES
+   */
   const selectedSubjectNames = useMemo(() => {
     return subjects
       .filter((subject) =>
-        selectedSubjects.includes(subject.id)
+        selectedSubjects.includes(
+          subject.id
+        )
       )
       .map((subject) => subject.name);
   }, [subjects, selectedSubjects]);
 
-  const selectedFormMasterClass = classes.find(
-    (classRoom) => classRoom.id === formMasterClassId
-  );
+  /*
+   * SELECTED FORM MASTER CLASS
+   */
+  const selectedFormMasterClass =
+    classes.find(
+      (classroom) =>
+        classroom.id === formMasterClassId
+    );
 
   /*
-   * Handle teacher information changes.
+   * HANDLE BASIC FORM CHANGES
    */
   const handleChange =
     (field: keyof typeof form) =>
-    (
-      e: React.ChangeEvent<HTMLInputElement>
-    ) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       setForm((previous) => ({
         ...previous,
         [field]: e.target.value,
       }));
 
       setError("");
+      setSuccess("");
     };
 
   /*
-   * Toggle teaching class.
+   * TOGGLE CLASS
    */
-  const toggleClass = (classId: string) => {
+  const toggleClass = (
+    classId: string
+  ) => {
     setSelectedClasses((previous) =>
       previous.includes(classId)
-        ? previous.filter((id) => id !== classId)
+        ? previous.filter(
+            (id) => id !== classId
+          )
         : [...previous, classId]
     );
 
     setError("");
+    setSuccess("");
   };
 
   /*
-   * Toggle teaching subject.
+   * TOGGLE SUBJECT
    */
-  const toggleSubject = (subjectId: string) => {
+  const toggleSubject = (
+    subjectId: string
+  ) => {
     setSelectedSubjects((previous) =>
       previous.includes(subjectId)
-        ? previous.filter((id) => id !== subjectId)
+        ? previous.filter(
+            (id) => id !== subjectId
+          )
         : [...previous, subjectId]
     );
 
     setError("");
+    setSuccess("");
   };
 
   /*
-   * Select all subjects applicable to the teacher's
-   * selected teaching classes.
+   * SELECT ALL AVAILABLE SUBJECTS
    */
   const selectAllSubjects = () => {
     setSelectedSubjects(
-      availableSubjects.map((subject) => subject.id)
+      availableSubjects.map(
+        (subject) => subject.id
+      )
     );
 
     setError("");
+    setSuccess("");
   };
 
   /*
-   * Clear subjects.
+   * CLEAR SUBJECTS
    */
   const clearAllSubjects = () => {
     setSelectedSubjects([]);
     setError("");
+    setSuccess("");
   };
 
   /*
-   * Save changes.
+   * SAVE TEACHER
    */
   const handleSubmit = async (
-    e: React.FormEvent
+    e: FormEvent
   ) => {
     e.preventDefault();
 
     setError("");
+    setSuccess("");
 
     if (!teacherId) {
       setError("Teacher ID is missing.");
       return;
     }
 
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
-    const email = form.email.trim().toLowerCase();
+    const firstName =
+      form.firstName.trim();
 
-    if (!firstName || !lastName || !email) {
+    const lastName =
+      form.lastName.trim();
+
+    const email =
+      form.email.trim().toLowerCase();
+
+    if (
+      !firstName ||
+      !lastName ||
+      !email
+    ) {
       setError(
         "Please fill in the first name, last name and email."
       );
       return;
     }
 
-    if (selectedClasses.length === 0) {
+    /*
+     * A teacher must have at least one teaching
+     * class.
+     */
+    if (
+      selectedClasses.length === 0
+    ) {
       setError(
         "Please assign at least one teaching class to this teacher."
       );
       return;
     }
 
-    if (selectedSubjects.length === 0) {
+    /*
+     * IMPORTANT:
+     *
+     * A normal teacher needs at least one subject.
+     *
+     * A Form Master does NOT need a subject because
+     * Form Masters have full result-upload permission
+     * for their Form Master class.
+     */
+    if (
+      selectedSubjects.length === 0 &&
+      !formMasterClassId
+    ) {
       setError(
-        "Please assign at least one teaching subject to this teacher."
+        "Please assign at least one teaching subject to this teacher, or assign a Form Master class."
       );
       return;
     }
 
     /*
      * Form Master class must also be one of the
-     * teacher's assigned teaching classes.
+     * teacher's assigned classes.
      */
     if (
       formMasterClassId &&
-      !selectedClasses.includes(formMasterClassId)
+      !selectedClasses.includes(
+        formMasterClassId
+      )
     ) {
       setError(
         "The Form Master class must also be one of the teacher's assigned teaching classes."
@@ -577,12 +660,13 @@ export default function EditTeacherPage() {
     }
 
     /*
-     * Final protection against assigning a class
-     * that belongs to another Form Master.
+     * Prevent duplicate Form Masters.
      */
     if (
       formMasterClassId &&
-      assignedByOtherTeachers.has(formMasterClassId)
+      assignedByOtherTeachers.has(
+        formMasterClassId
+      )
     ) {
       setError(
         "This class already has another Form Master. Please select another class."
@@ -593,25 +677,33 @@ export default function EditTeacherPage() {
     setSaving(true);
 
     try {
-      const selectedSubjectNames =
+      /*
+       * Get the final subject names.
+       */
+      const finalSubjectNames =
         subjects
           .filter((subject) =>
-            selectedSubjects.includes(subject.id)
+            selectedSubjects.includes(
+              subject.id
+            )
           )
-          .map((subject) => subject.name);
+          .map(
+            (subject) => subject.name
+          );
 
-      const selectedClass =
+      /*
+       * Get Form Master class name.
+       */
+      const formMasterClass =
         classes.find(
-          (classRoom) =>
-            classRoom.id === formMasterClassId
+          (classroom) =>
+            classroom.id ===
+            formMasterClassId
         );
 
       /*
-       * Form Master automatically receives full result
-       * upload permission.
-       *
-       * Ordinary teachers remain restricted to their
-       * assigned classes and subjects.
+       * Form Master automatically receives
+       * full result-upload permission.
        */
       const canUploadAllResults =
         Boolean(formMasterClassId);
@@ -625,42 +717,41 @@ export default function EditTeacherPage() {
           email,
 
           /*
-           * Actual teaching classes.
+           * Teaching classes.
            */
           classIds: selectedClasses,
 
           /*
-           * Actual teaching subjects.
+           * Teaching subjects.
+           *
+           * Form Master does NOT need every subject
+           * here. Full result access is controlled by
+           * canUploadAllResults.
            */
           subjectIds: selectedSubjects,
 
           /*
-           * Subject names.
+           * Legacy-compatible subject fields.
            */
-          subjects: selectedSubjectNames,
+          subjects: finalSubjectNames,
+
+          subject:
+            finalSubjectNames.join(", "),
 
           /*
-           * Legacy subject field.
-           */
-          subject: selectedSubjectNames.join(", "),
-
-          /*
-           * Form Master responsibility.
+           * Form Master assignment.
            */
           formClassId:
             formMasterClassId || null,
 
-          /*
-           * Compatibility fields.
-           */
           formMasterClassId:
             formMasterClassId || "",
 
           formMasterClassName:
-            selectedClass?.name || "",
+            formMasterClass?.name || "",
 
           /*
-           * Form Master gets full result upload access.
+           * Full result permission for Form Masters.
            */
           canUploadAllResults,
 
@@ -675,7 +766,51 @@ export default function EditTeacherPage() {
         }
       );
 
-      router.push("/admin/teachers");
+      setSuccess(
+        "Teacher information updated successfully."
+      );
+
+      /*
+       * Update local teacher state.
+       */
+      setTeacher((previous) =>
+        previous
+          ? {
+              ...previous,
+              firstName,
+              lastName,
+              email,
+              classIds:
+                selectedClasses,
+              subjectIds:
+                selectedSubjects,
+              subjects:
+                finalSubjectNames,
+              subject:
+                finalSubjectNames.join(
+                  ", "
+                ),
+              formClassId:
+                formMasterClassId ||
+                null,
+              formMasterClassId:
+                formMasterClassId || "",
+              formMasterClassName:
+                formMasterClass?.name ||
+                "",
+              canUploadAllResults,
+              status,
+            }
+          : previous
+      );
+
+      /*
+       * Give the user a moment to see the success
+       * message before returning.
+       */
+      setTimeout(() => {
+        router.push("/admin/teachers");
+      }, 900);
     } catch (err) {
       console.error(
         "Could not update teacher:",
@@ -685,7 +820,7 @@ export default function EditTeacherPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Could not update teacher. Please try again."
+          : "Could not update teacher information."
       );
     } finally {
       setSaving(false);
@@ -693,480 +828,671 @@ export default function EditTeacherPage() {
   };
 
   /*
-   * Form Master dropdown options.
-   */
-  const formMasterOptions = [
-    {
-      label: "Not a Form Master",
-      value: "",
-    },
-
-    ...availableFormMasterClasses.map(
-      (classRoom) => ({
-        label: classRoom.name,
-        value: classRoom.id,
-      })
-    ),
-  ];
-
-  /*
-   * Loading screen.
+   * LOADING STATE
    */
   if (loading) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-semibold text-gray-800">
-          Edit Teacher
-        </h1>
-
-        <p className="text-sm text-gray-400">
-          Loading teacher information...
-        </p>
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-2xl bg-white p-8 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+              <p className="text-sm text-slate-600">
+                Loading teacher information...
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   /*
-   * Teacher not found.
+   * ERROR WHEN TEACHER WAS NOT FOUND
    */
   if (!teacher) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <h1 className="text-xl font-semibold text-gray-800">
-          Edit Teacher
-        </h1>
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+            <h1 className="text-lg font-bold text-red-800">
+              Teacher Not Found
+            </h1>
 
-        <div className="rounded-lg bg-status-disabled/10 px-4 py-3">
-          <p className="text-sm text-status-disabled">
-            {error ||
-              "Teacher record was not found."}
-          </p>
+            <p className="mt-2 text-sm text-red-700">
+              {error ||
+                "The teacher record could not be found."}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  "/admin/teachers"
+                )
+              }
+              className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Back to Teachers
+            </button>
+          </div>
         </div>
-
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() =>
-            router.push("/admin/teachers")
-          }
-        >
-          Back to Teachers
-        </Button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800">
-          Edit Teacher
-        </h1>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+      <div className="mx-auto max-w-6xl">
+        {/* HEADER */}
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-500">
+              Jidda Standard Academy
+            </p>
 
-        <p className="text-sm text-gray-500 mt-1">
-          Update teacher information, teaching
-          classes, subjects and Form Master
-          responsibility.
-        </p>
-      </div>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">
+              Edit Teacher
+            </h1>
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-lg bg-status-disabled/10 border border-status-disabled/20 px-4 py-3">
-          <p className="text-sm text-status-disabled">
-            {error}
-          </p>
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-6"
-      >
-        {/* Teacher Information */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">
-            Teacher Information
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-            <TextInput
-              label="First Name"
-              value={form.firstName}
-              onChange={handleChange("firstName")}
-              required
-            />
-
-            <TextInput
-              label="Last Name"
-              value={form.lastName}
-              onChange={handleChange("lastName")}
-              required
-            />
-
-            <div className="sm:col-span-2">
-              <TextInput
-                label="Email"
-                type="email"
-                value={form.email}
-                onChange={handleChange("email")}
-                required
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Teaching Classes */}
-        <section>
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-gray-700">
-              Teaching Classes
-            </h2>
-
-            <p className="text-xs text-gray-400 mt-1">
-              Select the classes this teacher is
-              assigned to teach.
+            <p className="mt-1 text-sm text-slate-600">
+              Update teaching classes, subjects and
+              Form Master responsibilities.
             </p>
           </div>
 
-          {classes.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <p className="text-sm text-gray-500">
-                No classes have been created yet.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {classes.map((classRoom) => {
-                  const checked =
-                    selectedClasses.includes(
-                      classRoom.id
-                    );
-
-                  return (
-                    <label
-                      key={classRoom.id}
-                      className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition ${
-                        checked
-                          ? "border-brand bg-brand/5"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          toggleClass(classRoom.id)
-                        }
-                        className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
-                      />
-
-                      <span
-                        className={`text-sm ${
-                          checked
-                            ? "text-gray-800 font-medium"
-                            : "text-gray-600"
-                        }`}
-                      >
-                        {classRoom.name}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-gray-400 mt-2">
-                {selectedClasses.length}{" "}
-                class
-                {selectedClasses.length === 1
-                  ? ""
-                  : "es"}{" "}
-                selected.
-              </p>
-            </>
-          )}
-        </section>
-
-        {/* Subjects */}
-        <section>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-700">
-                Subject Assignment
-              </h2>
-
-              <p className="text-xs text-gray-400 mt-1">
-                Only subjects applicable to the
-                selected teaching classes are shown.
-              </p>
-            </div>
-
-            {availableSubjects.length > 0 && (
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={selectAllSubjects}
-                  className="text-xs text-brand hover:underline"
-                >
-                  Select all
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearAllSubjects}
-                  className="text-xs text-gray-500 hover:underline"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-          </div>
-
-          {selectedClasses.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <p className="text-sm text-gray-500">
-                Select teaching classes first.
-              </p>
-            </div>
-          ) : availableSubjects.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <p className="text-sm text-status-disabled">
-                No matching subjects were found for
-                the selected class level.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {availableSubjects.map((subject) => {
-                  const checked =
-                    selectedSubjects.includes(
-                      subject.id
-                    );
-
-                  return (
-                    <label
-                      key={subject.id}
-                      className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition ${
-                        checked
-                          ? "border-brand bg-brand/5"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          toggleSubject(subject.id)
-                        }
-                        className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
-                      />
-
-                      <span
-                        className={`text-sm ${
-                          checked
-                            ? "text-gray-800 font-medium"
-                            : "text-gray-600"
-                        }`}
-                      >
-                        {subject.name}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-gray-400 mt-2">
-                {selectedSubjects.length}{" "}
-                subject
-                {selectedSubjects.length === 1
-                  ? ""
-                  : "s"}{" "}
-                selected.
-              </p>
-            </>
-          )}
-        </section>
-
-        {/* Form Master */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-1">
-            Form Master Assignment
-          </h2>
-
-          <p className="text-xs text-gray-400 mb-3">
-            Form Master is a separate responsibility.
-            A Form Master can also upload results for
-            all subjects in their class when another
-            subject teacher is unavailable.
-          </p>
-
-          {classes.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <p className="text-sm text-gray-500">
-                No classes have been created yet.
-              </p>
-            </div>
-          ) : (
-            <SelectInput
-              label="Form Master Class"
-              value={formMasterClassId}
-              onChange={(e) => {
-                setFormMasterClassId(e.target.value);
-                setError("");
-              }}
-              options={formMasterOptions}
-            />
-          )}
-
-          {formMasterClassId && (
-            <div className="mt-3 rounded-lg bg-brand/5 border border-brand/10 px-4 py-3">
-              <p className="text-xs text-brand font-medium">
-                Result Upload Access
-              </p>
-
-              <p className="text-sm text-gray-700 mt-1">
-                Full result upload access for all
-                subjects in the Form Master&apos;s
-                assigned class.
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* Status */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-1">
-            Account Status
-          </h2>
-
-          <SelectInput
-            label="Status"
-            value={status}
-            onChange={(e) =>
-              setStatus(
-                e.target.value as
-                  | "active"
-                  | "suspended"
-                  | "disabled"
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                "/admin/teachers"
               )
             }
-            options={[
-              {
-                label: "Active",
-                value: "active",
-              },
-              {
-                label: "Suspended",
-                value: "suspended",
-              },
-              {
-                label: "Disabled",
-                value: "disabled",
-              },
-            ]}
-          />
-        </section>
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            ← Back to Teachers
+          </button>
+        </div>
 
-        {/* Summary */}
-        <section className="rounded-lg bg-gray-50 border border-gray-100 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">
-            Assignment Summary
-          </h2>
-
-          <div className="space-y-2 text-sm">
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Teacher:
-              </span>{" "}
-              {form.firstName} {form.lastName}
-            </p>
-
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Teaching Classes:
-              </span>{" "}
-              {selectedClassNames.length > 0
-                ? selectedClassNames.join(", ")
-                : "None selected"}
-            </p>
-
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Teaching Subjects:
-              </span>{" "}
-              {selectedSubjectNames.length > 0
-                ? selectedSubjectNames.join(", ")
-                : "None selected"}
-            </p>
-
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Form Master:
-              </span>{" "}
-              {selectedFormMasterClass?.name ||
-                "No"}
-            </p>
-
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Result Upload Access:
-              </span>{" "}
-              {formMasterClassId
-                ? "All subjects in Form Master class"
-                : "Assigned classes & subjects only"}
-            </p>
-
-            <p className="text-gray-600">
-              <span className="font-medium">
-                Status:
-              </span>{" "}
-              {status}
+        {/* ERROR */}
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-medium text-red-700">
+              {error}
             </p>
           </div>
-        </section>
+        )}
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Button
-            type="submit"
-            disabled={
-              saving ||
-              subjects.length === 0 ||
-              classes.length === 0
-            }
-          >
-            {saving
-              ? "Saving Changes..."
-              : "Save Changes"}
-          </Button>
+        {/* SUCCESS */}
+        {success && (
+          <div className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4">
+            <p className="text-sm font-medium text-green-700">
+              {success}
+            </p>
+          </div>
+        )}
 
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() =>
-              router.push("/admin/teachers")
-            }
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-        </div>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+          {/* TEACHER INFORMATION */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                Teacher Information
+              </h2>
 
-        {/* Developer Credit */}
-        <div className="pt-2 text-center">
-          <p className="text-xs text-gray-400">
-            Designed &amp; Developed by Maidammanation
+              <p className="mt-1 text-sm text-slate-500">
+                Update the teacher's basic account
+                information.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  First Name
+                </label>
+
+                <input
+                  type="text"
+                  value={form.firstName}
+                  onChange={handleChange(
+                    "firstName"
+                  )}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                  placeholder="First name"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Last Name
+                </label>
+
+                <input
+                  type="text"
+                  value={form.lastName}
+                  onChange={handleChange(
+                    "lastName"
+                  )}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                  placeholder="Last name"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Email
+                </label>
+
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={handleChange(
+                    "email"
+                  )}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                  placeholder="teacher@example.com"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 max-w-xs">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Account Status
+              </label>
+
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(
+                    e.target.value as
+                      | "active"
+                      | "suspended"
+                      | "disabled"
+                  )
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+              >
+                <option value="active">
+                  Active
+                </option>
+                <option value="suspended">
+                  Suspended
+                </option>
+                <option value="disabled">
+                  Disabled
+                </option>
+              </select>
+            </div>
+          </section>
+
+          {/* TEACHING CLASSES */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                Teaching Classes
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Select the classes this teacher is
+                assigned to teach.
+              </p>
+            </div>
+
+            {classes.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-800">
+                  No classes have been created yet.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {classes.map((classroom) => {
+                  const checked =
+                    selectedClasses.includes(
+                      classroom.id
+                    );
+
+                  const level =
+                    getClassLevel(
+                      classroom.level,
+                      classroom.name
+                    );
+
+                  return (
+                    <label
+                      key={classroom.id}
+                      className={`cursor-pointer rounded-xl border p-4 transition ${
+                        checked
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white hover:border-slate-400"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            toggleClass(
+                              classroom.id
+                            )
+                          }
+                          className="mt-1 h-4 w-4"
+                        />
+
+                        <div>
+                          <p className="font-semibold">
+                            {classroom.name}
+                          </p>
+
+                          {level && (
+                            <p
+                              className={`mt-1 text-xs ${
+                                checked
+                                  ? "text-slate-300"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              {getLevelLabel(
+                                level
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedClasses.length > 0 && (
+              <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Selected Classes
+                </p>
+
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  {selectedClassNames.join(
+                    ", "
+                  )}
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* SUBJECT ASSIGNMENT */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Subject Assignment
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Only subjects configured for the
+                  selected school levels are shown.
+                </p>
+
+                {selectedLevels.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedLevels.map(
+                      (level) => (
+                        <span
+                          key={level}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                        >
+                          {getLevelLabel(
+                            level
+                          )}
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {availableSubjects.length >
+                0 && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={
+                      selectAllSubjects
+                    }
+                    className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                  >
+                    Select All
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={
+                      clearAllSubjects
+                    }
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {selectedLevels.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-800">
+                  Select at least one teaching class
+                  first. The available subjects will
+                  then be based on the class level.
+                </p>
+              </div>
+            ) : availableSubjects.length ===
+              0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-800">
+                  No subjects are currently
+                  configured for the selected school
+                  level.
+                </p>
+
+                <p className="mt-1 text-xs text-amber-700">
+                  Go to Classes & Subjects and assign
+                  levels to your subjects.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {availableSubjects.map(
+                  (subject) => {
+                    const checked =
+                      selectedSubjects.includes(
+                        subject.id
+                      );
+
+                    return (
+                      <label
+                        key={subject.id}
+                        className={`cursor-pointer rounded-xl border p-4 transition ${
+                          checked
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white hover:border-slate-400"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              toggleSubject(
+                                subject.id
+                              )
+                            }
+                            className="mt-1 h-4 w-4"
+                          />
+
+                          <div className="min-w-0">
+                            <p className="font-semibold">
+                              {subject.name}
+                            </p>
+
+                            {subject.code && (
+                              <p
+                                className={`mt-1 text-xs ${
+                                  checked
+                                    ? "text-slate-300"
+                                    : "text-slate-500"
+                                }`}
+                              >
+                                {subject.code}
+                              </p>
+                            )}
+
+                            {Array.isArray(
+                              subject.levels
+                            ) &&
+                              subject.levels
+                                .length >
+                                0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {subject.levels.map(
+                                    (
+                                      level
+                                    ) => (
+                                      <span
+                                        key={
+                                          level
+                                        }
+                                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                          checked
+                                            ? "bg-white/15 text-white"
+                                            : "bg-slate-100 text-slate-600"
+                                        }`}
+                                      >
+                                        {getLevelLabel(
+                                          level
+                                        )}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  }
+                )}
+              </div>
+            )}
+
+            {selectedSubjects.length >
+              0 && (
+              <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Assigned Subjects
+                </p>
+
+                <p className="mt-1 text-sm font-medium text-slate-800">
+                  {selectedSubjectNames.join(
+                    ", "
+                  )}
+                </p>
+              </div>
+            )}
+
+            {formMasterClassId &&
+              selectedSubjects.length ===
+                0 && (
+                <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-sm font-semibold text-blue-800">
+                    Form Master mode
+                  </p>
+
+                  <p className="mt-1 text-xs text-blue-700">
+                    This teacher can be saved without
+                    individual subject assignments because
+                    Form Masters receive full result-upload
+                    access for their Form Master class.
+                  </p>
+                </div>
+              )}
+          </section>
+
+          {/* FORM MASTER */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                Form Master Assignment
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                A Form Master can upload results for all
+                subjects belonging to their assigned class,
+                including results from subject teachers who
+                are unavailable.
+              </p>
+            </div>
+
+            <div className="max-w-xl">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Form Master Class
+              </label>
+
+              <select
+                value={formMasterClassId}
+                onChange={(e) => {
+                  setFormMasterClassId(
+                    e.target.value
+                  );
+                  setError("");
+                  setSuccess("");
+                }}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+              >
+                <option value="">
+                  No Form Master assignment
+                </option>
+
+                {availableFormMasterClasses.map(
+                  (classroom) => (
+                    <option
+                      key={classroom.id}
+                      value={classroom.id}
+                    >
+                      {classroom.name}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            {selectedFormMasterClass && (
+              <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-700">
+                    ✓
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-green-800">
+                      Form Master Assigned
+                    </p>
+
+                    <p className="mt-1 text-sm text-green-700">
+                      {selectedFormMasterClass.name}
+                    </p>
+
+                    <p className="mt-2 text-xs text-green-700">
+                      Full result-upload permission will
+                      automatically be enabled for this
+                      Form Master.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ASSIGNMENT SUMMARY */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-slate-900">
+                Assignment Summary
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Review the teacher's responsibilities
+                before saving.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Teaching Classes
+                </p>
+
+                <p className="mt-2 text-2xl font-bold text-slate-900">
+                  {selectedClasses.length}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Assigned Subjects
+                </p>
+
+                <p className="mt-2 text-2xl font-bold text-slate-900">
+                  {selectedSubjects.length}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Form Master
+                </p>
+
+                <p className="mt-2 text-lg font-bold text-slate-900">
+                  {selectedFormMasterClass
+                    ? selectedFormMasterClass.name
+                    : "No"}
+                </p>
+              </div>
+            </div>
+
+            {formMasterClassId && (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-800">
+                  Full Result Upload Permission: Enabled
+                </p>
+
+                <p className="mt-1 text-xs text-blue-700">
+                  Because this teacher is a Form Master,
+                  they will be allowed to upload results
+                  for all subjects in the Form Master class.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ACTIONS */}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() =>
+                router.push(
+                  "/admin/teachers"
+                )
+              }
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving Changes..."
+                : "Save Changes"}
+            </button>
+          </div>
+        </form>
+
+        {/* FOOTER */}
+        <div className="mt-8 pb-6 text-center">
+          <p className="text-xs text-slate-400">
+            Jidda Standard Academy • Maidammanation
             Tech Company
           </p>
-
-          <p className="text-xs text-gray-400 mt-1">
-            08032191668 / 08117106867
-          </p>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
