@@ -57,12 +57,12 @@ exam: "",
   function getClassLevel(
   level?: string,
   name?: string
-  ): SchoolLevel | "" {
-  const value = "${level || ""} ${name || ""}".toLowerCase();
+): SchoolLevel | "" {
+  const value = `${level || ""} ${name || ""}`.toLowerCase();
 
-if (value.includes("nursery")) {
-return "nursery";
-}
+  if (value.includes("nursery")) {
+    return "nursery";
+  }
 
 if (value.includes("primary")) {
 return "primary";
