@@ -1,6 +1,3 @@
-// lib/types.ts
-// Shared domain types for the JSA Portal.
-
 import type { AccountStatus } from "@/settings/config";
 
 export type SchoolLevel =
@@ -9,24 +6,10 @@ export type SchoolLevel =
   | "jss"
   | "ss";
 
-/**
- * Subject section used by the school curriculum.
- *
- * main:
- * Normal academic subjects using:
- * CA1 20 + CA2 20 + Exam 60 = 100
- *
- * arabic:
- * Arabic/Islamic section using:
- * CA 40 + Exam 60 = 100
- */
 export type SubjectSection =
   | "main"
   | "arabic";
 
-/**
- * Scoring structure for a subject.
- */
 export type ScoringType =
   | "main-20-20-60"
   | "arabic-40-60";
@@ -40,17 +23,13 @@ export interface Student {
   className?: string;
   gender: "male" | "female";
   dateOfBirth?: string;
-
-  /**
-   * Whether this student participates in
-   * the Arabic section.
-   */
-  attendsArabic?: boolean;
-
   parentUid?: string;
   parentName?: string;
   status: AccountStatus;
   photoUrl?: string;
+
+  // Whether this student attends the optional Arabic section
+  attendsArabic?: boolean;
 }
 
 export interface ClassRoom {
@@ -66,37 +45,14 @@ export interface Subject {
   name: string;
   code?: string;
 
-  /**
-   * School levels where this subject is offered.
-   *
-   * Example:
-   * ["nursery", "primary", "jss"]
-   */
+  // Which school level(s) the subject belongs to
   levels?: SchoolLevel[];
 
-  /**
-   * Subject section.
-   *
-   * main   = normal academic subjects
-   * arabic = Arabic/Islamic section
-   *
-   * Missing value is treated as "main"
-   * for backward compatibility.
-   */
+  // Main or Arabic section
   section?: SubjectSection;
 
-  /**
-   * Scoring structure used by the result system.
-   *
-   * main-20-20-60:
-   * CA1 20 + CA2 20 + Exam 60
-   *
-   * arabic-40-60:
-   * CA 40 + Exam 60
-   *
-   * Missing value is treated as "main-20-20-60"
-   * for backward compatibility.
-   */
+  // Main: CA1 20 + CA2 20 + Exam 60
+  // Arabic: CA 40 + Exam 60
   scoringType?: ScoringType;
 }
 
@@ -126,23 +82,9 @@ export interface ResultEntry {
   session: string;
   term: string;
 
-  /**
-   * Normal subjects:
-   * ca1 max 20
-   * ca2 max 20
-   *
-   * Arabic subjects:
-   * ca1 can store the Arabic CA max 40
-   * ca2 remains 0/unused
-   */
+  // Main subjects
   ca1?: number;
   ca2?: number;
-
-  /**
-   * Exam:
-   * Normal subjects max 60
-   * Arabic subjects max 60
-   */
   exam?: number;
 
   total?: number;
