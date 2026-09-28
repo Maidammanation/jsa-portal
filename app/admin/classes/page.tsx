@@ -11,6 +11,7 @@ import {
   update,
   remove,
 } from "@/services/database";
+
 import type {
   ClassRoom,
   SchoolLevel,
@@ -62,9 +63,10 @@ const DEFAULT_CLASSES = [
 ];
 
 const DEFAULT_SUBJECTS: CurriculumSubject[] = [
-  // =========================
+  // =========================================================
   // NURSERY MAIN
-  // =========================
+  // =========================================================
+
   {
     name: "Literacy",
     levels: ["nursery"],
@@ -126,9 +128,10 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  // =========================
+  // =========================================================
   // NURSERY ARABIC
-  // =========================
+  // =========================================================
+
   {
     name: "اللغة العربية",
     levels: ["nursery"],
@@ -178,9 +181,10 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "arabic-40-60",
   },
 
-  // =========================
+  // =========================================================
   // PRIMARY MAIN
-  // =========================
+  // =========================================================
+
   {
     name: "English Language",
     levels: ["primary"],
@@ -242,9 +246,10 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  // =========================
+  // =========================================================
   // PRIMARY ARABIC
-  // =========================
+  // =========================================================
+
   {
     name: "القرآن الكريم",
     levels: ["primary"],
@@ -294,9 +299,10 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "arabic-40-60",
   },
 
-  // =========================
+  // =========================================================
   // JSS MAIN
-  // =========================
+  // =========================================================
+
   {
     name: "English Language",
     levels: ["jss"],
@@ -364,9 +370,10 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  // =========================
+  // =========================================================
   // JSS ARABIC
-  // =========================
+  // =========================================================
+
   {
     name: "القرآن الكريم",
     levels: ["jss"],
@@ -433,13 +440,9 @@ function getClassLevel(
 ): SchoolLevel | "" {
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
-  if (value.includes("nursery")) {
-    return "nursery";
-  }
+  if (value.includes("nursery")) return "nursery";
 
-  if (value.includes("primary")) {
-    return "primary";
-  }
+  if (value.includes("primary")) return "primary";
 
   if (
     value.includes("jss") ||
@@ -514,8 +517,7 @@ export default function ClassesPage() {
 
     return classes.filter(
       (item) =>
-        getClassLevel(item.level, item.name) ===
-        selectedLevel
+        getClassLevel(item.level, item.name) === selectedLevel
     );
   }, [classes, selectedLevel]);
 
@@ -534,12 +536,15 @@ export default function ClassesPage() {
       nursery: subjects.filter((s) =>
         s.levels?.includes("nursery")
       ).length,
+
       primary: subjects.filter((s) =>
         s.levels?.includes("primary")
       ).length,
+
       jss: subjects.filter((s) =>
         s.levels?.includes("jss")
       ).length,
+
       ss: subjects.filter((s) =>
         s.levels?.includes("ss")
       ).length,
@@ -567,7 +572,10 @@ export default function ClassesPage() {
 
   async function applyCurriculum() {
     const confirmed = confirm(
-      "Apply the JSA curriculum? Missing classes and subjects will be added. Existing matching subjects will be updated. Nothing will be deleted."
+      "Apply the JSA curriculum?\n\n" +
+        "Missing classes and subjects will be added.\n" +
+        "Existing matching subjects will be updated.\n" +
+        "Nothing will be deleted."
     );
 
     if (!confirmed) {
@@ -626,9 +634,12 @@ export default function ClassesPage() {
       await loadClasses();
       await loadSubjects();
 
-      alert("JSA curriculum applied successfully.");
+      alert(
+        "JSA curriculum applied successfully."
+      );
     } catch (error) {
       console.error(error);
+
       alert(
         "Unable to apply the JSA curriculum."
       );
@@ -660,6 +671,7 @@ export default function ClassesPage() {
       await loadClasses();
     } catch (error) {
       console.error(error);
+
       alert("Unable to add class.");
     } finally {
       setSavingClass(false);
@@ -692,6 +704,7 @@ export default function ClassesPage() {
       alert(
         "A subject with this name and section already exists."
       );
+
       return;
     }
 
@@ -713,6 +726,7 @@ export default function ClassesPage() {
       await loadSubjects();
     } catch (error) {
       console.error(error);
+
       alert("Unable to add subject.");
     } finally {
       setSavingSubject(false);
@@ -729,6 +743,7 @@ export default function ClassesPage() {
       await loadClasses();
     } catch (error) {
       console.error(error);
+
       alert("Unable to remove class.");
     }
   }
@@ -743,6 +758,7 @@ export default function ClassesPage() {
       await loadSubjects();
     } catch (error) {
       console.error(error);
+
       alert("Unable to remove subject.");
     }
   }
@@ -762,7 +778,9 @@ export default function ClassesPage() {
       render: (item) => (
         <button
           type="button"
-          onClick={() => void deleteClass(item.id)}
+          onClick={() =>
+            void deleteClass(item.id)
+          }
           className="text-status-disabled hover:underline"
         >
           Remove
@@ -781,14 +799,16 @@ export default function ClassesPage() {
       accessor: "levels",
       render: (subject) => (
         <div className="flex flex-wrap gap-1">
-          {(subject.levels || []).map((level) => (
-            <span
-              key={level}
-              className="rounded-full bg-gray-100 px-2 py-0.5 text-xs"
-            >
-              {LEVEL_LABELS[level]}
-            </span>
-          ))}
+          {(subject.levels || []).map(
+            (level) => (
+              <span
+                key={level}
+                className="rounded-full bg-gray-100 px-2 py-0.5 text-xs"
+              >
+                {LEVEL_LABELS[level]}
+              </span>
+            )
+          )}
         </div>
       ),
     },
@@ -829,6 +849,8 @@ export default function ClassesPage() {
 
   return (
     <div className="max-w-6xl space-y-8">
+      {/* HEADER */}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
@@ -842,7 +864,9 @@ export default function ClassesPage() {
 
         <Button
           type="button"
-          onClick={() => void applyCurriculum()}
+          onClick={() =>
+            void applyCurriculum()
+          }
           disabled={seeding}
           variant="secondary"
         >
@@ -852,10 +876,14 @@ export default function ClassesPage() {
         </Button>
       </div>
 
+      {/* LEVEL FILTER */}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setSelectedLevel("all")}
+          onClick={() =>
+            setSelectedLevel("all")
+          }
           className={`rounded-lg border px-3 py-2 text-sm ${
             selectedLevel === "all"
               ? "border-brand bg-brand text-white"
@@ -869,7 +897,9 @@ export default function ClassesPage() {
           <button
             key={level}
             type="button"
-            onClick={() => setSelectedLevel(level)}
+            onClick={() =>
+              setSelectedLevel(level)
+            }
             className={`rounded-lg border px-3 py-2 text-sm ${
               selectedLevel === level
                 ? "border-brand bg-brand text-white"
@@ -881,12 +911,16 @@ export default function ClassesPage() {
         ))}
       </div>
 
+      {/* SUBJECT COUNTS */}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {LEVEL_ORDER.map((level) => (
           <button
             key={level}
             type="button"
-            onClick={() => setSelectedLevel(level)}
+            onClick={() =>
+              setSelectedLevel(level)
+            }
             className="rounded-card border border-gray-100 bg-white p-4 text-left shadow-sm"
           >
             <p className="text-xs uppercase tracking-wide text-gray-400">
@@ -904,6 +938,8 @@ export default function ClassesPage() {
         ))}
       </div>
 
+      {/* CLASSES */}
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Classes
@@ -919,7 +955,9 @@ export default function ClassesPage() {
               placeholder="e.g. Nursery 3"
               value={newClassName}
               onChange={(event) =>
-                setNewClassName(event.target.value)
+                setNewClassName(
+                  event.target.value
+                )
               }
             />
           </div>
@@ -930,7 +968,9 @@ export default function ClassesPage() {
               placeholder="e.g. Nursery"
               value={newClassLevel}
               onChange={(event) =>
-                setNewClassLevel(event.target.value)
+                setNewClassLevel(
+                  event.target.value
+                )
               }
             />
           </div>
@@ -938,9 +978,10 @@ export default function ClassesPage() {
           <Button
             type="submit"
             disabled={savingClass}
-            className="sm:mb-0"
           >
-            {savingClass ? "Adding..." : "+ Add Class"}
+            {savingClass
+              ? "Adding..."
+              : "+ Add Class"}
           </Button>
         </form>
 
@@ -950,6 +991,8 @@ export default function ClassesPage() {
           emptyMessage="No classes found."
         />
       </section>
+
+      {/* SUBJECTS */}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
@@ -967,7 +1010,9 @@ export default function ClassesPage() {
                 placeholder="e.g. Mathematics or اللغة العربية"
                 value={newSubjectName}
                 onChange={(event) =>
-                  setNewSubjectName(event.target.value)
+                  setNewSubjectName(
+                    event.target.value
+                  )
                 }
               />
             </div>
@@ -982,6 +1027,8 @@ export default function ClassesPage() {
             </Button>
           </div>
 
+          {/* LEVEL */}
+
           <div>
             <p className="mb-2 text-sm font-medium text-gray-700">
               School Level
@@ -990,13 +1037,17 @@ export default function ClassesPage() {
             <div className="flex flex-wrap gap-2">
               {LEVEL_ORDER.map((level) => {
                 const selected =
-                  newSubjectLevels.includes(level);
+                  newSubjectLevels.includes(
+                    level
+                  );
 
                 return (
                   <button
                     key={level}
                     type="button"
-                    onClick={() => toggleLevel(level)}
+                    onClick={() =>
+                      toggleLevel(level)
+                    }
                     className={`rounded-lg border px-3 py-2 text-sm ${
                       selected
                         ? "border-brand bg-brand text-white"
@@ -1010,6 +1061,8 @@ export default function ClassesPage() {
             </div>
           </div>
 
+          {/* SECTION */}
+
           <div>
             <p className="mb-2 text-sm font-medium text-gray-700">
               Section
@@ -1018,7 +1071,9 @@ export default function ClassesPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => changeSection("main")}
+                onClick={() =>
+                  changeSection("main")
+                }
                 className={`rounded-lg border px-3 py-2 text-sm ${
                   newSubjectSection === "main"
                     ? "border-brand bg-brand text-white"
@@ -1030,7 +1085,9 @@ export default function ClassesPage() {
 
               <button
                 type="button"
-                onClick={() => changeSection("arabic")}
+                onClick={() =>
+                  changeSection("arabic")
+                }
                 className={`rounded-lg border px-3 py-2 text-sm ${
                   newSubjectSection === "arabic"
                     ? "border-brand bg-brand text-white"
@@ -1042,6 +1099,8 @@ export default function ClassesPage() {
             </div>
           </div>
 
+          {/* SCORING */}
+
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Scoring Structure
@@ -1051,7 +1110,8 @@ export default function ClassesPage() {
               value={newSubjectScoring}
               onChange={(event) =>
                 setNewSubjectScoring(
-                  event.target.value as ScoringType
+                  event.target
+                    .value as ScoringType
                 )
               }
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
@@ -1074,10 +1134,11 @@ export default function ClassesPage() {
         />
       </section>
 
+      {/* FOOTER */}
+
       <div className="border-t border-gray-100 pt-4">
         <p className="text-xs text-gray-400">
-          Designed & Developed by Maidammanation Tech
-          Company
+          Designed & Developed by Maidammanation Tech Company
         </p>
 
         <p className="mt-1 text-xs text-gray-400">
