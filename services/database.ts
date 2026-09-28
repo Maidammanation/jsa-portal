@@ -365,6 +365,29 @@ export async function getResultsForStudent(
 
 /** Upserts one student's result for a subject (keyed on studentId+subjectId+term+session). */
 export async function saveResult(
+/** Deletes one student's result for a subject/term/session. */
+export async function deleteResult(
+  studentId: string,
+  subjectId: string,
+  term: string,
+  session: string
+) {
+  const q = query(
+    collection(db, "results"),
+    where("studentId", "==", studentId),
+    where("subjectId", "==", subjectId),
+    where("term", "==", term),
+    where("session", "==", session)
+  );
+
+  const snap = await getDocs(q);
+
+  await Promise.all(
+    snap.docs.map((resultDoc) =>
+      deleteDoc(doc(db, "results", resultDoc.id))
+    )
+  );
+}
   entry: Record<string, unknown>,
   actor: string
 ) {
