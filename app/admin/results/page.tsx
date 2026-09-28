@@ -59,11 +59,10 @@ export default function AdminResultsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Load classes and subjects
   useEffect(() => {
     let mounted = true;
 
-    const loadData = async () => {
+    async function loadData() {
       try {
         setLoading(true);
         setError("");
@@ -90,7 +89,7 @@ export default function AdminResultsPage() {
           setLoading(false);
         }
       }
-    };
+    }
 
     loadData();
 
@@ -99,7 +98,6 @@ export default function AdminResultsPage() {
     };
   }, []);
 
-  // Load students and existing results whenever class/subjects change
   useEffect(() => {
     if (!classId || selectedSubjectIds.length === 0) {
       setStudents([]);
@@ -110,7 +108,7 @@ export default function AdminResultsPage() {
 
     let mounted = true;
 
-    const loadResults = async () => {
+    async function loadResults() {
       try {
         setLoadingStudents(true);
         setError("");
@@ -126,7 +124,12 @@ export default function AdminResultsPage() {
 
         const resultResponses = await Promise.all(
           selectedSubjectIds.map((subjectId) =>
-            getResultsFor(classId, subjectId, term, session)
+            getResultsFor(
+              classId,
+              subjectId,
+              term,
+              session
+            )
           )
         );
 
@@ -150,11 +153,13 @@ export default function AdminResultsPage() {
                 previous?.ca1 !== null
                   ? String(previous.ca1)
                   : "",
+
               ca2:
                 previous?.ca2 !== undefined &&
                 previous?.ca2 !== null
                   ? String(previous.ca2)
                   : "",
+
               exam:
                 previous?.exam !== undefined &&
                 previous?.exam !== null
@@ -187,14 +192,19 @@ export default function AdminResultsPage() {
           setLoadingStudents(false);
         }
       }
-    };
+    }
 
     loadResults();
 
     return () => {
       mounted = false;
     };
-  }, [classId, selectedSubjectIds, term, session]);
+  }, [
+    classId,
+    selectedSubjectIds,
+    term,
+    session,
+  ]);
 
   const selectedSubjects = useMemo(
     () =>
@@ -211,6 +221,10 @@ export default function AdminResultsPage() {
   const activeScores =
     scores[activeSubjectId] || {};
 
+  const isArabic =
+    activeSubject?.section === "arabic" ||
+    activeSubject?.scoringType === "arabic-40-60";
+
   const setScore = (
     studentId: string,
     field: keyof ScoreRow,
@@ -225,7 +239,18 @@ export default function AdminResultsPage() {
         return;
       }
 
-      const maximum = field === "exam" ? 60 : 20;
+      let maximum = 20;
+
+      if (isArabic && field === "ca1") {
+        maximum = 40;
+      } else if (field === "exam") {
+        maximum = 60;
+      }
+
+      // Arabic does not use CA2.
+      if (isArabic && field === "ca2") {
+        return;
+      }
 
       if (numberValue > maximum) {
         numericValue = String(maximum);
@@ -238,11 +263,14 @@ export default function AdminResultsPage() {
 
     setScores((previous) => ({
       ...previous,
+
       [activeSubjectId]: {
         ...(previous[activeSubjectId] || {}),
+
         [studentId]: {
           ...(previous[activeSubjectId]?.[studentId] ||
             emptyScore()),
+
           [field]: numericValue,
         },
       },
@@ -255,7 +283,9 @@ export default function AdminResultsPage() {
 
     setSelectedSubjectIds((previous) => {
       if (previous.includes(subjectId)) {
-        const next = previous.filter((id) => id !== subjectId);
+        const next = previous.filter(
+          (id) => id !== subjectId
+        );
 
         if (activeSubjectId === subjectId) {
           setActiveSubjectId(next[0] || "");
@@ -298,7 +328,9 @@ export default function AdminResultsPage() {
     }
 
     if (students.length === 0) {
-      setError("There are no students in the selected class.");
+      setError(
+        "There are no students in the selected class."
+      );
       return;
     }
 
@@ -315,30 +347,88 @@ export default function AdminResultsPage() {
       const operations = [];
 
       for (const subjectId of selectedSubjectIds) {
-        const subjectScores = scores[subjectId] || {};
+        const subject = subjects.find(
+          (item) => item.id === subjectId
+        );
+
+        const arabic =
+          subject?.section === "arabic" ||
+          subject?.scoringType === "arabic-40-60";
+
+        const subjectScores =
+          scores[subjectId] || {};
 
         for (const student of students) {
           const row =
-            subjectScores[student.id] || emptyScore();
+            subjectScores[student.id] ||
+            emptyScore();
 
-          const ca1 = Math.min(
-            20,
-            Math.max(0, Number(row.ca1) || 0)
+          let ca1 = 0;
+          let ca2 = 0;
+          let exam = 0;
+
+          if (arabic) {
+            // Arabic:
+            // CA = 40
+            // Exam = 60
+            ca1 = Math.min(
+              40,
+              Math.max(
+                0,
+                Number(row.ca1) || 0
+              )
+            );
+
+            exam = Math.min(
+              60,
+              Math.max(
+                0,
+                Number(row.exam) || 0
+              )
+            );
+
+            ca2 = 0;
+          } else {
+            // Main:
+            // CA1 = 20
+            // CA2 = 20
+            // Exam = 60
+            ca1 = Math.min(
+              20,
+              Math.max(
+                0,
+                Number(row.ca1) || 0
+              )
+            );
+
+            ca2 = Math.min(
+              20,
+              Math.max(
+                0,
+                Number(row.ca2) || 0
+              )
+            );
+
+            exam = Math.min(
+              60,
+              Math.max(
+                0,
+                Number(row.exam) || 0
+              )
+            );
+          }
+
+          const total = computeTotal(
+            ca1,
+            ca2,
+            exam
           );
 
-          const ca2 = Math.min(
-            20,
-            Math.max(0, Number(row.ca2) || 0)
-          );
+          const grade =
+            computeGrade(total);
 
-          const exam = Math.min(
-            60,
-            Math.max(0, Number(row.exam) || 0)
-          );
-
-          const total = computeTotal(ca1, ca2, exam);
-          const grade = computeGrade(total);
-          const remark = computeRemark(grade);
+          const remark =
+            computeRemark(grade);
 
           operations.push(
             saveResult(
@@ -348,9 +438,13 @@ export default function AdminResultsPage() {
                 classId,
                 term,
                 session,
+
+                // Arabic CA is stored in ca1.
+                // ca2 is zero for Arabic.
                 ca1,
                 ca2,
                 exam,
+
                 total,
                 grade,
                 remark,
@@ -422,6 +516,7 @@ export default function AdminResultsPage() {
                 label: "Select a class",
                 value: "",
               },
+
               ...classes.map((classRoom) => ({
                 label: classRoom.name,
                 value: classRoom.id,
@@ -434,31 +529,48 @@ export default function AdminResultsPage() {
               Subjects
             </label>
 
-            <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+            <div className="border border-gray-300 rounded-lg p-3 max-h-56 overflow-y-auto space-y-2">
               {subjects.length === 0 ? (
                 <p className="text-sm text-gray-400">
                   No subjects found.
                 </p>
               ) : (
-                subjects.map((subject) => (
-                  <label
-                    key={subject.id}
-                    className="flex items-center gap-3 cursor-pointer text-sm text-gray-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSubjectIds.includes(
-                        subject.id
-                      )}
-                      onChange={() =>
-                        toggleSubject(subject.id)
-                      }
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
+                subjects.map((subject) => {
+                  const arabic =
+                    subject.section === "arabic" ||
+                    subject.scoringType ===
+                      "arabic-40-60";
 
-                    <span>{subject.name}</span>
-                  </label>
-                ))
+                  return (
+                    <label
+                      key={subject.id}
+                      className="flex items-center gap-3 cursor-pointer text-sm text-gray-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSubjectIds.includes(
+                          subject.id
+                        )}
+                        onChange={() =>
+                          toggleSubject(
+                            subject.id
+                          )
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+
+                      <span>
+                        {subject.name}
+                      </span>
+
+                      <span className="text-[10px] rounded-full bg-gray-100 px-2 py-0.5 text-gray-500">
+                        {arabic
+                          ? "Arabic · 40/60"
+                          : "Main · 20/20/60"}
+                      </span>
+                    </label>
+                  );
+                })
               )}
             </div>
 
@@ -478,10 +590,13 @@ export default function AdminResultsPage() {
                   key={subject.id}
                   type="button"
                   onClick={() =>
-                    setActiveSubjectId(subject.id)
+                    setActiveSubjectId(
+                      subject.id
+                    )
                   }
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    activeSubjectId === subject.id
+                    activeSubjectId ===
+                    subject.id
                       ? "bg-brand text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
@@ -495,7 +610,8 @@ export default function AdminResultsPage() {
           {loadingStudents ? (
             <div className="p-6">
               <p className="text-sm text-gray-500">
-                Loading students and existing results...
+                Loading students and existing
+                results...
               </p>
             </div>
           ) : !classId ? (
@@ -514,12 +630,14 @@ export default function AdminResultsPage() {
             <>
               <div className="px-4 py-4 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-800">
-                  {activeSubject?.name || "Subject"}
+                  {activeSubject?.name ||
+                    "Subject"}
                 </h2>
 
                 <p className="text-xs text-gray-500 mt-1">
-                  CA1: 20 &nbsp; | &nbsp; CA2: 20 &nbsp; | &nbsp;
-                  Exam: 60
+                  {isArabic
+                    ? "Arabic: CA 40 + Exam 60"
+                    : "Main: CA1 20 + CA2 20 + Exam 60"}
                 </p>
               </div>
 
@@ -531,23 +649,27 @@ export default function AdminResultsPage() {
                         Student
                       </th>
 
-                      <th className="px-4 py-3 font-medium w-24">
-                        CA1 (20)
+                      <th className="px-4 py-3 font-medium">
+                        {isArabic
+                          ? "C.A. (40)"
+                          : "CA1 (20)"}
                       </th>
 
-                      <th className="px-4 py-3 font-medium w-24">
-                        CA2 (20)
-                      </th>
+                      {!isArabic && (
+                        <th className="px-4 py-3 font-medium">
+                          CA2 (20)
+                        </th>
+                      )}
 
-                      <th className="px-4 py-3 font-medium w-24">
+                      <th className="px-4 py-3 font-medium">
                         Exam (60)
                       </th>
 
-                      <th className="px-4 py-3 font-medium w-20">
+                      <th className="px-4 py-3 font-medium">
                         Total
                       </th>
 
-                      <th className="px-4 py-3 font-medium w-20">
+                      <th className="px-4 py-3 font-medium">
                         Grade
                       </th>
 
@@ -560,46 +682,51 @@ export default function AdminResultsPage() {
                   <tbody className="divide-y divide-gray-100">
                     {students.map((student) => {
                       const row =
-                        activeScores[student.id] ||
+                        activeScores[
+                          student.id
+                        ] ||
                         emptyScore();
 
-                      const ca1 =
-                        Math.min(
-                          20,
-                          Math.max(
-                            0,
-                            Number(row.ca1) || 0
-                          )
-                        );
-
-                      const ca2 =
-                        Math.min(
-                          20,
-                          Math.max(
-                            0,
-                            Number(row.ca2) || 0
-                          )
-                        );
-
-                      const exam =
-                        Math.min(
-                          60,
-                          Math.max(
-                            0,
-                            Number(row.exam) || 0
-                          )
-                        );
-
-                      const total = computeTotal(
-                        ca1,
-                        ca2,
-                        exam
+                      const ca1 = Math.min(
+                        isArabic ? 40 : 20,
+                        Math.max(
+                          0,
+                          Number(row.ca1) || 0
+                        )
                       );
 
-                      const grade = computeGrade(total);
+                      const ca2 = isArabic
+                        ? 0
+                        : Math.min(
+                            20,
+                            Math.max(
+                              0,
+                              Number(row.ca2) || 0
+                            )
+                          );
+
+                      const exam = Math.min(
+                        60,
+                        Math.max(
+                          0,
+                          Number(row.exam) || 0
+                        )
+                      );
+
+                      const total =
+                        computeTotal(
+                          ca1,
+                          ca2,
+                          exam
+                        );
+
+                      const grade =
+                        computeGrade(total);
 
                       return (
-                        <tr key={student.id}>
+                        <tr
+                          key={student.id}
+                        >
                           <td className="px-4 py-2 text-gray-700 whitespace-nowrap">
                             {student.firstName}{" "}
                             {student.lastName}
@@ -609,47 +736,68 @@ export default function AdminResultsPage() {
                             <input
                               type="number"
                               min={0}
-                              max={20}
-                              value={row.ca1}
-                              onChange={(event) =>
+                              max={
+                                isArabic
+                                  ? 40
+                                  : 20
+                              }
+                              value={
+                                row.ca1
+                              }
+                              onChange={(
+                                event
+                              ) =>
                                 setScore(
                                   student.id,
                                   "ca1",
-                                  event.target.value
+                                  event.target
+                                    .value
                                 )
                               }
                               className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
                             />
                           </td>
 
-                          <td className="px-4 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              max={20}
-                              value={row.ca2}
-                              onChange={(event) =>
-                                setScore(
-                                  student.id,
-                                  "ca2",
-                                  event.target.value
-                                )
-                              }
-                              className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
-                            />
-                          </td>
+                          {!isArabic && (
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                value={
+                                  row.ca2
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  setScore(
+                                    student.id,
+                                    "ca2",
+                                    event.target
+                                      .value
+                                  )
+                                }
+                                className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                              />
+                            </td>
+                          )}
 
                           <td className="px-4 py-2">
                             <input
                               type="number"
                               min={0}
                               max={60}
-                              value={row.exam}
-                              onChange={(event) =>
+                              value={
+                                row.exam
+                              }
+                              onChange={(
+                                event
+                              ) =>
                                 setScore(
                                   student.id,
                                   "exam",
-                                  event.target.value
+                                  event.target
+                                    .value
                                 )
                               }
                               className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
@@ -665,7 +813,9 @@ export default function AdminResultsPage() {
                           </td>
 
                           <td className="px-4 py-2 text-gray-600">
-                            {computeRemark(grade)}
+                            {computeRemark(
+                              grade
+                            )}
                           </td>
                         </tr>
                       );
@@ -676,25 +826,18 @@ export default function AdminResultsPage() {
 
               <div className="px-4 py-4 border-t border-gray-100 flex justify-end">
                 <Button
-                  onClick={handleSaveAll}
+                  onClick={
+                    handleSaveAll
+                  }
                   disabled={saving}
                 >
                   {saving
-                    ? "Saving Results..."
+                    ? "Saving..."
                     : "Save Results"}
                 </Button>
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {selectedSubjectIds.length === 0 && (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
-          <p className="text-sm text-gray-400">
-            Select a class and at least one subject to
-            enter results.
-          </p>
         </div>
       )}
     </div>
