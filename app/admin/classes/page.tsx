@@ -19,19 +19,19 @@ import type {
   ScoringType,
 } from "@/lib/types";
 
-const LEVEL_LABELS: Record<SchoolLevel, string> = {
-  nursery: "Nursery",
-  primary: "Primary",
-  jss: "JSS",
-  ss: "SS",
-};
-
 const LEVEL_ORDER: SchoolLevel[] = [
   "nursery",
   "primary",
   "jss",
   "ss",
 ];
+
+const LEVEL_LABELS: Record<SchoolLevel, string> = {
+  nursery: "Nursery",
+  primary: "Primary",
+  jss: "JSS",
+  ss: "SS",
+};
 
 type CurriculumSubject = {
   name: string;
@@ -40,16 +40,7 @@ type CurriculumSubject = {
   scoringType: ScoringType;
 };
 
-/*
-|--------------------------------------------------------------------------
-| JSA CLASSES
-|--------------------------------------------------------------------------
-*/
-
-const DEFAULT_CLASSES: {
-  name: string;
-  level: string;
-}[] = [
+const DEFAULT_CLASSES = [
   { name: "Nursery 1", level: "Nursery" },
   { name: "Nursery 2", level: "Nursery" },
   { name: "Nursery 3", level: "Nursery" },
@@ -70,19 +61,10 @@ const DEFAULT_CLASSES: {
   { name: "SS 3", level: "Senior Secondary" },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| JSA CURRICULUM
-|--------------------------------------------------------------------------
-*/
-
 const DEFAULT_SUBJECTS: CurriculumSubject[] = [
-  /*
-  |--------------------------------------------------------------------------
-  | NURSERY MAIN
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // NURSERY MAIN
+  // =========================
   {
     name: "Literacy",
     levels: ["nursery"],
@@ -144,12 +126,9 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  /*
-  |--------------------------------------------------------------------------
-  | NURSERY ARABIC
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // NURSERY ARABIC
+  // =========================
   {
     name: "اللغة العربية",
     levels: ["nursery"],
@@ -199,12 +178,9 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "arabic-40-60",
   },
 
-  /*
-  |--------------------------------------------------------------------------
-  | PRIMARY MAIN
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // PRIMARY MAIN
+  // =========================
   {
     name: "English Language",
     levels: ["primary"],
@@ -266,12 +242,9 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  /*
-  |--------------------------------------------------------------------------
-  | PRIMARY ARABIC
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // PRIMARY ARABIC
+  // =========================
   {
     name: "القرآن الكريم",
     levels: ["primary"],
@@ -321,12 +294,9 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "arabic-40-60",
   },
 
-  /*
-  |--------------------------------------------------------------------------
-  | JSS MAIN
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // JSS MAIN
+  // =========================
   {
     name: "English Language",
     levels: ["jss"],
@@ -394,12 +364,9 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     scoringType: "main-20-20-60",
   },
 
-  /*
-  |--------------------------------------------------------------------------
-  | JSS ARABIC
-  |--------------------------------------------------------------------------
-  */
-
+  // =========================
+  // JSS ARABIC
+  // =========================
   {
     name: "القرآن الكريم",
     levels: ["jss"],
@@ -454,17 +421,6 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
     section: "arabic",
     scoringType: "arabic-40-60",
   },
-
-  /*
-  |--------------------------------------------------------------------------
-  | SS
-  |--------------------------------------------------------------------------
-  |
-  | SS curriculum was not provided in the actual JSA curriculum list.
-  | We leave it available for manual creation from the interface.
-  |
-  |--------------------------------------------------------------------------
-  */
 ];
 
 function normalize(value: string) {
@@ -477,9 +433,13 @@ function getClassLevel(
 ): SchoolLevel | "" {
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
-  if (value.includes("nursery")) return "nursery";
+  if (value.includes("nursery")) {
+    return "nursery";
+  }
 
-  if (value.includes("primary")) return "primary";
+  if (value.includes("primary")) {
+    return "primary";
+  }
 
   if (
     value.includes("jss") ||
@@ -489,7 +449,6 @@ function getClassLevel(
   }
 
   if (
-    value.includes("ss ") ||
     value.startsWith("ss") ||
     value.includes("senior secondary")
   ) {
@@ -499,18 +458,14 @@ function getClassLevel(
   return "";
 }
 
-function getSectionLabel(section?: SubjectSection) {
-  return section === "arabic"
-    ? "Arabic"
-    : "Main";
+function sectionLabel(section?: SubjectSection) {
+  return section === "arabic" ? "Arabic" : "Main";
 }
 
-function getScoringLabel(scoringType?: ScoringType) {
-  if (scoringType === "arabic-40-60") {
-    return "CA 40 + Exam 60";
-  }
-
-  return "CA1 20 + CA2 20 + Exam 60";
+function scoringLabel(scoring?: ScoringType) {
+  return scoring === "arabic-40-60"
+    ? "CA 40 + Exam 60"
+    : "CA1 20 + CA2 20 + Exam 60";
 }
 
 export default function ClassesPage() {
@@ -537,37 +492,20 @@ export default function ClassesPage() {
   const [selectedLevel, setSelectedLevel] =
     useState<"all" | SchoolLevel>("all");
 
-  const loadClasses = async () => {
+  async function loadClasses() {
     const data = await getClasses();
     setClasses(data as ClassRoom[]);
-  };
+  }
 
-  const loadSubjects = async () => {
+  async function loadSubjects() {
     const data = await getSubjects();
     setSubjects(data as Subject[]);
-  };
+  }
 
   useEffect(() => {
-    loadClasses();
-    loadSubjects();
+    void loadClasses();
+    void loadSubjects();
   }, []);
-
-  const subjectsByLevel = useMemo(() => {
-    return {
-      nursery: subjects.filter((subject) =>
-        subject.levels?.includes("nursery")
-      ),
-      primary: subjects.filter((subject) =>
-        subject.levels?.includes("primary")
-      ),
-      jss: subjects.filter((subject) =>
-        subject.levels?.includes("jss")
-      ),
-      ss: subjects.filter((subject) =>
-        subject.levels?.includes("ss")
-      ),
-    };
-  }, [subjects]);
 
   const filteredClasses = useMemo(() => {
     if (selectedLevel === "all") {
@@ -575,11 +513,9 @@ export default function ClassesPage() {
     }
 
     return classes.filter(
-      (classRoom) =>
-        getClassLevel(
-          classRoom.level,
-          classRoom.name
-        ) === selectedLevel
+      (item) =>
+        getClassLevel(item.level, item.name) ===
+        selectedLevel
     );
   }, [classes, selectedLevel]);
 
@@ -588,26 +524,38 @@ export default function ClassesPage() {
       return subjects;
     }
 
-    return subjects.filter((subject) =>
-      subject.levels?.includes(selectedLevel)
+    return subjects.filter((item) =>
+      item.levels?.includes(selectedLevel)
     );
   }, [subjects, selectedLevel]);
 
-  const toggleNewSubjectLevel = (
-    level: SchoolLevel
-  ) => {
-    setNewSubjectLevels((previous) =>
-      previous.includes(level)
-        ? previous.filter(
-            (item) => item !== level
-          )
-        : [...previous, level]
-    );
-  };
+  const subjectCounts = useMemo(
+    () => ({
+      nursery: subjects.filter((s) =>
+        s.levels?.includes("nursery")
+      ).length,
+      primary: subjects.filter((s) =>
+        s.levels?.includes("primary")
+      ).length,
+      jss: subjects.filter((s) =>
+        s.levels?.includes("jss")
+      ).length,
+      ss: subjects.filter((s) =>
+        s.levels?.includes("ss")
+      ).length,
+    }),
+    [subjects]
+  );
 
-  const handleSectionChange = (
-    section: SubjectSection
-  ) => {
+  function toggleLevel(level: SchoolLevel) {
+    setNewSubjectLevels((current) =>
+      current.includes(level)
+        ? current.filter((item) => item !== level)
+        : [...current, level]
+    );
+  }
+
+  function changeSection(section: SubjectSection) {
     setNewSubjectSection(section);
 
     setNewSubjectScoring(
@@ -615,85 +563,88 @@ export default function ClassesPage() {
         ? "arabic-40-60"
         : "main-20-20-60"
     );
-  };
+  }
 
-  const handleApplyCurriculum = async () => {
-    if (
-      !confirm(
-        "Apply the official JSA curriculum defaults? Missing classes and subjects will be added. Existing matching subjects will be updated with their correct level, section and scoring structure. Existing records will not be deleted."
-      )
-    ) {
+  async function applyCurriculum() {
+    const confirmed = confirm(
+      "Apply the JSA curriculum? Missing classes and subjects will be added. Existing matching subjects will be updated. Nothing will be deleted."
+    );
+
+    if (!confirmed) {
       return;
     }
 
     setSeeding(true);
 
     try {
-      const existingClassNames = new Set(
-        classes.map((item) => normalize(item.name))
+      const currentClasses =
+        (await getClasses()) as ClassRoom[];
+
+      const classNames = new Set(
+        currentClasses.map((item) =>
+          normalize(item.name)
+        )
       );
 
-      for (const classItem of DEFAULT_CLASSES) {
-        if (
-          !existingClassNames.has(
-            normalize(classItem.name)
-          )
-        ) {
-          await create("classes", classItem);
+      for (const item of DEFAULT_CLASSES) {
+        if (!classNames.has(normalize(item.name))) {
+          await create("classes", item);
         }
       }
 
       const currentSubjects =
         (await getSubjects()) as Subject[];
 
-      for (const defaultSubject of DEFAULT_SUBJECTS) {
+      for (const item of DEFAULT_SUBJECTS) {
         const existing = currentSubjects.find(
           (subject) =>
             normalize(subject.name) ===
-              normalize(defaultSubject.name) &&
+              normalize(item.name) &&
             subject.levels?.some((level) =>
-              defaultSubject.levels.includes(level)
-            )
+              item.levels.includes(level)
+            ) &&
+            (subject.section || "main") ===
+              item.section
         );
 
         if (existing) {
           await update("subjects", existing.id, {
-            levels: defaultSubject.levels,
-            section: defaultSubject.section,
-            scoringType: defaultSubject.scoringType,
+            levels: item.levels,
+            section: item.section,
+            scoringType: item.scoringType,
           });
         } else {
           await create("subjects", {
-            name: defaultSubject.name,
-            levels: defaultSubject.levels,
-            section: defaultSubject.section,
-            scoringType: defaultSubject.scoringType,
+            name: item.name,
+            levels: item.levels,
+            section: item.section,
+            scoringType: item.scoringType,
           });
         }
       }
 
-      await Promise.all([
-        loadClasses(),
-        loadSubjects(),
-      ]);
+      await loadClasses();
+      await loadSubjects();
 
       alert("JSA curriculum applied successfully.");
     } catch (error) {
       console.error(error);
       alert(
-        "Unable to apply the curriculum. Please try again."
+        "Unable to apply the JSA curriculum."
       );
     } finally {
       setSeeding(false);
     }
-  };
+  }
 
-  const handleAddClass = async (
+  async function addClass(
     event: React.FormEvent
-  ) => {
+  ) {
     event.preventDefault();
 
-    if (!newClassName.trim()) return;
+    if (!newClassName.trim()) {
+      return;
+    }
 
     setSavingClass(true);
 
@@ -713,30 +664,31 @@ export default function ClassesPage() {
     } finally {
       setSavingClass(false);
     }
-  };
+  }
 
-  const handleAddSubject = async (
+  async function addSubject(
     event: React.FormEvent
-  ) => {
+  ) {
     event.preventDefault();
 
-    if (!newSubjectName.trim()) return;
-
-    if (newSubjectLevels.length === 0) {
-      alert(
-        "Please select at least one school level."
-      );
+    if (!newSubjectName.trim()) {
       return;
     }
 
-    const alreadyExists = subjects.some(
+    if (newSubjectLevels.length === 0) {
+      alert("Select at least one school level.");
+      return;
+    }
+
+    const exists = subjects.some(
       (subject) =>
         normalize(subject.name) ===
           normalize(newSubjectName) &&
-        subject.section === newSubjectSection
+        (subject.section || "main") ===
+          newSubjectSection
     );
 
-    if (alreadyExists) {
+    if (exists) {
       alert(
         "A subject with this name and section already exists."
       );
@@ -765,14 +717,10 @@ export default function ClassesPage() {
     } finally {
       setSavingSubject(false);
     }
-  };
+  }
 
-  const handleDeleteClass = async (id: string) => {
-    if (
-      !confirm(
-        "Remove this class? Students already in it will need to be reassigned."
-      )
-    ) {
+  async function deleteClass(id: string) {
+    if (!confirm("Remove this class?")) {
       return;
     }
 
@@ -783,10 +731,12 @@ export default function ClassesPage() {
       console.error(error);
       alert("Unable to remove class.");
     }
-  };
+  }
 
-  const handleDeleteSubject = async (id: string) => {
-    if (!confirm("Remove this subject?")) return;
+  async function deleteSubject(id: string) {
+    if (!confirm("Remove this subject?")) {
+      return;
+    }
 
     try {
       await remove("subjects", id);
@@ -795,7 +745,7 @@ export default function ClassesPage() {
       console.error(error);
       alert("Unable to remove subject.");
     }
-  };
+  }
 
   const classColumns: Column<ClassRoom>[] = [
     {
@@ -809,11 +759,10 @@ export default function ClassesPage() {
     {
       header: "Actions",
       accessor: "id",
-      render: (classRoom) => (
+      render: (item) => (
         <button
-          onClick={() =>
-            handleDeleteClass(classRoom.id)
-          }
+          type="button"
+          onClick={() => void deleteClass(item.id)}
           className="text-status-disabled hover:underline"
         >
           Remove
@@ -824,60 +773,31 @@ export default function ClassesPage() {
 
   const subjectColumns: Column<Subject>[] = [
     {
-      header: "Subject Name",
+      header: "Subject",
       accessor: "name",
-      render: (subject) => (
-        <span
-          className={
-            subject.section === "arabic"
-              ? "font-medium"
-              : ""
-          }
-        >
-          {subject.name}
-        </span>
-      ),
     },
     {
       header: "Level",
       accessor: "levels",
-      render: (subject) => {
-        if (!subject.levels?.length) {
-          return (
-            <span className="text-xs text-gray-400">
-              Not assigned
+      render: (subject) => (
+        <div className="flex flex-wrap gap-1">
+          {(subject.levels || []).map((level) => (
+            <span
+              key={level}
+              className="rounded-full bg-gray-100 px-2 py-0.5 text-xs"
+            >
+              {LEVEL_LABELS[level]}
             </span>
-          );
-        }
-
-        return (
-          <div className="flex flex-wrap gap-1">
-            {LEVEL_ORDER.filter((level) =>
-              subject.levels?.includes(level)
-            ).map((level) => (
-              <span
-                key={level}
-                className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
-              >
-                {LEVEL_LABELS[level]}
-              </span>
-            ))}
-          </div>
-        );
-      },
+          ))}
+        </div>
+      ),
     },
     {
       header: "Section",
       accessor: "section",
       render: (subject) => (
-        <span
-          className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-            subject.section === "arabic"
-              ? "bg-amber-100 text-amber-800"
-              : "bg-blue-100 text-blue-800"
-          }`}
-        >
-          {getSectionLabel(subject.section)}
+        <span className="text-xs font-medium">
+          {sectionLabel(subject.section)}
         </span>
       ),
     },
@@ -886,7 +806,7 @@ export default function ClassesPage() {
       accessor: "scoringType",
       render: (subject) => (
         <span className="text-xs text-gray-600">
-          {getScoringLabel(subject.scoringType)}
+          {scoringLabel(subject.scoringType)}
         </span>
       ),
     },
@@ -895,8 +815,9 @@ export default function ClassesPage() {
       accessor: "id",
       render: (subject) => (
         <button
+          type="button"
           onClick={() =>
-            handleDeleteSubject(subject.id)
+            void deleteSubject(subject.id)
           }
           className="text-status-disabled hover:underline"
         >
@@ -907,21 +828,21 @@ export default function ClassesPage() {
   ];
 
   return (
-    <div className="space-y-8 max-w-6xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="max-w-6xl space-y-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
             Classes & Subjects
           </h1>
 
           <p className="text-sm text-gray-500">
-            Manage JSA classes, curriculum sections and
-            subject scoring structures.
+            Manage JSA classes, curriculum and scoring.
           </p>
         </div>
 
         <Button
-          onClick={handleApplyCurriculum}
+          type="button"
+          onClick={() => void applyCurriculum()}
           disabled={seeding}
           variant="secondary"
         >
@@ -931,16 +852,14 @@ export default function ClassesPage() {
         </Button>
       </div>
 
-      {/* LEVEL FILTERS */}
-
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setSelectedLevel("all")}
-          className={`rounded-lg px-3 py-2 text-sm border ${
+          className={`rounded-lg border px-3 py-2 text-sm ${
             selectedLevel === "all"
-              ? "bg-brand text-white border-brand"
-              : "bg-white text-gray-600 border-gray-200"
+              ? "border-brand bg-brand text-white"
+              : "border-gray-200 bg-white text-gray-600"
           }`}
         >
           All
@@ -951,10 +870,10 @@ export default function ClassesPage() {
             key={level}
             type="button"
             onClick={() => setSelectedLevel(level)}
-            className={`rounded-lg px-3 py-2 text-sm border ${
+            className={`rounded-lg border px-3 py-2 text-sm ${
               selectedLevel === level
-                ? "bg-brand text-white border-brand"
-                : "bg-white text-gray-600 border-gray-200"
+                ? "border-brand bg-brand text-white"
+                : "border-gray-200 bg-white text-gray-600"
             }`}
           >
             {LEVEL_LABELS[level]}
@@ -962,38 +881,209 @@ export default function ClassesPage() {
         ))}
       </div>
 
-      {/* CURRICULUM SUMMARY */}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {LEVEL_ORDER.map((level) => (
           <button
             key={level}
             type="button"
             onClick={() => setSelectedLevel(level)}
-            className="bg-white rounded-card border border-gray-100 shadow-sm p-4 text-left hover:border-brand/30"
+            className="rounded-card border border-gray-100 bg-white p-4 text-left shadow-sm"
           >
-            <p className="text-xs text-gray-400 uppercase tracking-wide">
+            <p className="text-xs uppercase tracking-wide text-gray-400">
               {LEVEL_LABELS[level]}
             </p>
 
-            <p className="text-2xl font-semibold text-gray-800 mt-1">
-              {subjectsByLevel[level].length}
+            <p className="mt-1 text-2xl font-semibold text-gray-800">
+              {subjectCounts[level]}
             </p>
 
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500">
               subjects
             </p>
           </button>
         ))}
       </div>
 
-      {/* CLASSES */}
-
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Classes
         </h2>
 
         <form
-          onSubmit={handleAddClass}
-          className="bg-white rounded-card border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3
+          onSubmit={addClass}
+          className="flex flex-col gap-3 rounded-card border border-gray-100 bg-white p-4 shadow-sm sm:flex-row sm:items-end"
+        >
+          <div className="flex-1">
+            <TextInput
+              label="Class Name"
+              placeholder="e.g. Nursery 3"
+              value={newClassName}
+              onChange={(event) =>
+                setNewClassName(event.target.value)
+              }
+            />
+          </div>
+
+          <div className="flex-1">
+            <TextInput
+              label="Level"
+              placeholder="e.g. Nursery"
+              value={newClassLevel}
+              onChange={(event) =>
+                setNewClassLevel(event.target.value)
+              }
+            />
+          </div>
+
+          <Button
+            type="submit"
+            disabled={savingClass}
+            className="sm:mb-0"
+          >
+            {savingClass ? "Adding..." : "+ Add Class"}
+          </Button>
+        </form>
+
+        <DataTable
+          columns={classColumns}
+          data={filteredClasses}
+          emptyMessage="No classes found."
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Subjects
+        </h2>
+
+        <form
+          onSubmit={addSubject}
+          className="space-y-5 rounded-card border border-gray-100 bg-white p-4 shadow-sm"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <TextInput
+                label="Subject Name"
+                placeholder="e.g. Mathematics or اللغة العربية"
+                value={newSubjectName}
+                onChange={(event) =>
+                  setNewSubjectName(event.target.value)
+                }
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={savingSubject}
+            >
+              {savingSubject
+                ? "Adding..."
+                : "+ Add Subject"}
+            </Button>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              School Level
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              {LEVEL_ORDER.map((level) => {
+                const selected =
+                  newSubjectLevels.includes(level);
+
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => toggleLevel(level)}
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      selected
+                        ? "border-brand bg-brand text-white"
+                        : "border-gray-200 bg-white text-gray-600"
+                    }`}
+                  >
+                    {LEVEL_LABELS[level]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              Section
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => changeSection("main")}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  newSubjectSection === "main"
+                    ? "border-brand bg-brand text-white"
+                    : "border-gray-200 bg-white text-gray-600"
+                }`}
+              >
+                Main
+              </button>
+
+              <button
+                type="button"
+                onClick={() => changeSection("arabic")}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  newSubjectSection === "arabic"
+                    ? "border-brand bg-brand text-white"
+                    : "border-gray-200 bg-white text-gray-600"
+                }`}
+              >
+                Arabic
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Scoring Structure
+            </label>
+
+            <select
+              value={newSubjectScoring}
+              onChange={(event) =>
+                setNewSubjectScoring(
+                  event.target.value as ScoringType
+                )
+              }
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="main-20-20-60">
+                Main — CA1 20 + CA2 20 + Exam 60
+              </option>
+
+              <option value="arabic-40-60">
+                Arabic — CA 40 + Exam 60
+              </option>
+            </select>
+          </div>
+        </form>
+
+        <DataTable
+          columns={subjectColumns}
+          data={filteredSubjects}
+          emptyMessage="No subjects found."
+        />
+      </section>
+
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-xs text-gray-400">
+          Designed & Developed by Maidammanation Tech
+          Company
+        </p>
+
+        <p className="mt-1 text-xs text-gray-400">
+          08032191668 / 08117106867
+        </p>
+      </div>
+    </div>
+  );
+}
