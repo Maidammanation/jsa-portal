@@ -1,6 +1,6 @@
 // services/database.ts
 // Thin Firestore data-access layer. Keep raw Firestore calls out of components/pages;
-// add a typed function here instead so the rest of the app stays backend-agnostic.
+// add a typed function here so the rest of the app stays backend-agnostic.
 
 import {
   collection,
@@ -17,28 +17,53 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+
 import { db } from "./firebase";
 
-// ---- Generic helpers -------------------------------------------------
+// -----------------------------------------------------------------------------
+// Generic helpers
+// -----------------------------------------------------------------------------
 
-export async function getById(colName: string, id: string) {
-  const snap = await getDoc(doc(db, colName, id));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+export async function getById(
+  colName: string,
+  id: string
+) {
+  const snap = await getDoc(
+    doc(db, colName, id)
+  );
+
+  return snap.exists()
+    ? {
+        id: snap.id,
+        ...snap.data(),
+      }
+    : null;
 }
 
-export async function getAll(colName: string) {
-  const snap = await getDocs(collection(db, colName));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+export async function getAll(
+  colName: string
+) {
+  const snap = await getDocs(
+    collection(db, colName)
+  );
+
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  }));
 }
 
 export async function create(
   colName: string,
   data: Record<string, unknown>
 ) {
-  const ref = await addDoc(collection(db, colName), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
+  const ref = await addDoc(
+    collection(db, colName),
+    {
+      ...data,
+      createdAt: serverTimestamp(),
+    }
+  );
 
   return ref.id;
 }
@@ -48,21 +73,36 @@ export async function update(
   id: string,
   data: Record<string, unknown>
 ) {
-  await updateDoc(doc(db, colName, id), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  await updateDoc(
+    doc(db, colName, id),
+    {
+      ...data,
+      updatedAt: serverTimestamp(),
+    }
+  );
 }
 
-export async function remove(colName: string, id: string) {
-  await deleteDoc(doc(db, colName, id));
+export async function remove(
+  colName: string,
+  id: string
+) {
+  await deleteDoc(
+    doc(db, colName, id)
+  );
 }
 
-// ---- Domain-specific queries -----------------------------------------
+// -----------------------------------------------------------------------------
+// Dashboard
+// -----------------------------------------------------------------------------
 
-/** Dashboard summary counts for the admin home page. */
 export async function getAdminStats() {
-  const [students, teachers, parents, classes, subjects] = await Promise.all([
+  const [
+    students,
+    teachers,
+    parents,
+    classes,
+    subjects,
+  ] = await Promise.all([
     getAll("students"),
     getAll("teachers"),
     getAll("parents"),
@@ -79,8 +119,9 @@ export async function getAdminStats() {
   };
 }
 
-/** Most recent activity log entries, newest first. */
-export async function getRecentActivity(count = 10) {
+export async function getRecentActivity(
+  count = 10
+) {
   const q = query(
     collection(db, "activityLog"),
     orderBy("createdAt", "desc"),
@@ -95,7 +136,6 @@ export async function getRecentActivity(count = 10) {
   }));
 }
 
-/** Writes one entry to the activity log (call this from any mutation you want audited). */
 export async function logActivity(
   action: string,
   actor: string,
@@ -108,8 +148,13 @@ export async function logActivity(
   });
 }
 
-/** Fetch all children linked to a parent account (for the parent dashboard). */
-export async function getChildrenForParent(parentUid: string) {
+// -----------------------------------------------------------------------------
+// Parents / Children
+// -----------------------------------------------------------------------------
+
+export async function getChildrenForParent(
+  parentUid: string
+) {
   const q = query(
     collection(db, "students"),
     where("parentUid", "==", parentUid)
@@ -123,13 +168,17 @@ export async function getChildrenForParent(parentUid: string) {
   }));
 }
 
-// ---- Students ----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Students
+// -----------------------------------------------------------------------------
 
 export async function getStudents() {
   return getAll("students");
 }
 
-export async function getStudentsByClass(classId: string) {
+export async function getStudentsByClass(
+  classId: string
+) {
   const q = query(
     collection(db, "students"),
     where("classId", "==", classId)
@@ -143,12 +192,18 @@ export async function getStudentsByClass(classId: string) {
   }));
 }
 
-export async function createStudent(data: Record<string, unknown>) {
-  const id = await create("students", data);
+export async function createStudent(
+  data: Record<string, unknown>
+) {
+  const id = await create(
+    "students",
+    data
+  );
 
   await logActivity(
     "Student added",
-    data.createdBy as string,
+    (data.createdBy as string) ||
+      "admin",
     `${data.firstName} ${data.lastName}`
   );
 
@@ -159,26 +214,41 @@ export async function updateStudent(
   id: string,
   data: Record<string, unknown>
 ) {
-  await update("students", id, data);
+  await update(
+    "students",
+    id,
+    data
+  );
 }
 
-export async function deleteStudent(id: string) {
-  await remove("students", id);
+export async function deleteStudent(
+  id: string
+) {
+  await remove(
+    "students",
+    id
+  );
 }
 
-/** Bulk-moves every student from fromClassId to toClassId (end-of-session promotion). */
 export async function promoteStudents(
   fromClassId: string,
   toClassId: string,
   actor: string
 ) {
-  const students = await getStudentsByClass(fromClassId);
+  const students =
+    await getStudentsByClass(
+      fromClassId
+    );
 
   await Promise.all(
-    students.map((s) =>
-      update("students", s.id, {
-        classId: toClassId,
-      })
+    students.map((student) =>
+      update(
+        "students",
+        student.id,
+        {
+          classId: toClassId,
+        }
+      )
     )
   );
 
@@ -191,23 +261,94 @@ export async function promoteStudents(
   return students.length;
 }
 
-// ---- Classes & Subjects -------------------------------------------------
+// -----------------------------------------------------------------------------
+// Classes & Subjects
+// -----------------------------------------------------------------------------
 
-// Sorts classes by education level (Nursery < Primary < JSS < SS) and then by
-// the number in the name, so "Nursery 3", "Primary 7", etc. all sort correctly
-// even if they weren't in the original seed list.
+// Order:
+// Pre Nursery
+// Nursery 1
+// Nursery 2
+// Nursery 3
+// Primary 1 - 6
+// JSS 1 - 3
+// SS 1 - 3
 
-const LEVEL_RANK: Record<string, number> = {
+const LEVEL_RANK: Record<
+  string,
+  number
+> = {
+  "pre-nursery": -1,
+  prenursery: -1,
   nursery: 0,
   primary: 1,
   jss: 2,
   ss: 3,
 };
 
-function parseClassName(name: string): { rank: number; num: number } {
-  const match = name
+function normalizeClassLevel(
+  name: string
+): string {
+  const value = name
     .trim()
-    .match(/^(nursery|primary|jss|ss)\s*(\d+)?/i);
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (
+    value === "pre nursery" ||
+    value === "pre-nursery" ||
+    value.startsWith("pre nursery ") ||
+    value.startsWith("pre-nursery ")
+  ) {
+    return "pre-nursery";
+  }
+
+  if (value.startsWith("nursery")) {
+    return "nursery";
+  }
+
+  if (value.startsWith("primary")) {
+    return "primary";
+  }
+
+  if (value.startsWith("jss")) {
+    return "jss";
+  }
+
+  if (value.startsWith("ss")) {
+    return "ss";
+  }
+
+  return "";
+}
+
+function parseClassName(
+  name: string
+): {
+  rank: number;
+  num: number;
+} {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ");
+
+  // Pre Nursery has no number.
+  if (
+    normalized === "pre nursery" ||
+    normalized === "pre-nursery"
+  ) {
+    return {
+      rank: -1,
+      num: 0,
+    };
+  }
+
+  const match = normalized.match(
+    /^(nursery|primary|jss|ss)\s*(\d+)?/
+  );
 
   if (!match) {
     return {
@@ -216,55 +357,86 @@ function parseClassName(name: string): { rank: number; num: number } {
     };
   }
 
-  const level = match[1].toLowerCase();
-  const num = match[2] ? parseInt(match[2], 10) : 0;
+  const level = match[1];
+  const num = match[2]
+    ? parseInt(match[2], 10)
+    : 0;
 
   return {
-    rank: LEVEL_RANK[level] ?? 99,
+    rank:
+      LEVEL_RANK[level] ?? 99,
     num,
   };
 }
 
 export async function getClasses() {
-  const classes = (await getAll("classes")) as {
-    id: string;
-    name?: string;
-  }[];
+  const classes =
+    (await getAll("classes")) as {
+      id: string;
+      name?: string;
+    }[];
 
-  return classes.sort((a, b) => {
-    const pa = parseClassName(a.name || "");
-    const pb = parseClassName(b.name || "");
+  return classes.sort(
+    (a, b) => {
+      const pa =
+        parseClassName(
+          a.name || ""
+        );
 
-    if (pa.rank !== pb.rank) {
-      return pa.rank - pb.rank;
+      const pb =
+        parseClassName(
+          b.name || ""
+        );
+
+      if (pa.rank !== pb.rank) {
+        return (
+          pa.rank - pb.rank
+        );
+      }
+
+      if (pa.num !== pb.num) {
+        return (
+          pa.num - pb.num
+        );
+      }
+
+      return (
+        a.name || ""
+      ).localeCompare(
+        b.name || ""
+      );
     }
-
-    if (pa.num !== pb.num) {
-      return pa.num - pb.num;
-    }
-
-    return (a.name || "").localeCompare(b.name || "");
-  });
+  );
 }
 
 export async function getSubjects() {
   return getAll("subjects");
 }
 
-// ---- Attendance ----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Attendance
+// -----------------------------------------------------------------------------
 
-/** Fetches the attendance session for a given class + date, if one already exists. */
 export async function getAttendanceSession(
   classId: string,
   date: string
 ) {
   const q = query(
     collection(db, "attendance"),
-    where("classId", "==", classId),
-    where("date", "==", date)
+    where(
+      "classId",
+      "==",
+      classId
+    ),
+    where(
+      "date",
+      "==",
+      date
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   if (snap.empty) {
     return null;
@@ -278,31 +450,39 @@ export async function getAttendanceSession(
   };
 }
 
-/** Fetches every attendance record for one student, across all dates for a class. */
 export async function getAttendanceForStudent(
   classId: string,
   studentId: string
 ) {
   const q = query(
     collection(db, "attendance"),
-    where("classId", "==", classId)
+    where(
+      "classId",
+      "==",
+      classId
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   return snap.docs
     .map((d) => {
-      const data = d.data() as {
-        date: string;
-        records?: {
-          studentId: string;
-          status: string;
-        }[];
-      };
+      const data =
+        d.data() as {
+          date: string;
+          records?: {
+            studentId: string;
+            status: string;
+          }[];
+        };
 
-      const mine = data.records?.find(
-        (r) => r.studentId === studentId
-      );
+      const mine =
+        data.records?.find(
+          (record) =>
+            record.studentId ===
+            studentId
+        );
 
       return mine
         ? {
@@ -312,14 +492,28 @@ export async function getAttendanceForStudent(
         : null;
     })
     .filter(
-      (r): r is { date: string; status: string } => r !== null
+      (
+        record
+      ): record is {
+        date: string;
+        status: string;
+      } => record !== null
     )
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort((a, b) =>
+      b.date.localeCompare(
+        a.date
+      )
+    );
 }
 
-// ---- Results ----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Results
+// -----------------------------------------------------------------------------
 
-/** Fetches all result entries for a class/subject/term/session (used by the entry grid). */
+/**
+ * Fetch all results for:
+ * class + subject + term + session
+ */
 export async function getResultsFor(
   classId: string,
   subjectId: string,
@@ -328,21 +522,43 @@ export async function getResultsFor(
 ) {
   const q = query(
     collection(db, "results"),
-    where("classId", "==", classId),
-    where("subjectId", "==", subjectId),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "classId",
+      "==",
+      classId
+    ),
+    where(
+      "subjectId",
+      "==",
+      subjectId
+    ),
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  }));
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  );
 }
 
-/** Fetches every result entry for a single student (used by the report card page). */
+/**
+ * Fetch every result belonging to one student
+ * for the current term/session.
+ */
 export async function getResultsForStudent(
   studentId: string,
   term: string,
@@ -350,22 +566,105 @@ export async function getResultsForStudent(
 ) {
   const q = query(
     collection(db, "results"),
-    where("studentId", "==", studentId),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "studentId",
+      "==",
+      studentId
+    ),
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  }));
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  );
 }
 
-/** Upserts one student's result for a subject (keyed on studentId+subjectId+term+session). */
+/**
+ * Save/update one student's result.
+ *
+ * A result is uniquely identified by:
+ * studentId + subjectId + term + session
+ *
+ * Therefore uploading a corrected result updates
+ * the existing result instead of creating a duplicate.
+ */
 export async function saveResult(
-/** Deletes one student's result for a subject/term/session. */
+  entry: Record<string, unknown>,
+  actor: string
+) {
+  const q = query(
+    collection(db, "results"),
+    where(
+      "studentId",
+      "==",
+      entry.studentId
+    ),
+    where(
+      "subjectId",
+      "==",
+      entry.subjectId
+    ),
+    where(
+      "term",
+      "==",
+      entry.term
+    ),
+    where(
+      "session",
+      "==",
+      entry.session
+    )
+  );
+
+  const snap =
+    await getDocs(q);
+
+  let resultId = "";
+
+  if (!snap.empty) {
+    resultId =
+      snap.docs[0].id;
+
+    await update(
+      "results",
+      resultId,
+      entry
+    );
+  } else {
+    resultId = await create(
+      "results",
+      entry
+    );
+  }
+
+  await logActivity(
+    "Result uploaded",
+    actor,
+    `Subject ${entry.subjectId} — student ${entry.studentId}`
+  );
+
+  return resultId;
+}
+
+/**
+ * Delete one student's result for a subject,
+ * term and session.
+ */
 export async function deleteResult(
   studentId: string,
   subjectId: string,
@@ -374,65 +673,93 @@ export async function deleteResult(
 ) {
   const q = query(
     collection(db, "results"),
-    where("studentId", "==", studentId),
-    where("subjectId", "==", subjectId),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "studentId",
+      "==",
+      studentId
+    ),
+    where(
+      "subjectId",
+      "==",
+      subjectId
+    ),
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   await Promise.all(
-    snap.docs.map((resultDoc) =>
-      deleteDoc(doc(db, "results", resultDoc.id))
+    snap.docs.map(
+      (resultDoc) =>
+        deleteDoc(
+          doc(
+            db,
+            "results",
+            resultDoc.id
+          )
+        )
+    )
+  );
+
+  return snap.size;
+}
+
+/**
+ * Delete a result directly by its Firestore document ID.
+ */
+export async function deleteResultById(
+  resultId: string
+) {
+  await deleteDoc(
+    doc(
+      db,
+      "results",
+      resultId
     )
   );
 }
-  entry: Record<string, unknown>,
-  actor: string
-) {
-  const q = query(
-    collection(db, "results"),
-    where("studentId", "==", entry.studentId),
-    where("subjectId", "==", entry.subjectId),
-    where("term", "==", entry.term),
-    where("session", "==", entry.session)
-  );
 
-  const snap = await getDocs(q);
+// -----------------------------------------------------------------------------
+// Fees
+// -----------------------------------------------------------------------------
 
-  if (!snap.empty) {
-    await update("results", snap.docs[0].id, entry);
-  } else {
-    await create("results", entry);
-  }
-
-  await logActivity(
-    "Result uploaded",
-    actor,
-    `Subject ${entry.subjectId} — student ${entry.studentId}`
-  );
-}
-
-// ---- Fees ----------------------------------------------------------
-
-/** Fetches the fee amount set for every class for a given term/session. */
 export async function getFeeStructure(
   term: string,
   session: string
 ) {
   const q = query(
     collection(db, "feeStructure"),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  })) as {
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  ) as {
     id: string;
     classId: string;
     term: string;
@@ -441,7 +768,6 @@ export async function getFeeStructure(
   }[];
 }
 
-/** Sets (or updates) the fee amount for one class for a term/session. */
 export async function setClassFee(
   classId: string,
   term: string,
@@ -451,24 +777,44 @@ export async function setClassFee(
 ) {
   const q = query(
     collection(db, "feeStructure"),
-    where("classId", "==", classId),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "classId",
+      "==",
+      classId
+    ),
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   if (!snap.empty) {
-    await update("feeStructure", snap.docs[0].id, {
-      amount,
-    });
+    await update(
+      "feeStructure",
+      snap.docs[0].id,
+      {
+        amount,
+      }
+    );
   } else {
-    await create("feeStructure", {
-      classId,
-      term,
-      session,
-      amount,
-    });
+    await create(
+      "feeStructure",
+      {
+        classId,
+        term,
+        session,
+        amount,
+      }
+    );
   }
 
   await logActivity(
@@ -478,7 +824,6 @@ export async function setClassFee(
   );
 }
 
-/** Fetches every payment a student has made for a term/session. */
 export async function getPaymentsForStudent(
   studentId: string,
   term: string,
@@ -486,40 +831,65 @@ export async function getPaymentsForStudent(
 ) {
   const q = query(
     collection(db, "feePayments"),
-    where("studentId", "==", studentId),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "studentId",
+      "==",
+      studentId
+    ),
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  })) as {
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  ) as {
     id: string;
     amount: number;
     datePaid: string;
   }[];
 }
 
-/** Fetches every payment recorded for a term/session, across all students. */
 export async function getAllPayments(
   term: string,
   session: string
 ) {
   const q = query(
     collection(db, "feePayments"),
-    where("term", "==", term),
-    where("session", "==", session)
+    where(
+      "term",
+      "==",
+      term
+    ),
+    where(
+      "session",
+      "==",
+      session
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  })) as {
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  ) as {
     id: string;
     studentId: string;
     amount: number;
@@ -527,7 +897,6 @@ export async function getAllPayments(
   }[];
 }
 
-/** Records a single fee payment for a student. */
 export async function recordPayment(
   studentId: string,
   classId: string,
@@ -537,15 +906,18 @@ export async function recordPayment(
   datePaid: string,
   actor: string
 ) {
-  await create("feePayments", {
-    studentId,
-    classId,
-    term,
-    session,
-    amount,
-    datePaid,
-    recordedBy: actor,
-  });
+  await create(
+    "feePayments",
+    {
+      studentId,
+      classId,
+      term,
+      session,
+      amount,
+      datePaid,
+      recordedBy: actor,
+    }
+  );
 
   await logActivity(
     "Fees recorded",
@@ -554,22 +926,31 @@ export async function recordPayment(
   );
 }
 
-// ---- Announcements ----------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Announcements
+// -----------------------------------------------------------------------------
 
-/** Most recent announcements, newest first. */
-export async function getAnnouncements(count = 20) {
+export async function getAnnouncements(
+  count = 20
+) {
   const q = query(
     collection(db, "announcements"),
-    orderBy("createdAt", "desc"),
+    orderBy(
+      "createdAt",
+      "desc"
+    ),
     fsLimit(count)
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  })) as {
+  return snap.docs.map(
+    (d) => ({
+      id: d.id,
+      ...d.data(),
+    })
+  ) as {
     id: string;
     title: string;
     body: string;
@@ -582,11 +963,14 @@ export async function createAnnouncement(
   body: string,
   actor: string
 ) {
-  await create("announcements", {
-    title,
-    body,
-    postedBy: actor,
-  });
+  await create(
+    "announcements",
+    {
+      title,
+      body,
+      postedBy: actor,
+    }
+  );
 
   await logActivity(
     "Announcement posted",
@@ -595,15 +979,25 @@ export async function createAnnouncement(
   );
 }
 
-export async function deleteAnnouncement(id: string) {
-  await remove("announcements", id);
+export async function deleteAnnouncement(
+  id: string
+) {
+  await remove(
+    "announcements",
+    id
+  );
 }
 
-// ---- School Settings (current term/session) --------------------------------
+// -----------------------------------------------------------------------------
+// School Settings
+// -----------------------------------------------------------------------------
 
-/** Reads the current session/term. Returns null if not set yet (first run). */
 export async function getSchoolSettings() {
-  const snap = await getById("schoolSettings", "current");
+  const snap =
+    await getById(
+      "schoolSettings",
+      "current"
+    );
 
   return snap as {
     id: string;
@@ -612,14 +1006,19 @@ export async function getSchoolSettings() {
   } | null;
 }
 
-/** Updates the current session/term — used across attendance, results, and fees. */
 export async function updateSchoolSettings(
   session: string,
   term: string,
   actor: string
 ) {
-  const ref = doc(db, "schoolSettings", "current");
-  const snap = await getDoc(ref);
+  const ref = doc(
+    db,
+    "schoolSettings",
+    "current"
+  );
+
+  const snap =
+    await getDoc(ref);
 
   if (snap.exists()) {
     await updateDoc(ref, {
@@ -640,16 +1039,24 @@ export async function updateSchoolSettings(
   );
 }
 
-// ---- Self-lookup (teacher/student/parent finding their own record) --------
+// -----------------------------------------------------------------------------
+// Self lookup
+// -----------------------------------------------------------------------------
 
-/** Finds the teacher record linked to a given Firebase Auth uid. */
-export async function getTeacherByAuthUid(uid: string) {
+export async function getTeacherByAuthUid(
+  uid: string
+) {
   const q = query(
     collection(db, "teachers"),
-    where("authUid", "==", uid)
+    where(
+      "authUid",
+      "==",
+      uid
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   if (snap.empty) {
     return null;
@@ -663,14 +1070,20 @@ export async function getTeacherByAuthUid(uid: string) {
   };
 }
 
-/** Finds the student record linked to a given Firebase Auth uid. */
-export async function getStudentByAuthUid(uid: string) {
+export async function getStudentByAuthUid(
+  uid: string
+) {
   const q = query(
     collection(db, "students"),
-    where("authUid", "==", uid)
+    where(
+      "authUid",
+      "==",
+      uid
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   if (snap.empty) {
     return null;
@@ -684,14 +1097,20 @@ export async function getStudentByAuthUid(uid: string) {
   };
 }
 
-/** Finds the parent record linked to a given Firebase Auth uid. */
-export async function getParentByAuthUid(uid: string) {
+export async function getParentByAuthUid(
+  uid: string
+) {
   const q = query(
     collection(db, "parents"),
-    where("authUid", "==", uid)
+    where(
+      "authUid",
+      "==",
+      uid
+    )
   );
 
-  const snap = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
   if (snap.empty) {
     return null;
@@ -705,20 +1124,54 @@ export async function getParentByAuthUid(uid: string) {
   };
 }
 
-// ---- Admission Numbers -------------------------------------------------
+// -----------------------------------------------------------------------------
+// Admission Numbers
+// -----------------------------------------------------------------------------
 
-/** Converts a class name like "Nursery 1" or "JSS 2" into a short code: N1, P1, JSS2, SS1. */
-export function getClassCode(className: string): string {
-  const match = className
-    .trim()
-    .match(/^(nursery|primary|jss|ss)\s(\d+)?/i);
+/**
+ * Converts class name into an admission-number code.
+ *
+ * Examples:
+ * Pre Nursery -> PN
+ * Nursery 1   -> N1
+ * Nursery 2   -> N2
+ * Primary 1   -> P1
+ * JSS 1       -> JSS1
+ * SS 1        -> SS1
+ */
+export function getClassCode(
+  className: string
+): string {
+  const normalized =
+    className
+      .trim()
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ");
+
+  if (
+    normalized ===
+      "pre nursery" ||
+    normalized ===
+      "pre-nursery"
+  ) {
+    return "PN";
+  }
+
+  const match =
+    normalized.match(
+      /^(nursery|primary|jss|ss)\s*(\d+)?/
+    );
 
   if (!match) {
     return "GEN";
   }
 
-  const level = match[1].toLowerCase();
-  const num = match[2] || "";
+  const level =
+    match[1];
+
+  const num =
+    match[2] || "";
 
   const prefix =
     level === "nursery"
@@ -730,15 +1183,38 @@ export function getClassCode(className: string): string {
   return `${prefix}${num}`;
 }
 
-/** Generates the next admission number for a class, e.g. "JSA/N1/0001". */
+/**
+ * Generates the next admission number.
+ *
+ * Examples:
+ * JSA/PN/0001
+ * JSA/N1/0001
+ * JSA/P1/0001
+ * JSA/JSS1/0001
+ * JSA/SS1/0001
+ */
 export async function generateAdmissionNumber(
   classId: string,
   className: string
 ): Promise<string> {
-  const students = await getStudentsByClass(classId);
-  const seq = students.length + 1;
-  const code = getClassCode(className);
-  const padded = String(seq).padStart(4, "0");
+  const students =
+    await getStudentsByClass(
+      classId
+    );
+
+  const seq =
+    students.length + 1;
+
+  const code =
+    getClassCode(
+      className
+    );
+
+  const padded =
+    String(seq).padStart(
+      4,
+      "0"
+    );
 
   return `JSA/${code}/${padded}`;
 }
