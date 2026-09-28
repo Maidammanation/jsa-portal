@@ -11,9 +11,13 @@ import {
   update,
   remove,
 } from "@/services/database";
-import type { ClassRoom, Subject } from "@/lib/types";
-
-type SchoolLevel = "nursery" | "primary" | "jss" | "ss";
+import type {
+  ClassRoom,
+  SchoolLevel,
+  Subject,
+  SubjectSection,
+  ScoringType,
+} from "@/lib/types";
 
 const LEVEL_LABELS: Record<SchoolLevel, string> = {
   nursery: "Nursery",
@@ -22,7 +26,30 @@ const LEVEL_LABELS: Record<SchoolLevel, string> = {
   ss: "SS",
 };
 
-const DEFAULT_CLASSES: { name: string; level: string }[] = [
+const LEVEL_ORDER: SchoolLevel[] = [
+  "nursery",
+  "primary",
+  "jss",
+  "ss",
+];
+
+type CurriculumSubject = {
+  name: string;
+  levels: SchoolLevel[];
+  section: SubjectSection;
+  scoringType: ScoringType;
+};
+
+/*
+|--------------------------------------------------------------------------
+| JSA CLASSES
+|--------------------------------------------------------------------------
+*/
+
+const DEFAULT_CLASSES: {
+  name: string;
+  level: string;
+}[] = [
   { name: "Nursery 1", level: "Nursery" },
   { name: "Nursery 2", level: "Nursery" },
   { name: "Nursery 3", level: "Nursery" },
@@ -43,184 +70,401 @@ const DEFAULT_CLASSES: { name: string; level: string }[] = [
   { name: "SS 3", level: "Senior Secondary" },
 ];
 
-const DEFAULT_SUBJECTS: {
-  name: string;
-  levels: SchoolLevel[];
-}[] = [
-  // Nursery
+/*
+|--------------------------------------------------------------------------
+| JSA CURRICULUM
+|--------------------------------------------------------------------------
+*/
+
+const DEFAULT_SUBJECTS: CurriculumSubject[] = [
+  /*
+  |--------------------------------------------------------------------------
+  | NURSERY MAIN
+  |--------------------------------------------------------------------------
+  */
+
+  {
+    name: "Literacy",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Numeracy",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Social Habits",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Social Norms",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "General Knowledge",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Jolly Phonics",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Rhythms",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Creative Arts",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Handwriting",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Health Habits",
+    levels: ["nursery"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | NURSERY ARABIC
+  |--------------------------------------------------------------------------
+  */
+
+  {
+    name: "اللغة العربية",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحروف",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحديث",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "التوحيد",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الأرقام",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "القرآن الكريم",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحوار",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الأذكار",
+    levels: ["nursery"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | PRIMARY MAIN
+  |--------------------------------------------------------------------------
+  */
+
   {
     name: "English Language",
-    levels: ["nursery", "primary", "jss", "ss"],
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
     name: "Mathematics",
-    levels: ["nursery", "primary", "jss", "ss"],
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Basic Science",
-    levels: ["nursery", "primary", "jss"],
+    name: "Computer",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
     name: "Social Studies",
-    levels: ["nursery", "jss"],
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Basic Science",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Islamic Studies",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Verbal Reasoning",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Quantitative Reasoning",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "CCA",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Writing",
+    levels: ["primary"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | PRIMARY ARABIC
+  |--------------------------------------------------------------------------
+  */
+
+  {
+    name: "القرآن الكريم",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحديث",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "التوحيد",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الفقه",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "السيرة",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "العربية",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحروف",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الأذكار",
+    levels: ["primary"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | JSS MAIN
+  |--------------------------------------------------------------------------
+  */
+
+  {
+    name: "English Language",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Mathematics",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
+  },
+  {
+    name: "Basic Science & Technology",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
     name: "Civic Education",
-    levels: ["nursery", "jss"],
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Islamic Religious Studies",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-  {
-    name: "Christian Religious Studies",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-  {
-    name: "Cultural and Creative Arts (CCA)",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-  {
-    name: "Physical and Health Education",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-  {
-    name: "Computer Studies / ICT",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-  {
-    name: "Hausa Language",
-    levels: ["nursery", "primary", "jss", "ss"],
-  },
-
-  // Primary
-  {
-    name: "Basic Science and Technology",
-    levels: ["primary"],
-  },
-  {
-    name: "Basic Technology",
-    levels: ["primary", "jss"],
+    name: "Computer",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
     name: "Agricultural Science",
-    levels: ["primary", "jss", "ss"],
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Nigerian History",
-    levels: ["primary", "jss"],
+    name: "Islamic Studies",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
-  {
-    name: "Social and Citizenship Studies",
-    levels: ["primary"],
-  },
-  {
-    name: "Home Economics",
-    levels: ["primary", "jss"],
-  },
-  {
-    name: "French",
-    levels: ["primary", "jss", "ss"],
-  },
-  {
-    name: "Arabic Language",
-    levels: ["primary", "jss", "ss"],
-  },
-
-  // JSS
   {
     name: "Business Studies",
     levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Security Education",
+    name: "Home Economics",
     levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Literature in English",
-    levels: ["jss", "ss"],
+    name: "Physical & Health Education",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
   {
-    name: "Geography",
-    levels: ["jss", "ss"],
+    name: "CCA",
+    levels: ["jss"],
+    section: "main",
+    scoringType: "main-20-20-60",
   },
 
-  // Senior Secondary
-  {
-    name: "Physics",
-    levels: ["ss"],
-  },
-  {
-    name: "Chemistry",
-    levels: ["ss"],
-  },
-  {
-    name: "Biology",
-    levels: ["ss"],
-  },
-  {
-    name: "Further Mathematics",
-    levels: ["ss"],
-  },
-  {
-    name: "Economics",
-    levels: ["ss"],
-  },
-  {
-    name: "Government",
-    levels: ["ss"],
-  },
-  {
-    name: "Financial Accounting",
-    levels: ["ss"],
-  },
-  {
-    name: "Commerce",
-    levels: ["ss"],
-  },
-  {
-    name: "General Mathematics",
-    levels: ["ss"],
-  },
-  {
-    name: "Citizenship and Heritage Studies",
-    levels: ["ss"],
-  },
-  {
-    name: "Digital Technologies",
-    levels: ["ss"],
-  },
-  {
-    name: "Visual Arts",
-    levels: ["ss"],
-  },
-  {
-    name: "Technical Drawing",
-    levels: ["ss"],
-  },
-  {
-    name: "Physical Education",
-    levels: ["ss"],
-  },
-  {
-    name: "Health Education",
-    levels: ["ss"],
-  },
-  {
-    name: "Foods and Nutrition",
-    levels: ["ss"],
-  },
-  {
-    name: "Trade Subject",
-    levels: ["ss"],
-  },
-];
+  /*
+  |--------------------------------------------------------------------------
+  | JSS ARABIC
+  |--------------------------------------------------------------------------
+  */
 
-const LEVEL_ORDER: SchoolLevel[] = [
-  "nursery",
-  "primary",
-  "jss",
-  "ss",
+  {
+    name: "القرآن الكريم",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "التوحيد",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "خلاصة نور اليقين",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الحديث",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الجديد",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "باري وبيبا",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "النحو",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "التجويد",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+  {
+    name: "الأذكار",
+    levels: ["jss"],
+    section: "arabic",
+    scoringType: "arabic-40-60",
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | SS
+  |--------------------------------------------------------------------------
+  |
+  | SS curriculum was not provided in the actual JSA curriculum list.
+  | We leave it available for manual creation from the interface.
+  |
+  |--------------------------------------------------------------------------
+  */
 ];
 
 function normalize(value: string) {
@@ -234,6 +478,7 @@ function getClassLevel(
   const value = `${level || ""} ${name || ""}`.toLowerCase();
 
   if (value.includes("nursery")) return "nursery";
+
   if (value.includes("primary")) return "primary";
 
   if (
@@ -254,6 +499,20 @@ function getClassLevel(
   return "";
 }
 
+function getSectionLabel(section?: SubjectSection) {
+  return section === "arabic"
+    ? "Arabic"
+    : "Main";
+}
+
+function getScoringLabel(scoringType?: ScoringType) {
+  if (scoringType === "arabic-40-60") {
+    return "CA 40 + Exam 60";
+  }
+
+  return "CA1 20 + CA2 20 + Exam 60";
+}
+
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -261,14 +520,18 @@ export default function ClassesPage() {
   const [newClassName, setNewClassName] = useState("");
   const [newClassLevel, setNewClassLevel] = useState("");
 
-  const [newSubjectName, setNewSubjectName] =
-    useState("");
+  const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectLevels, setNewSubjectLevels] =
     useState<SchoolLevel[]>([]);
 
+  const [newSubjectSection, setNewSubjectSection] =
+    useState<SubjectSection>("main");
+
+  const [newSubjectScoring, setNewSubjectScoring] =
+    useState<ScoringType>("main-20-20-60");
+
   const [savingClass, setSavingClass] = useState(false);
-  const [savingSubject, setSavingSubject] =
-    useState(false);
+  const [savingSubject, setSavingSubject] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
   const [selectedLevel, setSelectedLevel] =
@@ -342,10 +605,22 @@ export default function ClassesPage() {
     );
   };
 
+  const handleSectionChange = (
+    section: SubjectSection
+  ) => {
+    setNewSubjectSection(section);
+
+    setNewSubjectScoring(
+      section === "arabic"
+        ? "arabic-40-60"
+        : "main-20-20-60"
+    );
+  };
+
   const handleApplyCurriculum = async () => {
     if (
       !confirm(
-        "This will add any missing JSA classes and subjects, including Nursery 3, and update the level assignment of matching existing subjects. Existing records will not be deleted. Continue?"
+        "Apply the official JSA curriculum defaults? Missing classes and subjects will be added. Existing matching subjects will be updated with their correct level, section and scoring structure. Existing records will not be deleted."
       )
     ) {
       return;
@@ -375,17 +650,24 @@ export default function ClassesPage() {
         const existing = currentSubjects.find(
           (subject) =>
             normalize(subject.name) ===
-            normalize(defaultSubject.name)
+              normalize(defaultSubject.name) &&
+            subject.levels?.some((level) =>
+              defaultSubject.levels.includes(level)
+            )
         );
 
         if (existing) {
           await update("subjects", existing.id, {
             levels: defaultSubject.levels,
+            section: defaultSubject.section,
+            scoringType: defaultSubject.scoringType,
           });
         } else {
           await create("subjects", {
             name: defaultSubject.name,
             levels: defaultSubject.levels,
+            section: defaultSubject.section,
+            scoringType: defaultSubject.scoringType,
           });
         }
       }
@@ -394,6 +676,13 @@ export default function ClassesPage() {
         loadClasses(),
         loadSubjects(),
       ]);
+
+      alert("JSA curriculum applied successfully.");
+    } catch (error) {
+      console.error(error);
+      alert(
+        "Unable to apply the curriculum. Please try again."
+      );
     } finally {
       setSeeding(false);
     }
@@ -418,6 +707,9 @@ export default function ClassesPage() {
       setNewClassLevel("");
 
       await loadClasses();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to add class.");
     } finally {
       setSavingClass(false);
     }
@@ -432,7 +724,7 @@ export default function ClassesPage() {
 
     if (newSubjectLevels.length === 0) {
       alert(
-        "Please select at least one school level for this subject."
+        "Please select at least one school level."
       );
       return;
     }
@@ -440,12 +732,13 @@ export default function ClassesPage() {
     const alreadyExists = subjects.some(
       (subject) =>
         normalize(subject.name) ===
-        normalize(newSubjectName)
+          normalize(newSubjectName) &&
+        subject.section === newSubjectSection
     );
 
     if (alreadyExists) {
       alert(
-        "A subject with this name already exists."
+        "A subject with this name and section already exists."
       );
       return;
     }
@@ -456,12 +749,19 @@ export default function ClassesPage() {
       await create("subjects", {
         name: newSubjectName.trim(),
         levels: newSubjectLevels,
+        section: newSubjectSection,
+        scoringType: newSubjectScoring,
       });
 
       setNewSubjectName("");
       setNewSubjectLevels([]);
+      setNewSubjectSection("main");
+      setNewSubjectScoring("main-20-20-60");
 
       await loadSubjects();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to add subject.");
     } finally {
       setSavingSubject(false);
     }
@@ -476,15 +776,25 @@ export default function ClassesPage() {
       return;
     }
 
-    await remove("classes", id);
-    await loadClasses();
+    try {
+      await remove("classes", id);
+      await loadClasses();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to remove class.");
+    }
   };
 
   const handleDeleteSubject = async (id: string) => {
     if (!confirm("Remove this subject?")) return;
 
-    await remove("subjects", id);
-    await loadSubjects();
+    try {
+      await remove("subjects", id);
+      await loadSubjects();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to remove subject.");
+    }
   };
 
   const classColumns: Column<ClassRoom>[] = [
@@ -516,9 +826,20 @@ export default function ClassesPage() {
     {
       header: "Subject Name",
       accessor: "name",
+      render: (subject) => (
+        <span
+          className={
+            subject.section === "arabic"
+              ? "font-medium"
+              : ""
+          }
+        >
+          {subject.name}
+        </span>
+      ),
     },
     {
-      header: "School Level",
+      header: "Level",
       accessor: "levels",
       render: (subject) => {
         if (!subject.levels?.length) {
@@ -546,6 +867,30 @@ export default function ClassesPage() {
       },
     },
     {
+      header: "Section",
+      accessor: "section",
+      render: (subject) => (
+        <span
+          className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
+            subject.section === "arabic"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-blue-100 text-blue-800"
+          }`}
+        >
+          {getSectionLabel(subject.section)}
+        </span>
+      ),
+    },
+    {
+      header: "Scoring",
+      accessor: "scoringType",
+      render: (subject) => (
+        <span className="text-xs text-gray-600">
+          {getScoringLabel(subject.scoringType)}
+        </span>
+      ),
+    },
+    {
       header: "Actions",
       accessor: "id",
       render: (subject) => (
@@ -562,7 +907,7 @@ export default function ClassesPage() {
   ];
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-8 max-w-6xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
@@ -570,8 +915,8 @@ export default function ClassesPage() {
           </h1>
 
           <p className="text-sm text-gray-500">
-            Manage JSA classes and the subjects offered
-            at each school level.
+            Manage JSA classes, curriculum sections and
+            subject scoring structures.
           </p>
         </div>
 
@@ -586,7 +931,8 @@ export default function ClassesPage() {
         </Button>
       </div>
 
-      {/* Level filters */}
+      {/* LEVEL FILTERS */}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -604,9 +950,7 @@ export default function ClassesPage() {
           <button
             key={level}
             type="button"
-            onClick={() =>
-              setSelectedLevel(level)
-            }
+            onClick={() => setSelectedLevel(level)}
             className={`rounded-lg px-3 py-2 text-sm border ${
               selectedLevel === level
                 ? "bg-brand text-white border-brand"
@@ -618,15 +962,14 @@ export default function ClassesPage() {
         ))}
       </div>
 
-      {/* Curriculum summary */}
+      {/* CURRICULUM SUMMARY */}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {LEVEL_ORDER.map((level) => (
           <button
             key={level}
             type="button"
-            onClick={() =>
-              setSelectedLevel(level)
-            }
+            onClick={() => setSelectedLevel(level)}
             className="bg-white rounded-card border border-gray-100 shadow-sm p-4 text-left hover:border-brand/30"
           >
             <p className="text-xs text-gray-400 uppercase tracking-wide">
@@ -644,7 +987,8 @@ export default function ClassesPage() {
         ))}
       </div>
 
-      {/* Classes */}
+      {/* CLASSES */}
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
           Classes
@@ -652,133 +996,4 @@ export default function ClassesPage() {
 
         <form
           onSubmit={handleAddClass}
-          className="bg-white rounded-card border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3 sm:items-end"
-        >
-          <div className="flex-1">
-            <TextInput
-              label="Class Name"
-              placeholder="e.g. Nursery 3"
-              value={newClassName}
-              onChange={(event) =>
-                setNewClassName(event.target.value)
-              }
-            />
-          </div>
-
-          <div className="flex-1">
-            <TextInput
-              label="Level"
-              placeholder="e.g. Nursery"
-              value={newClassLevel}
-              onChange={(event) =>
-                setNewClassLevel(
-                  event.target.value
-                )
-              }
-            />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={savingClass}
-            className="mb-4 sm:mb-0"
-          >
-            {savingClass
-              ? "Adding..."
-              : "+ Add Class"}
-          </Button>
-        </form>
-
-        <DataTable
-          columns={classColumns}
-          data={filteredClasses}
-          emptyMessage="No classes found for this level."
-        />
-      </section>
-
-      {/* Subjects */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          Subjects
-        </h2>
-
-        <form
-          onSubmit={handleAddSubject}
-          className="bg-white rounded-card border border-gray-100 shadow-sm p-4 space-y-4"
-        >
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <div className="flex-1">
-              <TextInput
-                label="Subject Name"
-                placeholder="e.g. Hausa Language"
-                value={newSubjectName}
-                onChange={(event) =>
-                  setNewSubjectName(
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={savingSubject}
-              className="mb-4 sm:mb-0"
-            >
-              {savingSubject
-                ? "Adding..."
-                : "+ Add Subject"}
-            </Button>
-          </div>
-
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">
-              Subject applies to
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              {LEVEL_ORDER.map((level) => {
-                const selected =
-                  newSubjectLevels.includes(level);
-
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() =>
-                      toggleNewSubjectLevel(level)
-                    }
-                    className={`rounded-lg border px-3 py-2 text-sm ${
-                      selected
-                        ? "bg-brand text-white border-brand"
-                        : "bg-white text-gray-600 border-gray-200"
-                    }`}
-                  >
-                    {LEVEL_LABELS[level]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </form>
-
-        <DataTable
-          columns={subjectColumns}
-          data={filteredSubjects}
-          emptyMessage="No subjects found for this level."
-        />
-      </section>
-
-      <div className="pt-4 border-t border-gray-100">
-        <p className="text-xs text-gray-400">
-          Designed & Developed by Maidammanation
-          Tech Company
-        </p>
-
-        <p className="text-xs text-gray-400 mt-1">
-          08032191668 / 08117106867
-        </p>
-      </div>
-    </div>
-  );
-}
+          className="bg-white rounded-card border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3
