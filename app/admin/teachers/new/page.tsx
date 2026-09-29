@@ -11,7 +11,11 @@ import {
   getSubjects,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
-import type { ClassRoom, SchoolLevel, Subject } from "@/lib/types";
+import type {
+  ClassRoom,
+  SchoolLevel,
+  Subject,
+} from "@/lib/types";
 
 interface TeacherRecord {
   id: string;
@@ -26,10 +30,25 @@ function getClassLevel(
   level?: string,
   name?: string
 ): SchoolLevel | "" {
-  const value = `${level || ""} ${name || ""}`.toLowerCase();
+  const value = `${level || ""} ${name || ""}`
+    .trim()
+    .toLowerCase();
 
-  if (value.includes("nursery")) return "nursery";
-  if (value.includes("primary")) return "primary";
+  if (
+    value.includes("pre nursery") ||
+    value.includes("pre-nursery") ||
+    value.includes("prenursery")
+  ) {
+    return "pre-nursery";
+  }
+
+  if (value.includes("nursery")) {
+    return "nursery";
+  }
+
+  if (value.includes("primary")) {
+    return "primary";
+  }
 
   if (
     value.includes("jss") ||
@@ -45,7 +64,9 @@ function getClassLevel(
     return "ss";
   }
 
-  if (value.includes("senior")) return "ss";
+  if (value.includes("senior")) {
+    return "ss";
+  }
 
   return "";
 }
@@ -68,9 +89,14 @@ export default function NewTeacherPage() {
     email: "",
   });
 
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [formMasterClassId, setFormMasterClassId] = useState("");
+  const [selectedClasses, setSelectedClasses] =
+    useState<string[]>([]);
+
+  const [selectedSubjects, setSelectedSubjects] =
+    useState<string[]>([]);
+
+  const [formMasterClassId, setFormMasterClassId] =
+    useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -80,12 +106,15 @@ export default function NewTeacherPage() {
         setLoadingOptions(true);
         setError("");
 
-        const [classList, subjectList, teacherList] =
-          await Promise.all([
-            getClasses(),
-            getSubjects(),
-            getAll("teachers"),
-          ]);
+        const [
+          classList,
+          subjectList,
+          teacherList,
+        ] = await Promise.all([
+          getClasses(),
+          getSubjects(),
+          getAll("teachers"),
+        ]);
 
         if (!mounted) return;
 
@@ -125,11 +154,24 @@ export default function NewTeacherPage() {
               (subject as {
                 levels?: SchoolLevel[];
               }).levels,
+            section:
+              (subject as {
+                section?: "main" | "arabic";
+              }).section,
+            scoringType:
+              (subject as {
+                scoringType?:
+                  | "main-20-20-60"
+                  | "arabic-40-60";
+              }).scoringType,
           }))
-          .filter((subject) => subject.name.trim());
+          .filter((subject) =>
+            subject.name.trim()
+          );
 
         setClasses(normalizedClasses);
         setSubjects(normalizedSubjects);
+
         setTeachers(
           (teacherList || []) as TeacherRecord[]
         );
@@ -148,7 +190,7 @@ export default function NewTeacherPage() {
       }
     }
 
-    loadOptions();
+    void loadOptions();
 
     return () => {
       mounted = false;
@@ -183,7 +225,9 @@ export default function NewTeacherPage() {
       return [];
     }
 
-    const selectedLevelSet = new Set(selectedLevels);
+    const selectedLevelSet = new Set(
+      selectedLevels
+    );
 
     const hasLevelAwareSubjects = subjects.some(
       (subject) => Array.isArray(subject.levels)
@@ -203,10 +247,19 @@ export default function NewTeacherPage() {
         );
     }
 
+    /*
+     * Legacy fallback.
+     *
+     * Pre Nursery intentionally has no
+     * fallback subjects because its official
+     * curriculum has not yet been provided.
+     */
     const legacyByLevel: Record<
       SchoolLevel,
       string[]
     > = {
+      "pre-nursery": [],
+
       nursery: [
         "English Language",
         "Mathematics",
@@ -403,9 +456,8 @@ export default function NewTeacherPage() {
 
   function toggleClass(classId: string) {
     setSelectedClasses((current) => {
-      const exists = current.includes(
-        classId
-      );
+      const exists =
+        current.includes(classId);
 
       if (exists) {
         if (
@@ -423,9 +475,13 @@ export default function NewTeacherPage() {
     });
   }
 
-  function toggleSubject(subjectId: string) {
+  function toggleSubject(
+    subjectId: string
+  ) {
     setSelectedSubjects((current) => {
-      if (current.includes(subjectId)) {
+      if (
+        current.includes(subjectId)
+      ) {
         return current.filter(
           (id) => id !== subjectId
         );
@@ -456,8 +512,10 @@ export default function NewTeacherPage() {
 
     const firstName =
       form.firstName.trim();
+
     const lastName =
       form.lastName.trim();
+
     const email =
       form.email.trim().toLowerCase();
 
@@ -493,14 +551,18 @@ export default function NewTeacherPage() {
       return;
     }
 
-    if (selectedClasses.length === 0) {
+    if (
+      selectedClasses.length === 0
+    ) {
       setError(
         "Please assign at least one teaching class."
       );
       return;
     }
 
-    if (selectedSubjects.length === 0) {
+    if (
+      selectedSubjects.length === 0
+    ) {
       setError(
         "Please assign at least one subject."
       );
@@ -560,7 +622,9 @@ export default function NewTeacherPage() {
         classIds: selectedClasses,
 
         subjectIds: selectedSubjects,
+
         subjects: selectedSubjectNames,
+
         subject:
           selectedSubjectNames.join(", "),
 
@@ -837,7 +901,10 @@ export default function NewTeacherPage() {
                       key={level}
                       className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700"
                     >
-                      {level}
+                      {level ===
+                      "pre-nursery"
+                        ? "Pre Nursery"
+                        : level}
                     </span>
                   )
                 )}
@@ -906,9 +973,10 @@ export default function NewTeacherPage() {
                                     }
                                     className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] capitalize text-gray-600"
                                   >
-                                    {
-                                      level
-                                    }
+                                    {level ===
+                                    "pre-nursery"
+                                      ? "Pre Nursery"
+                                      : level}
                                   </span>
                                 )
                               )}
