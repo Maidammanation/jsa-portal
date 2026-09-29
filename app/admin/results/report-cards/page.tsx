@@ -63,6 +63,60 @@ function gradeRemark(grade?: string) {
   }
 }
 
+function generateGeneralComment(
+  overallAverage: number,
+  mainAverage: number,
+  arabicAverage: number,
+  hasMainSubjects: boolean,
+  hasArabicSubjects: boolean
+) {
+  let comment = "";
+
+  if (overallAverage >= 80) {
+    comment =
+      "Outstanding performance! The student has demonstrated excellent understanding and strong academic achievement. Keep up the excellent work.";
+  } else if (overallAverage >= 70) {
+    comment =
+      "Excellent performance! The student has shown strong understanding and consistent effort. Keep up the good work and continue striving for excellence.";
+  } else if (overallAverage >= 60) {
+    comment =
+      "Very good overall performance. The student has made good progress and demonstrated solid understanding. With continued effort and attention to weaker areas, even better results can be achieved.";
+  } else if (overallAverage >= 50) {
+    comment =
+      "Good performance. The student has shown encouraging progress, but should put more effort into weaker subjects to improve overall achievement.";
+  } else if (overallAverage >= 40) {
+    comment =
+      "Fair performance. The student needs more consistent study, practice, and attention to weaker subjects to improve.";
+  } else {
+    comment =
+      "The student needs significant improvement. More regular study, guidance, and practice are needed to strengthen academic performance.";
+  }
+
+  if (
+    hasArabicSubjects &&
+    arabicAverage >= 75 &&
+    hasMainSubjects &&
+    mainAverage < 60
+  ) {
+    comment +=
+      " Excellent performance in the Arabic section; more attention to the main subjects will help raise the overall result.";
+  } else if (
+    hasArabicSubjects &&
+    arabicAverage >= 75
+  ) {
+    comment +=
+      " The student has performed excellently in the Arabic section.";
+  } else if (
+    hasMainSubjects &&
+    mainAverage < 50
+  ) {
+    comment +=
+      " Extra attention should be given to the weaker main subjects.";
+  }
+
+  return comment;
+}
+
 export default function ReportCardsPage() {
   const { session, term } =
     useSchoolSettings();
@@ -1014,24 +1068,15 @@ export default function ReportCardsPage() {
                   General Comment:
                 </p>
 
-                <textarea
-                  value={
-                    generalComment
-                  }
-                  onChange={(event) =>
-                    setGeneralComment(
-                      event.target
-                        .value
-                    )
-                  }
-                  className="print:hidden mt-1 w-full min-h-[55px] resize-none border border-gray-300 p-2 text-xs"
-                  placeholder="Enter general comment..."
-                />
-
-                <div className="hidden print:block min-h-[55px] text-center text-xs italic pt-2">
-                  {generalComment ||
-                    " "}
-                </div>
+                <div className="mt-1 min-h-[55px] text-center text-xs italic pt-2">
+  {generateGeneralComment(
+    overallAverage,
+    mainAverage,
+    arabicAverage,
+    mainSubjects.length > 0,
+    arabicSubjects.length > 0
+  )}
+</div>
               </div>
             </div>
 
