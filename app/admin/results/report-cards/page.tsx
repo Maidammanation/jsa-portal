@@ -300,7 +300,8 @@ export default function ReportCardsPage() {
       .filter(
         ({ subject }) =>
           Boolean(subject) &&
-          subject?.section !== "arabic" &&
+          subject?.section !==
+            "arabic" &&
           subject?.scoringType !==
             "arabic-40-60"
       );
@@ -327,7 +328,8 @@ export default function ReportCardsPage() {
         ({ subject }) =>
           Boolean(subject) &&
           (
-            subject?.section === "arabic" ||
+            subject?.section ===
+              "arabic" ||
             subject?.scoringType ===
               "arabic-40-60"
           )
@@ -350,7 +352,8 @@ export default function ReportCardsPage() {
 
   const mainAverage =
     mainSubjects.length > 0
-      ? mainTotal / mainSubjects.length
+      ? mainTotal /
+        mainSubjects.length
       : 0;
 
   const arabicTotal =
@@ -365,7 +368,8 @@ export default function ReportCardsPage() {
 
   const arabicAverage =
     arabicSubjects.length > 0
-      ? arabicTotal / arabicSubjects.length
+      ? arabicTotal /
+        arabicSubjects.length
       : 0;
 
   const overallTotal =
@@ -416,17 +420,11 @@ export default function ReportCardsPage() {
     <>
       <style jsx global>{`
         /*
-         * =====================================================
-         * A4 PRINT LAYOUT
-         * =====================================================
+         * A4 PRINT SETTINGS
+         * A4 = 210mm × 297mm
          *
-         * A4 = 210mm x 297mm
-         *
-         * Browser print area:
-         * 210mm - 16mm = 194mm usable width
-         * 297mm - 16mm = 281mm usable height
-         *
-         * The report fills the printable width.
+         * Printable area with 8mm margins:
+         * 194mm × 281mm
          */
 
         @page {
@@ -437,12 +435,14 @@ export default function ReportCardsPage() {
         @media print {
           html,
           body {
-            margin: 0 !important;
-            padding: 0 !important;
             width: 100% !important;
             min-width: 0 !important;
             max-width: none !important;
-            background: white !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            background: #ffffff !important;
           }
 
           body {
@@ -451,100 +451,149 @@ export default function ReportCardsPage() {
           }
 
           /*
-           * Completely remove the portal controls.
+           * Remove Tailwind's max-w-5xl
+           * restriction during printing.
            */
 
-          .portal-screen {
-            display: none !important;
+          .max-w-5xl {
+            width: 100% !important;
+            max-width: none !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
           /*
-           * PRINT ROOT
-           *
-           * This is deliberately 100% wide.
-           * No max-width.
-           * No scale.
-           * No absolute positioning.
+           * Hide everything except the report.
+           */
+
+          body * {
+            visibility: hidden;
+          }
+
+          .a4-report-wrapper,
+          .a4-report-wrapper * {
+            visibility: visible;
+          }
+
+          /*
+           * A4 report wrapper.
            */
 
           .a4-report-wrapper {
-            display: block !important;
+            position: relative !important;
+
             width: 100% !important;
             max-width: none !important;
-            min-width: 0 !important;
+
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
+
             overflow: visible !important;
-          }
 
-          .a4-report {
-            display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-            box-shadow: none !important;
-            transform: none !important;
-            position: static !important;
-          }
-
-          .a4-report-inner {
-            display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            background: #ffffff !important;
           }
 
           /*
-           * The report itself.
+           * Actual report.
+           *
+           * Do not force 210mm here.
+           * @page already controls the physical
+           * A4 paper size.
+           */
+
+          .a4-report {
+            position: relative !important;
+
+            width: 100% !important;
+            max-width: none !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            transform: none !important;
+            transform-origin: top left !important;
+
+            border: 0 !important;
+            box-shadow: none !important;
+
+            overflow: visible !important;
+
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+
+            break-before: avoid !important;
+            break-after: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .a4-report-inner {
+            width: 100% !important;
+            max-width: none !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /*
+           * Full-width report card.
            */
 
           .report-card {
             width: 100% !important;
             max-width: none !important;
-            min-width: 0 !important;
+
             margin: 0 !important;
             padding: 0 !important;
+
             border: 0 !important;
             box-shadow: none !important;
-            background: white !important;
+
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           /*
-           * Main report frame.
+           * Report border.
            */
 
-          .report-frame {
-            width: 100% !important;
-            max-width: none !important;
+          .report-card > div {
+            width: auto !important;
+
             margin: 0 !important;
-            padding: 0 !important;
-            border: 2px solid #000 !important;
+
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           /*
-           * FORCE EVERY TABLE TO FULL WIDTH.
+           * FULL WIDTH TABLES
            */
 
-          .a4-report table,
-          .print-main-table,
-          .print-arabic-table {
+          .a4-report table {
             width: 100% !important;
             max-width: none !important;
-            min-width: 0 !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            border-collapse: collapse !important;
+
             table-layout: fixed !important;
+            border-collapse: collapse !important;
+
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .a4-report tr,
+          .a4-report td,
+          .a4-report th {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           /*
-           * Header
+           * HEADER
            */
 
           .print-header {
@@ -552,74 +601,69 @@ export default function ReportCardsPage() {
             padding: 2mm 2mm 0 2mm !important;
           }
 
-          .print-header-grid {
-            width: 100% !important;
-            grid-template-columns: 18mm 1fr 18mm !important;
-            gap: 2mm !important;
-          }
-
           .print-logo {
-            width: 15mm !important;
-            height: 15mm !important;
+            width: 13mm !important;
+            height: 13mm !important;
           }
 
           .print-school-name {
-            font-size: 16px !important;
-            line-height: 17px !important;
+            font-size: 17px !important;
+            line-height: 18px !important;
           }
 
           .print-address {
-            font-size: 6.5px !important;
-            line-height: 7.5px !important;
-            margin-top: 1px !important;
-            padding-left: 2px !important;
-            padding-right: 2px !important;
-          }
-
-          .print-motto {
-            font-size: 7.5px !important;
+            font-size: 7px !important;
             line-height: 8px !important;
             margin-top: 1px !important;
           }
 
+          .print-motto {
+            font-size: 8px !important;
+            line-height: 9px !important;
+            margin-top: 1px !important;
+          }
+
           .print-phone {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            font-size: 7px !important;
+            line-height: 8px !important;
           }
 
           .print-email {
             font-size: 6px !important;
             line-height: 7px !important;
+
             padding: 1px !important;
             margin-top: 1px !important;
-            max-width: none !important;
           }
 
           .print-title {
-            font-size: 8.5px !important;
-            line-height: 9px !important;
+            font-size: 9px !important;
+            line-height: 10px !important;
+
             padding: 1px !important;
             margin-top: 1px !important;
           }
 
           /*
-           * Section headings
+           * SECTION TITLES
            */
 
           .print-section-title {
-            font-size: 7.5px !important;
-            line-height: 8px !important;
+            font-size: 8px !important;
+            line-height: 9px !important;
+
             padding: 1px !important;
           }
 
           /*
-           * Student information
+           * STUDENT INFORMATION
            */
 
           .print-student-info {
             width: 100% !important;
-            font-size: 7px !important;
-            line-height: 8px !important;
+
+            font-size: 7.5px !important;
+            line-height: 9px !important;
           }
 
           .print-student-info > div {
@@ -627,45 +671,65 @@ export default function ReportCardsPage() {
           }
 
           /*
-           * Main academic table
+           * MAIN PERFORMANCE TABLE
            */
 
           .print-main-table {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            width: 100% !important;
+
+            font-size: 7px !important;
+            line-height: 8px !important;
           }
 
           .print-main-table th,
           .print-main-table td {
-            padding: 1px 1px !important;
-            line-height: 7px !important;
-            height: auto !important;
+            padding: 1px 1.5px !important;
+            line-height: 8px !important;
           }
 
           /*
-           * Arabic table
+           * Give subject names more room.
+           */
+
+          .print-main-table th:nth-child(2),
+          .print-main-table td:nth-child(2) {
+            width: 30% !important;
+            text-align: left !important;
+          }
+
+          /*
+           * ARABIC PERFORMANCE TABLE
            */
 
           .print-arabic-table {
-            font-size: 6px !important;
-            line-height: 6.5px !important;
+            width: 100% !important;
+
+            font-size: 6.5px !important;
+            line-height: 7px !important;
           }
 
           .print-arabic-table th,
           .print-arabic-table td {
             padding: 1px !important;
-            line-height: 6.5px !important;
-            height: auto !important;
+            line-height: 7px !important;
+          }
+
+          .print-arabic-table th:nth-child(2),
+          .print-arabic-table td:nth-child(2),
+          .print-arabic-table th:nth-child(8),
+          .print-arabic-table td:nth-child(8) {
+            width: 22% !important;
           }
 
           /*
-           * Overall
+           * OVERALL RESULT
            */
 
           .print-overall {
             width: 100% !important;
-            font-size: 7px !important;
-            line-height: 8px !important;
+
+            font-size: 7.5px !important;
+            line-height: 9px !important;
           }
 
           .print-overall > div {
@@ -673,12 +737,13 @@ export default function ReportCardsPage() {
           }
 
           /*
-           * Behaviour
+           * BEHAVIOURAL ASSESSMENT
            */
 
           .print-behaviour {
             width: 100% !important;
-            font-size: 6px !important;
+
+            font-size: 6.5px !important;
             line-height: 7px !important;
           }
 
@@ -687,18 +752,20 @@ export default function ReportCardsPage() {
           }
 
           .print-behaviour input {
-            width: 12px !important;
-            height: 11px !important;
-            font-size: 6px !important;
+            width: 14px !important;
+            height: 12px !important;
+
+            font-size: 7px !important;
           }
 
           /*
-           * Guide + general comment
+           * GUIDE + GENERAL COMMENT
            */
 
           .print-guide-comment {
             width: 100% !important;
-            font-size: 6px !important;
+
+            font-size: 6.5px !important;
             line-height: 7px !important;
           }
 
@@ -711,53 +778,59 @@ export default function ReportCardsPage() {
           }
 
           .print-comment-title {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            font-size: 7px !important;
+            line-height: 8px !important;
           }
 
           .print-comment-text {
-            min-height: 20px !important;
-            height: 20px !important;
+            min-height: 23px !important;
+            height: 23px !important;
+
             padding-top: 1px !important;
             margin-top: 0 !important;
-            font-size: 6px !important;
-            line-height: 7px !important;
+
+            font-size: 6.5px !important;
+            line-height: 8px !important;
           }
 
           /*
-           * Next term
+           * NEXT TERM
            */
 
           .print-next-term {
             width: 100% !important;
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+
+            font-size: 7px !important;
+            line-height: 8px !important;
+
             padding: 1.5px !important;
           }
 
           /*
-           * Signatures
+           * SIGNATURES
            */
 
           .print-signatures {
             width: 100% !important;
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+
+            font-size: 7px !important;
+            line-height: 8px !important;
           }
 
           .print-signatures > div {
-            min-height: 28px !important;
-            height: 28px !important;
+            min-height: 35px !important;
+            height: 35px !important;
+
             padding: 2px !important;
           }
 
           .print-signature-line {
-            margin-top: 3px !important;
+            margin-top: 4px !important;
             padding-top: 1px !important;
           }
 
           /*
-           * Remove developer footer completely.
+           * REMOVE DEVELOPER FOOTER
            */
 
           .developer-footer {
@@ -765,7 +838,7 @@ export default function ReportCardsPage() {
           }
 
           /*
-           * Do not allow controls to appear.
+           * REMOVE PRINT BUTTON
            */
 
           .print-button {
@@ -773,38 +846,41 @@ export default function ReportCardsPage() {
           }
 
           /*
-           * Keep report sections together where possible.
+           * Keep report sections together.
            */
 
           .a4-report,
           .a4-report-inner,
           .report-card,
-          .report-frame,
           .a4-report table,
-          .a4-report tr,
-          .a4-report td,
-          .a4-report th {
-            break-inside: avoid !important;
+          .a4-report tbody,
+          .a4-report tr {
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
             page-break-inside: avoid !important;
+
+            break-before: avoid !important;
+            break-after: avoid !important;
+            break-inside: avoid !important;
           }
 
           /*
-           * Prevent accidental page breaks.
+           * Prevent horizontal overflow.
            */
 
-          .report-frame {
-            page-break-before: avoid !important;
-            page-break-after: avoid !important;
+          .a4-report-wrapper,
+          .a4-report,
+          .a4-report-inner,
+          .report-card {
+            overflow: visible !important;
           }
         }
       `}</style>
 
-      {/* =====================================================
-          SCREEN CONTROLS
-          ===================================================== */}
+      <div className="max-w-5xl space-y-4">
+        {/* CONTROL PANEL */}
 
-      <div className="portal-screen space-y-4">
-        <div>
+        <div className="print:hidden">
           <h1 className="text-xl font-semibold text-gray-800">
             Generate Report Card
           </h1>
@@ -815,7 +891,7 @@ export default function ReportCardsPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="print:hidden bg-white rounded-card border border-gray-100 shadow-sm p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <SelectInput
             label="Class"
             value={classId}
@@ -879,340 +955,148 @@ export default function ReportCardsPage() {
             ]}
           />
         </div>
-      </div>
 
-      {loading && (
-        <p className="portal-screen text-sm text-gray-400">
-          Loading results...
-        </p>
-      )}
+        {loading && (
+          <p className="print:hidden text-sm text-gray-400">
+            Loading results...
+          </p>
+        )}
 
-      {student && !loading && (
-        <div className="a4-report-wrapper">
-          <div className="a4-report">
-            <div className="a4-report-inner">
+        {student && !loading && (
+          <div className="a4-report-wrapper">
+            <div className="a4-report">
+              <div className="a4-report-inner">
+                <div className="report-card bg-white text-black border border-gray-400 shadow-sm print:shadow-none print:border-0">
 
-              {/* =====================================================
-                  REPORT CARD
-                  ===================================================== */}
+                  {/* REPORT BORDER */}
 
-              <div className="report-card bg-white text-black">
+                  <div className="border-2 border-black m-3">
 
-                <div className="report-frame">
+                    {/* HEADER */}
 
-                  {/* =================================================
-                      HEADER
-                      ================================================= */}
+                    <div className="print-header px-3 pt-3">
+                      <div className="grid grid-cols-[80px_1fr_80px] items-center gap-2">
 
-                  <div className="print-header px-3 pt-3">
+                        <div className="print-logo relative h-16 w-16">
+                          <Image
+                            src={
+                              SCHOOL.logoPath
+                            }
+                            alt="School Logo"
+                            fill
+                            className="object-contain"
+                          />
+                        </div>
 
-                    <div className="print-header-grid grid grid-cols-[80px_1fr_80px] items-center gap-2">
+                        <div className="text-center">
 
-                      <div className="print-logo relative h-16 w-16">
-                        <Image
-                          src={
-                            SCHOOL.logoPath
-                          }
-                          alt="School Logo"
-                          fill
-                          className="object-contain"
-                        />
+                          <h1 className="print-school-name text-xl sm:text-2xl font-extrabold tracking-wide">
+                            {SCHOOL.name ||
+                              "JIDDA STANDARD ACADEMY"}
+                          </h1>
+
+                          <div className="print-address mt-1 inline-block border border-gray-500 px-3 py-0.5 text-[9px] font-semibold">
+                            Main Campus: No. 5 Hayin Dogo Anguwan Rahi Danmagaji, Zaria
+                          </div>
+
+                          <div className="print-address mt-1 border border-gray-500 px-2 py-0.5 text-[9px] font-semibold">
+                            Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna's Garage, Gaskiya Road, Zaria
+                          </div>
+
+                          <p className="print-motto mt-2 text-sm italic">
+                            Motto:{" "}
+                            <b>
+                              Knowledge is Light
+                            </b>
+                          </p>
+
+                          <p className="print-phone text-[10px]">
+                            Phone Numbers:
+                            08121414008,
+                            08069121401
+                          </p>
+
+                          <div className="print-email mx-auto mt-1 max-w-xs bg-gray-300 py-1 text-[10px] font-semibold">
+                            Email:
+                          </div>
+
+                        </div>
+
+                        <div className="print-logo relative h-16 w-16 justify-self-end">
+                          <Image
+                            src={
+                              SCHOOL.logoPath
+                            }
+                            alt="School Emblem"
+                            fill
+                            className="object-contain"
+                          />
+                        </div>
+
                       </div>
 
-                      <div className="text-center">
-
-                        <h1 className="print-school-name text-xl sm:text-2xl font-extrabold tracking-wide">
-                          {SCHOOL.name ||
-                            "JIDDA STANDARD ACADEMY"}
-                        </h1>
-
-                        <div className="print-address mt-1 inline-block border border-gray-500 px-3 py-0.5 text-[9px] font-semibold">
-                          Main Campus: No. 5 Hayin Dogo Anguwan Rahi Danmagaji, Zaria
-                        </div>
-
-                        <div className="print-address mt-1 border border-gray-500 px-2 py-0.5 text-[9px] font-semibold">
-                          Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna's Garage, Gaskiya Road, Zaria
-                        </div>
-
-                        <p className="print-motto mt-2 text-sm italic">
-                          Motto:{" "}
-                          <b>
-                            Knowledge is Light
-                          </b>
+                      <div className="print-title mt-2 border-t-2 border-black pt-1 pb-1 text-center">
+                        <p className="text-sm font-semibold italic">
+                          End of Term Examination Report Sheet (Primary Section)
                         </p>
-
-                        <p className="print-phone text-[10px]">
-                          Phone Numbers:
-                          08121414008,
-                          08069121401
-                        </p>
-
-                        <div className="print-email mx-auto mt-1 max-w-xs bg-gray-300 py-1 text-[10px] font-semibold">
-                          Email:
-                        </div>
-
                       </div>
-
-                      <div className="print-logo relative h-16 w-16 justify-self-end">
-                        <Image
-                          src={
-                            SCHOOL.logoPath
-                          }
-                          alt="School Emblem"
-                          fill
-                          className="object-contain"
-                        />
-                      </div>
-
                     </div>
 
-                    <div className="print-title mt-2 border-t-2 border-black pt-1 pb-1 text-center">
-                      <p className="text-sm font-semibold italic">
-                        End of Term Examination Report Sheet (Primary Section)
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      STUDENT INFORMATION
-                      ================================================= */}
-
-                  <div className="border-t border-black">
-
-                    <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1">
-                      Student Information
-                    </div>
-
-                    <div className="print-student-info grid grid-cols-2 text-xs">
-
-                      <div className="border-t border-r border-black p-1">
-                        <b>Name:</b>{" "}
-                        {student.firstName}{" "}
-                        {student.lastName}
-                      </div>
-
-                      <div className="border-t border-black p-1">
-                        <b>Class:</b>{" "}
-                        {className}
-                      </div>
-
-                      <div className="border-t border-r border-black p-1">
-                        <b>Session:</b>{" "}
-                        {session}
-                      </div>
-
-                      <div className="border-t border-black p-1">
-                        <b>Number in Class:</b>{" "}
-                        {students.length}
-                      </div>
-
-                      <div className="border-t border-r border-black p-1">
-                        <b>Admission No:</b>{" "}
-                        {student.admissionNo}
-                      </div>
-
-                      <div className="border-t border-black p-1">
-                        <b>Term:</b>{" "}
-                        {term}
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      MAIN PERFORMANCE
-                      ================================================= */}
-
-                  <div className="border-t border-black">
-
-                    <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1">
-                      STUDENT ACADEMIC PERFORMANCE
-                    </div>
-
-                    <table className="print-main-table w-full border-collapse text-[10px]">
-
-                      <thead>
-                        <tr>
-
-                          <th className="border border-black p-1">
-                            S/N
-                          </th>
-
-                          <th className="border border-black p-1">
-                            SUBJECTS
-                          </th>
-
-                          <th className="border border-black p-1">
-                            1ST C.A (20)
-                          </th>
-
-                          <th className="border border-black p-1">
-                            2ND C.A (20)
-                          </th>
-
-                          <th className="border border-black p-1">
-                            EXAM (60)
-                          </th>
-
-                          <th className="border border-black p-1">
-                            TOTAL
-                            <br />
-                            (100)
-                          </th>
-
-                          <th className="border border-black p-1">
-                            GRADE
-                          </th>
-
-                          <th className="border border-black p-1">
-                            REMARK
-                          </th>
-
-                        </tr>
-                      </thead>
-
-                      <tbody>
-
-                        {mainSubjects.length ===
-                        0 ? (
-
-                          <tr>
-                            <td
-                              colSpan={8}
-                              className="border border-black p-3 text-center"
-                            >
-                              No main subject
-                              results recorded.
-                            </td>
-                          </tr>
-
-                        ) : (
-
-                          mainSubjects.map(
-                            (
-                              item,
-                              index
-                            ) => (
-
-                              <tr
-                                key={
-                                  item
-                                    .result
-                                    .id ||
-                                  item
-                                    .result
-                                    .subjectId
-                                }
-                              >
-
-                                <td className="border border-black p-1 text-center">
-                                  {index + 1}
-                                </td>
-
-                                <td className="border border-black p-1">
-                                  {
-                                    item
-                                      .subject
-                                      ?.name
-                                  }
-                                </td>
-
-                                <td className="border border-black p-1 text-center">
-                                  {item.result.ca1 ??
-                                    "—"}
-                                </td>
-
-                                <td className="border border-black p-1 text-center">
-                                  {item.result.ca2 ??
-                                    "—"}
-                                </td>
-
-                                <td className="border border-black p-1 text-center">
-                                  {item.result.exam ??
-                                    "—"}
-                                </td>
-
-                                <td className="border border-black p-1 text-center font-semibold">
-                                  {item.result.total ??
-                                    "—"}
-                                </td>
-
-                                <td className="border border-black p-1 text-center font-semibold">
-                                  {item.result.grade ??
-                                    "—"}
-                                </td>
-
-                                <td className="border border-black p-1 text-center">
-                                  {item.result.remark ||
-                                    gradeRemark(
-                                      item
-                                        .result
-                                        .grade
-                                    )}
-                                </td>
-
-                              </tr>
-
-                            )
-                          )
-
-                        )}
-
-                        <tr>
-
-                          <td
-                            colSpan={2}
-                            className="border border-black p-1 text-right font-bold"
-                          >
-                            TOTAL:
-                          </td>
-
-                          <td
-                            colSpan={3}
-                            className="border border-black p-1 text-center font-bold"
-                          >
-                            {mainTotal}
-                          </td>
-
-                          <td
-                            colSpan={2}
-                            className="border border-black p-1 text-right font-bold"
-                          >
-                            AVERAGE:
-                          </td>
-
-                          <td className="border border-black p-1 text-center font-bold">
-                            {mainAverage.toFixed(
-                              2
-                            )}
-                          </td>
-
-                        </tr>
-
-                      </tbody>
-
-                    </table>
-
-                  </div>
-
-                  {/* =================================================
-                      ARABIC
-                      ================================================= */}
-
-                  {student.attendsArabic && (
+                    {/* STUDENT INFORMATION */}
 
                     <div className="border-t border-black">
 
                       <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1">
-                        STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
+                        Student Information
                       </div>
 
-                      <table className="print-arabic-table w-full border-collapse text-[9px]">
+                      <div className="print-student-info grid grid-cols-2 text-xs">
+
+                        <div className="border-t border-r border-black p-1">
+                          <b>Name:</b>{" "}
+                          {student.firstName}{" "}
+                          {student.lastName}
+                        </div>
+
+                        <div className="border-t border-black p-1">
+                          <b>Class:</b>{" "}
+                          {className}
+                        </div>
+
+                        <div className="border-t border-r border-black p-1">
+                          <b>Session:</b>{" "}
+                          {session}
+                        </div>
+
+                        <div className="border-t border-black p-1">
+                          <b>Number in Class:</b>{" "}
+                          {students.length}
+                        </div>
+
+                        <div className="border-t border-r border-black p-1">
+                          <b>Admission No:</b>{" "}
+                          {student.admissionNo}
+                        </div>
+
+                        <div className="border-t border-black p-1">
+                          <b>Term:</b>{" "}
+                          {term}
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* MAIN PERFORMANCE */}
+
+                    <div className="border-t border-black">
+
+                      <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1">
+                        STUDENT ACADEMIC PERFORMANCE
+                      </div>
+
+                      <table className="print-main-table w-full border-collapse text-[10px]">
 
                         <thead>
-
                           <tr>
 
                             <th className="border border-black p-1">
@@ -1224,45 +1108,15 @@ export default function ReportCardsPage() {
                             </th>
 
                             <th className="border border-black p-1">
-                              C.A
-                              <br />
-                              (40)
+                              1ST C.A (20)
                             </th>
 
                             <th className="border border-black p-1">
-                              EXAM
-                              <br />
-                              (60)
+                              2ND C.A (20)
                             </th>
 
                             <th className="border border-black p-1">
-                              TOTAL
-                              <br />
-                              (100)
-                            </th>
-
-                            <th className="border border-black p-1">
-                              GRADE
-                            </th>
-
-                            <th className="border border-black p-1">
-                              S/N
-                            </th>
-
-                            <th className="border border-black p-1">
-                              SUBJECTS
-                            </th>
-
-                            <th className="border border-black p-1">
-                              C.A
-                              <br />
-                              (40)
-                            </th>
-
-                            <th className="border border-black p-1">
-                              EXAM
-                              <br />
-                              (60)
+                              EXAM (60)
                             </th>
 
                             <th className="border border-black p-1">
@@ -1273,144 +1127,100 @@ export default function ReportCardsPage() {
 
                             <th className="border border-black p-1">
                               GRADE
+                            </th>
+
+                            <th className="border border-black p-1">
+                              REMARK
                             </th>
 
                           </tr>
-
                         </thead>
 
                         <tbody>
 
-                          {(() => {
-
-                            const left =
-                              arabicSubjects.slice(
-                                0,
-                                4
-                              );
-
-                            const right =
-                              arabicSubjects.slice(
-                                4,
-                                8
-                              );
-
-                            const rows =
-                              Math.max(
-                                left.length,
-                                right.length,
-                                1
-                              );
-
-                            return Array.from({
-                              length: rows,
-                            }).map(
+                          {mainSubjects.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={8}
+                                className="border border-black p-3 text-center"
+                              >
+                                No main subject
+                                results recorded.
+                              </td>
+                            </tr>
+                          ) : (
+                            mainSubjects.map(
                               (
-                                _,
+                                item,
                                 index
-                              ) => {
+                              ) => (
+                                <tr
+                                  key={
+                                    item
+                                      .result
+                                      .id ||
+                                    item
+                                      .result
+                                      .subjectId
+                                  }
+                                >
 
-                                const a =
-                                  left[index];
+                                  <td className="border border-black p-1 text-center">
+                                    {index + 1}
+                                  </td>
 
-                                const b =
-                                  right[index];
+                                  <td className="border border-black p-1">
+                                    {
+                                      item
+                                        .subject
+                                        ?.name
+                                    }
+                                  </td>
 
-                                return (
+                                  <td className="border border-black p-1 text-center">
+                                    {item.result
+                                      .ca1 ??
+                                      "—"}
+                                  </td>
 
-                                  <tr
-                                    key={index}
-                                  >
+                                  <td className="border border-black p-1 text-center">
+                                    {item.result
+                                      .ca2 ??
+                                      "—"}
+                                  </td>
 
-                                    <td className="border border-black p-1 text-center">
-                                      {a
-                                        ? index + 1
-                                        : ""}
-                                    </td>
+                                  <td className="border border-black p-1 text-center">
+                                    {item.result
+                                      .exam ??
+                                      "—"}
+                                  </td>
 
-                                    <td className="border border-black p-1 text-center">
-                                      {a
-                                        ?.subject
-                                        ?.name ||
-                                        ""}
-                                    </td>
+                                  <td className="border border-black p-1 text-center font-semibold">
+                                    {item.result
+                                      .total ??
+                                      "—"}
+                                  </td>
 
-                                    <td className="border border-black p-1 text-center">
-                                      {a
-                                        ?.result
-                                        .ca1 ??
-                                        ""}
-                                    </td>
+                                  <td className="border border-black p-1 text-center font-semibold">
+                                    {item.result
+                                      .grade ??
+                                      "—"}
+                                  </td>
 
-                                    <td className="border border-black p-1 text-center">
-                                      {a
-                                        ?.result
-                                        .exam ??
-                                        ""}
-                                    </td>
+                                  <td className="border border-black p-1 text-center">
+                                    {item.result
+                                      .remark ||
+                                      gradeRemark(
+                                        item
+                                          .result
+                                          .grade
+                                      )}
+                                  </td>
 
-                                    <td className="border border-black p-1 text-center font-semibold">
-                                      {a
-                                        ?.result
-                                        .total ??
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center font-semibold">
-                                      {a
-                                        ?.result
-                                        .grade ??
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center">
-                                      {b
-                                        ? index + 5
-                                        : ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center">
-                                      {b
-                                        ?.subject
-                                        ?.name ||
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center">
-                                      {b
-                                        ?.result
-                                        .ca1 ??
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center">
-                                      {b
-                                        ?.result
-                                        .exam ??
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center font-semibold">
-                                      {b
-                                        ?.result
-                                        .total ??
-                                        ""}
-                                    </td>
-
-                                    <td className="border border-black p-1 text-center font-semibold">
-                                      {b
-                                        ?.result
-                                        .grade ??
-                                        ""}
-                                    </td>
-
-                                  </tr>
-
-                                );
-                              }
-                            );
-
-                          })()}
+                                </tr>
+                              )
+                            )
+                          )}
 
                           <tr>
 
@@ -1422,24 +1232,21 @@ export default function ReportCardsPage() {
                             </td>
 
                             <td
-                              colSpan={4}
+                              colSpan={3}
                               className="border border-black p-1 text-center font-bold"
                             >
-                              {arabicTotal}
+                              {mainTotal}
                             </td>
 
                             <td
-                              colSpan={4}
+                              colSpan={2}
                               className="border border-black p-1 text-right font-bold"
                             >
                               AVERAGE:
                             </td>
 
-                            <td
-                              colSpan={2}
-                              className="border border-black p-1 text-center font-bold"
-                            >
-                              {arabicAverage.toFixed(
+                            <td className="border border-black p-1 text-center font-bold">
+                              {mainAverage.toFixed(
                                 2
                               )}
                             </td>
@@ -1447,293 +1254,545 @@ export default function ReportCardsPage() {
                           </tr>
 
                         </tbody>
-
                       </table>
+                    </div>
+
+                    {/* ARABIC */}
+
+                    {student.attendsArabic && (
+                      <div className="border-t border-black">
+
+                        <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1">
+                          STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
+                        </div>
+
+                        <table className="print-arabic-table w-full border-collapse text-[9px]">
+
+                          <thead>
+                            <tr>
+
+                              <th className="border border-black p-1">
+                                S/N
+                              </th>
+
+                              <th className="border border-black p-1">
+                                SUBJECTS
+                              </th>
+
+                              <th className="border border-black p-1">
+                                C.A
+                                <br />
+                                (40)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                EXAM
+                                <br />
+                                (60)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                TOTAL
+                                <br />
+                                (100)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                GRADE
+                              </th>
+
+                              <th className="border border-black p-1">
+                                S/N
+                              </th>
+
+                              <th className="border border-black p-1">
+                                SUBJECTS
+                              </th>
+
+                              <th className="border border-black p-1">
+                                C.A
+                                <br />
+                                (40)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                EXAM
+                                <br />
+                                (60)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                TOTAL
+                                <br />
+                                (100)
+                              </th>
+
+                              <th className="border border-black p-1">
+                                GRADE
+                              </th>
+
+                            </tr>
+                          </thead>
+
+                          <tbody>
+
+                            {(() => {
+                              const left =
+                                arabicSubjects.slice(
+                                  0,
+                                  4
+                                );
+
+                              const right =
+                                arabicSubjects.slice(
+                                  4,
+                                  8
+                                );
+
+                              const rows =
+                                Math.max(
+                                  left.length,
+                                  right.length,
+                                  1
+                                );
+
+                              return Array.from({
+                                length:
+                                  rows,
+                              }).map(
+                                (
+                                  _,
+                                  index
+                                ) => {
+                                  const a =
+                                    left[
+                                      index
+                                    ];
+
+                                  const b =
+                                    right[
+                                      index
+                                    ];
+
+                                  return (
+                                    <tr
+                                      key={
+                                        index
+                                      }
+                                    >
+
+                                      <td className="border border-black p-1 text-center">
+                                        {a
+                                          ? index +
+                                            1
+                                          : ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {a
+                                          ?.subject
+                                          ?.name ||
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {a
+                                          ?.result
+                                          .ca1 ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {a
+                                          ?.result
+                                          .exam ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center font-semibold">
+                                        {a
+                                          ?.result
+                                          .total ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center font-semibold">
+                                        {a
+                                          ?.result
+                                          .grade ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {b
+                                          ? index +
+                                            5
+                                          : ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {b
+                                          ?.subject
+                                          ?.name ||
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {b
+                                          ?.result
+                                          .ca1 ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center">
+                                        {b
+                                          ?.result
+                                          .exam ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center font-semibold">
+                                        {b
+                                          ?.result
+                                          .total ??
+                                          ""}
+                                      </td>
+
+                                      <td className="border border-black p-1 text-center font-semibold">
+                                        {b
+                                          ?.result
+                                          .grade ??
+                                          ""}
+                                      </td>
+
+                                    </tr>
+                                  );
+                                }
+                              );
+                            })()}
+
+                            <tr>
+
+                              <td
+                                colSpan={2}
+                                className="border border-black p-1 text-right font-bold"
+                              >
+                                TOTAL:
+                              </td>
+
+                              <td
+                                colSpan={4}
+                                className="border border-black p-1 text-center font-bold"
+                              >
+                                {arabicTotal}
+                              </td>
+
+                              <td
+                                colSpan={4}
+                                className="border border-black p-1 text-right font-bold"
+                              >
+                                AVERAGE:
+                              </td>
+
+                              <td
+                                colSpan={2}
+                                className="border border-black p-1 text-center font-bold"
+                              >
+                                {arabicAverage.toFixed(
+                                  2
+                                )}
+                              </td>
+
+                            </tr>
+
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* OVERALL */}
+
+                    <div className="border-t border-black">
+
+                      <div className="print-overall grid grid-cols-2 text-xs font-bold">
+
+                        <div className="border-r border-black p-1 text-right">
+                          OVERALL TOTAL:
+                        </div>
+
+                        <div className="p-1">
+                          {overallTotal}
+                        </div>
+
+                        <div className="border-t border-r border-black p-1 text-right">
+                          OVERALL AVERAGE:
+                        </div>
+
+                        <div className="border-t border-black p-1">
+                          {overallAverage.toFixed(
+                            2
+                          )}
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* BEHAVIOURAL ASSESSMENT */}
+
+                    <div className="border-t border-black">
+
+                      <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1 italic">
+                        Behavioural Assessment
+                      </div>
+
+                      <div className="print-behaviour grid grid-cols-4 text-[10px]">
+
+                        <BehaviourField
+                          label="Conduct"
+                          value={
+                            behaviour.conduct
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "conduct",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Hospitality"
+                          value={
+                            behaviour.hospitality
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "hospitality",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Punctuality"
+                          value={
+                            behaviour.punctuality
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "punctuality",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Participation in Class"
+                          value={
+                            behaviour.participation
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "participation",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Creativity"
+                          value={
+                            behaviour.creativity
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "creativity",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Neatness"
+                          value={
+                            behaviour.neatness
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "neatness",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Dedication"
+                          value={
+                            behaviour.dedication
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "dedication",
+                              value
+                            )
+                          }
+                        />
+
+                        <BehaviourField
+                          label="Physical Health"
+                          value={
+                            behaviour.physicalHealth
+                          }
+                          onChange={(value) =>
+                            updateBehaviour(
+                              "physicalHealth",
+                              value
+                            )
+                          }
+                        />
+
+                      </div>
+                    </div>
+
+                    {/* GUIDE + COMMENT */}
+
+                    <div className="print-guide-comment grid grid-cols-1 sm:grid-cols-3 border-t border-black">
+
+                      <div className="print-guide border-r border-black p-2 text-[9px]">
+
+                        <p className="font-bold underline">
+                          GUIDE:
+                        </p>
+
+                        <p>
+                          5 - Excellent
+                        </p>
+
+                        <p>
+                          4 - V. Good
+                        </p>
+
+                        <p>
+                          3 - Good
+                        </p>
+
+                        <p>
+                          2 - Fair
+                        </p>
+
+                        <p>
+                          1 - Weak
+                        </p>
+
+                      </div>
+
+                      <div className="print-comment sm:col-span-2 p-2">
+
+                        <p className="print-comment-title text-center font-semibold italic text-xs">
+                          General Comment:
+                        </p>
+
+                        <div className="print-comment-text mt-1 min-h-[55px] text-center text-xs italic pt-2">
+                          {generalComment}
+                        </div>
+
+                      </div>
 
                     </div>
 
-                  )}
+                    {/* NEXT TERM */}
 
-                  {/* =================================================
-                      OVERALL
-                      ================================================= */}
+                    <div className="print-next-term border-t border-black p-1 text-center text-xs">
 
-                  <div className="border-t border-black">
+                      <b>
+                        Next term begins on:
+                      </b>{" "}
 
-                    <div className="print-overall grid grid-cols-2 text-xs font-bold">
+                      <input
+                        type="text"
+                        value={
+                          nextTermDate
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setNextTermDate(
+                            event.target
+                              .value
+                          )
+                        }
+                        className="print:hidden border-b border-black outline-none text-center px-2"
+                        placeholder="e.g. 30th March, 2026"
+                      />
 
-                      <div className="border-r border-black p-1 text-right">
-                        OVERALL TOTAL:
+                      <span className="hidden print:inline">
+                        {nextTermDate}
+                      </span>
+
+                    </div>
+
+                    {/* SIGNATURES */}
+
+                    <div className="print-signatures grid grid-cols-2 border-t border-black text-xs">
+
+                      <div className="border-r border-black p-3 text-center min-h-[90px]">
+
+                        <p className="font-semibold">
+                          Director's
+                        </p>
+
+                        <p className="font-semibold">
+                          Signature and Date
+                        </p>
+
+                        <div className="print-signature-line mt-8 border-t border-gray-400 pt-1">
+                          Signature / Date
+                        </div>
+
                       </div>
 
-                      <div className="p-1">
-                        {overallTotal}
-                      </div>
+                      <div className="p-3 text-center min-h-[90px]">
 
-                      <div className="border-t border-r border-black p-1 text-right">
-                        OVERALL AVERAGE:
-                      </div>
+                        <p className="font-semibold">
+                          Headmaster's/Headmistress
+                        </p>
 
-                      <div className="border-t border-black p-1">
-                        {overallAverage.toFixed(
-                          2
-                        )}
+                        <p className="font-semibold">
+                          Signature and Date
+                        </p>
+
+                        <div className="print-signature-line mt-8 border-t border-gray-400 pt-1">
+                          Signature / Date
+                        </div>
+
                       </div>
 
                     </div>
+
+                    {/* NO DEVELOPER FOOTER */}
 
                   </div>
+                </div>
 
-                  {/* =================================================
-                      BEHAVIOURAL ASSESSMENT
-                      ================================================= */}
+                {/* PRINT BUTTON */}
 
-                  <div className="border-t border-black">
+                <div className="print:hidden print-button flex justify-end p-4">
 
-                    <div className="print-section-title bg-gray-200 text-center font-semibold text-xs py-1 italic">
-                      Behavioural Assessment
-                    </div>
-
-                    <div className="print-behaviour grid grid-cols-4 text-[10px]">
-
-                      <BehaviourField
-                        label="Conduct"
-                        value={
-                          behaviour.conduct
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "conduct",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Hospitality"
-                        value={
-                          behaviour.hospitality
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "hospitality",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Punctuality"
-                        value={
-                          behaviour.punctuality
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "punctuality",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Participation in Class"
-                        value={
-                          behaviour.participation
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "participation",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Creativity"
-                        value={
-                          behaviour.creativity
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "creativity",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Neatness"
-                        value={
-                          behaviour.neatness
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "neatness",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Dedication"
-                        value={
-                          behaviour.dedication
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "dedication",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourField
-                        label="Physical Health"
-                        value={
-                          behaviour.physicalHealth
-                        }
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "physicalHealth",
-                            value
-                          )
-                        }
-                      />
-
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      GUIDE + COMMENT
-                      ================================================= */}
-
-                  <div className="print-guide-comment grid grid-cols-1 sm:grid-cols-3 border-t border-black">
-
-                    <div className="print-guide border-r border-black p-2 text-[9px]">
-
-                      <p className="font-bold underline">
-                        GUIDE:
-                      </p>
-
-                      <p>5 - Excellent</p>
-                      <p>4 - V. Good</p>
-                      <p>3 - Good</p>
-                      <p>2 - Fair</p>
-                      <p>1 - Weak</p>
-
-                    </div>
-
-                    <div className="print-comment sm:col-span-2 p-2">
-
-                      <p className="print-comment-title text-center font-semibold italic text-xs">
-                        General Comment:
-                      </p>
-
-                      <div className="print-comment-text mt-1 min-h-[55px] text-center text-xs italic pt-2">
-                        {generalComment}
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      NEXT TERM
-                      ================================================= */}
-
-                  <div className="print-next-term border-t border-black p-1 text-center text-xs">
-
-                    <b>
-                      Next term begins on:
-                    </b>{" "}
-
-                    <input
-                      type="text"
-                      value={
-                        nextTermDate
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setNextTermDate(
-                          event.target
-                            .value
-                        )
-                      }
-                      className="print:hidden border-b border-black outline-none text-center px-2"
-                      placeholder="e.g. 30th March, 2026"
-                    />
-
-                    <span className="hidden print:inline">
-                      {nextTermDate}
-                    </span>
-
-                  </div>
-
-                  {/* =================================================
-                      SIGNATURES
-                      ================================================= */}
-
-                  <div className="print-signatures grid grid-cols-2 border-t border-black text-xs">
-
-                    <div className="border-r border-black p-3 text-center min-h-[90px]">
-
-                      <p className="font-semibold">
-                        Director's
-                      </p>
-
-                      <p className="font-semibold">
-                        Signature and Date
-                      </p>
-
-                      <div className="print-signature-line mt-8 border-t border-gray-400 pt-1">
-                        Signature / Date
-                      </div>
-
-                    </div>
-
-                    <div className="p-3 text-center min-h-[90px]">
-
-                      <p className="font-semibold">
-                        Headmaster's/Headmistress
-                      </p>
-
-                      <p className="font-semibold">
-                        Signature and Date
-                      </p>
-
-                      <div className="print-signature-line mt-8 border-t border-gray-400 pt-1">
-                        Signature / Date
-                      </div>
-
-                    </div>
-
-                  </div>
+                  <Button
+                    onClick={() =>
+                      window.print()
+                    }
+                  >
+                    Print / Save as PDF
+                  </Button>
 
                 </div>
 
               </div>
-
-              {/* =================================================
-                  PRINT BUTTON
-                  ================================================= */}
-
-              <div className="portal-screen print-button flex justify-end p-4">
-
-                <Button
-                  onClick={() =>
-                    window.print()
-                  }
-                >
-                  Print / Save as PDF
-                </Button>
-
-              </div>
-
             </div>
           </div>
         )}
+      </div>
     </>
   );
 }
