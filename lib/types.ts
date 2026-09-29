@@ -1,6 +1,7 @@
 import type { AccountStatus } from "@/settings/config";
 
 export type SchoolLevel =
+  | "pre-nursery"
   | "nursery"
   | "primary"
   | "jss"
@@ -28,7 +29,7 @@ export interface Student {
   status: AccountStatus;
   photoUrl?: string;
 
-  // Whether this student attends the optional Arabic section
+  // Optional Arabic section
   attendsArabic?: boolean;
 }
 
@@ -45,10 +46,10 @@ export interface Subject {
   name: string;
   code?: string;
 
-  // Which school level(s) the subject belongs to
+  // School levels where this subject is taught
   levels?: SchoolLevel[];
 
-  // Main or Arabic section
+  // Main or Arabic
   section?: SubjectSection;
 
   // Main: CA1 20 + CA2 20 + Exam 60
@@ -76,9 +77,11 @@ export interface AttendanceSession {
 
 export interface ResultEntry {
   id?: string;
+
   studentId: string;
   subjectId: string;
   classId: string;
+
   session: string;
   term: string;
 
