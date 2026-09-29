@@ -51,9 +51,17 @@ function getClassLevel(
     classRoom?.name || ""
   }`.toLowerCase();
 
-  if (value.includes("nursery")) {
-    return "nursery";
-  }
+  if (
+  value.includes("pre nursery") ||
+  value.includes("pre-nursery") ||
+  value.includes("prenursery")
+) {
+  return "pre-nursery";
+}
+
+if (value.includes("nursery")) {
+  return "nursery";
+}
 
   if (value.includes("primary")) {
     return "primary";
