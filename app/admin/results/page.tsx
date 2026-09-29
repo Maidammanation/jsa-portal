@@ -38,6 +38,8 @@ type ScoreRow = {
 
 type SubjectScores = Record<string, ScoreRow>;
 
+type SubjectSection = "main" | "arabic";
+
 const emptyScore = (): ScoreRow => ({
   ca1: "",
   ca2: "",
@@ -52,16 +54,16 @@ function getClassLevel(
   }`.toLowerCase();
 
   if (
-  value.includes("pre nursery") ||
-  value.includes("pre-nursery") ||
-  value.includes("prenursery")
-) {
-  return "pre-nursery";
-}
+    value.includes("pre nursery") ||
+    value.includes("pre-nursery") ||
+    value.includes("prenursery")
+  ) {
+    return "pre-nursery";
+  }
 
-if (value.includes("nursery")) {
-  return "nursery";
-}
+  if (value.includes("nursery")) {
+    return "nursery";
+  }
 
   if (value.includes("primary")) {
     return "primary";
@@ -84,6 +86,13 @@ if (value.includes("nursery")) {
   return "";
 }
 
+function isArabicSubject(subject: Subject) {
+  return (
+    subject.section === "arabic" ||
+    subject.scoringType === "arabic-40-60"
+  );
+}
+
 export default function AdminResultsPage() {
   const { profile } = useAuth();
   const { session, term } = useSchoolSettings();
@@ -96,6 +105,9 @@ export default function AdminResultsPage() {
     useState<string[]>([]);
   const [activeSubjectId, setActiveSubjectId] =
     useState("");
+
+  const [activeSection, setActiveSection] =
+    useState<SubjectSection>("main");
 
   const [students, setStudents] = useState<Student[]>([]);
   const [scores, setScores] =
@@ -165,9 +177,8 @@ export default function AdminResultsPage() {
   );
 
   /*
-   * IMPORTANT:
-   * Only show subjects belonging to the
-   * selected class level.
+   * Only subjects belonging to the selected
+   * class level are available.
    */
   const availableSubjects = useMemo(() => {
     if (!classLevel) {
@@ -179,6 +190,31 @@ export default function AdminResultsPage() {
     );
   }, [subjects, classLevel]);
 
+  /*
+   * Main school subjects.
+   */
+  const mainSubjects = useMemo(
+    () =>
+      availableSubjects.filter(
+        (subject) => !isArabicSubject(subject)
+      ),
+    [availableSubjects]
+  );
+
+  /*
+   * Arabic section subjects.
+   */
+  const arabicSubjects = useMemo(
+    () =>
+      availableSubjects.filter(
+        (subject) => isArabicSubject(subject)
+      ),
+    [availableSubjects]
+  );
+
+  /*
+   * Selected subjects.
+   */
   const selectedSubjects = useMemo(
     () =>
       availableSubjects.filter((subject) =>
@@ -187,6 +223,52 @@ export default function AdminResultsPage() {
     [availableSubjects, selectedSubjectIds]
   );
 
+  /*
+   * Students who attend Arabic.
+   *
+   * The report-card page already uses
+   * student.attendsArabic, so the same field
+   * is used here.
+   */
+  const arabicStudents = useMemo(
+    () =>
+      students.filter(
+        (student) => student.attendsArabic === true
+      ),
+    [students]
+  );
+
+  /*
+   * Students displayed in the current section.
+   *
+   * Main = everybody in the class.
+   * Arabic = only students attending Arabic.
+   */
+  const displayedStudents = useMemo(() => {
+    if (activeSection === "arabic") {
+      return arabicStudents;
+    }
+
+    return students;
+  }, [activeSection, students, arabicStudents]);
+
+  /*
+   * Selected subjects for the currently
+   * displayed section.
+   */
+  const displayedSelectedSubjects = useMemo(
+    () =>
+      selectedSubjects.filter((subject) =>
+        activeSection === "arabic"
+          ? isArabicSubject(subject)
+          : !isArabicSubject(subject)
+      ),
+    [selectedSubjects, activeSection]
+  );
+
+  /*
+   * Load students and existing results.
+   */
   useEffect(() => {
     if (!classId || selectedSubjectIds.length === 0) {
       setStudents([]);
@@ -196,8 +278,8 @@ export default function AdminResultsPage() {
     }
 
     /*
-     * Remove any subject that does not belong
-     * to the currently selected class.
+     * Remove subjects that do not belong
+     * to the currently selected class level.
      */
     const invalidSelectedSubjects =
       selectedSubjectIds.filter(
@@ -216,15 +298,6 @@ export default function AdminResultsPage() {
             )
         )
       );
-
-      if (
-        activeSubjectId &&
-        invalidSelectedSubjects.includes(
-          activeSubjectId
-        )
-      ) {
-        setActiveSubjectId("");
-      }
 
       return;
     }
@@ -310,16 +383,20 @@ export default function AdminResultsPage() {
 
         setScores(nextScores);
 
-        if (
-          !activeSubjectId ||
-          !selectedSubjectIds.includes(
-            activeSubjectId
-          )
-        ) {
-          setActiveSubjectId(
-            selectedSubjectIds[0] || ""
-          );
-        }
+        /*
+         * If the current subject no longer exists,
+         * select the first selected subject.
+         */
+        setActiveSubjectId((current) => {
+          if (
+            current &&
+            selectedSubjectIds.includes(current)
+          ) {
+            return current;
+          }
+
+          return selectedSubjectIds[0] || "";
+        });
       } catch (err) {
         if (!mounted) return;
 
@@ -346,9 +423,11 @@ export default function AdminResultsPage() {
     term,
     session,
     availableSubjects,
-    activeSubjectId,
   ]);
 
+  /*
+   * Active subject.
+   */
   const activeSubject =
     selectedSubjects.find(
       (subject) =>
@@ -359,9 +438,45 @@ export default function AdminResultsPage() {
     scores[activeSubjectId] || {};
 
   const isArabic =
-    activeSubject?.section === "arabic" ||
-    activeSubject?.scoringType ===
-      "arabic-40-60";
+    activeSubject !== undefined &&
+    isArabicSubject(activeSubject);
+
+  /*
+   * Change between Main and Arabic sections.
+   */
+  const handleSectionChange = (
+    section: SubjectSection
+  ) => {
+    setActiveSection(section);
+    setMessage("");
+    setError("");
+
+    const subjectsForSection =
+      section === "arabic"
+        ? arabicSubjects
+        : mainSubjects;
+
+    const selectedForSection =
+      subjectsForSection.filter((subject) =>
+        selectedSubjectIds.includes(
+          subject.id
+        )
+      );
+
+    /*
+     * If there is already a selected subject
+     * in that section, open it.
+     *
+     * Otherwise the user can select one.
+     */
+    if (selectedForSection.length > 0) {
+      setActiveSubjectId(
+        selectedForSection[0].id
+      );
+    } else {
+      setActiveSubjectId("");
+    }
+  };
 
   const setScore = (
     studentId: string,
@@ -384,12 +499,13 @@ export default function AdminResultsPage() {
         field === "ca1"
       ) {
         maximum = 40;
-      } else if (
-        field === "exam"
-      ) {
+      } else if (field === "exam") {
         maximum = 60;
       }
 
+      /*
+       * Arabic does not use CA2.
+       */
       if (
         isArabic &&
         field === "ca2"
@@ -425,6 +541,9 @@ export default function AdminResultsPage() {
     }));
   };
 
+  /*
+   * Select/deselect a subject.
+   */
   const toggleSubject = (
     subjectId: string
   ) => {
@@ -440,8 +559,28 @@ export default function AdminResultsPage() {
         if (
           activeSubjectId === subjectId
         ) {
+          const subjectsStillSelected =
+            next.filter((id) => {
+              const subject =
+                availableSubjects.find(
+                  (item) =>
+                    item.id === id
+                );
+
+              if (!subject) return false;
+
+              return activeSection ===
+                "arabic"
+                ? isArabicSubject(
+                    subject
+                  )
+                : !isArabicSubject(
+                    subject
+                  );
+            });
+
           setActiveSubjectId(
-            next[0] || ""
+            subjectsStillSelected[0] || ""
           );
         }
 
@@ -453,11 +592,7 @@ export default function AdminResultsPage() {
         subjectId,
       ];
 
-      if (!activeSubjectId) {
-        setActiveSubjectId(
-          subjectId
-        );
-      }
+      setActiveSubjectId(subjectId);
 
       return next;
     });
@@ -469,6 +604,7 @@ export default function AdminResultsPage() {
     setClassId(event.target.value);
     setSelectedSubjectIds([]);
     setActiveSubjectId("");
+    setActiveSection("main");
     setStudents([]);
     setScores({});
     setMessage("");
@@ -476,13 +612,11 @@ export default function AdminResultsPage() {
   };
 
   /*
-   * Edit:
-   * Existing scores appear in the inputs.
-   * Change them and click Save Results.
-   * saveResult() updates the existing Firestore
-   * result instead of creating another one.
+   * Save all selected results.
+   *
+   * Arabic subjects are saved ONLY for
+   * students who attend Arabic.
    */
-
   const handleSaveAll = async () => {
     if (!classId) {
       setError(
@@ -528,17 +662,27 @@ export default function AdminResultsPage() {
               item.id === subjectId
           );
 
+        if (!subject) continue;
+
         const arabic =
-          subject?.section ===
-            "arabic" ||
-          subject?.scoringType ===
-            "arabic-40-60";
+          isArabicSubject(subject);
+
+        /*
+         * Main subjects use every student.
+         *
+         * Arabic subjects use ONLY students
+         * who attend Arabic.
+         */
+        const studentsForSubject =
+          arabic
+            ? arabicStudents
+            : students;
 
         const subjectScores =
           scores[subjectId] || {};
 
         for (
-          const student of students
+          const student of studentsForSubject
         ) {
           const row =
             subjectScores[
@@ -546,8 +690,7 @@ export default function AdminResultsPage() {
             ] || emptyScore();
 
           /*
-           * If all fields are empty,
-           * don't create a fake 0 result.
+           * Do not create empty results.
            */
           if (
             row.ca1 === "" &&
@@ -658,12 +801,14 @@ export default function AdminResultsPage() {
     }
   };
 
+  /*
+   * Delete one student's result for
+   * the active subject.
+   */
   const handleDeleteResult = async (
     studentId: string
   ) => {
-    if (
-      !activeSubjectId
-    ) {
+    if (!activeSubjectId) {
       return;
     }
 
@@ -772,8 +917,9 @@ export default function AdminResultsPage() {
         </div>
       )}
 
+      {/* CLASS SELECTION */}
       <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
           <SelectInput
             label="Class"
             value={classId}
@@ -794,50 +940,123 @@ export default function AdminResultsPage() {
               ),
             ]}
           />
+        </div>
+      </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Subjects
-              {selectedClass &&
-                classLevel && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    ({classLevel.toUpperCase()})
-                  </span>
-                )}
-            </label>
+      {classId && (
+        <div className="rounded-card border border-gray-100 bg-white shadow-sm">
+          {/* SECTION TABS */}
+          <div className="border-b border-gray-100 p-4">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  handleSectionChange(
+                    "main"
+                  )
+                }
+                className={`rounded-lg border px-4 py-3 text-left transition ${
+                  activeSection === "main"
+                    ? "border-brand bg-brand text-white"
+                    : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <div className="font-semibold">
+                  Main School Subjects
+                </div>
+
+                <div
+                  className={`mt-1 text-xs ${
+                    activeSection === "main"
+                      ? "text-white/80"
+                      : "text-gray-400"
+                  }`}
+                >
+                  CA1 20 + CA2 20 + Exam 60
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleSectionChange(
+                    "arabic"
+                  )}
+                className={`rounded-lg border px-4 py-3 text-left transition ${
+                  activeSection ===
+                  "arabic"
+                    ? "border-brand bg-brand text-white"
+                    : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <div className="font-semibold">
+                  Arabic Section
+                </div>
+
+                <div
+                  className={`mt-1 text-xs ${
+                    activeSection ===
+                    "arabic"
+                      ? "text-white/80"
+                      : "text-gray-400"
+                  }`}
+                >
+                  CA 40 + Exam 60
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* SUBJECT SELECTION */}
+          <div className="p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">
+                  {activeSection ===
+                  "arabic"
+                    ? "Arabic Section Subjects"
+                    : "Main School Subjects"}
+                </h2>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  {selectedClass &&
+                    classLevel &&
+                    `${classLevel.toUpperCase()} curriculum`}
+                </p>
+              </div>
+
+              {activeSection ===
+                "arabic" && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                  Arabic students only
+                </span>
+              )}
+            </div>
 
             <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-gray-300 p-3">
-              {!classId ? (
-                <p className="text-sm text-gray-400">
-                  Select a class first.
-                </p>
-              ) : availableSubjects.length ===
+              {activeSection ===
+              "arabic" ? (
+                arabicSubjects.length ===
                 0 ? (
-                <div>
-                  <p className="text-sm text-red-500">
-                    No subjects are configured
-                    for this class level.
-                  </p>
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      No Arabic subjects are
+                      configured for this class
+                      level.
+                    </p>
 
-                  <p className="mt-1 text-xs text-gray-400">
-                    Go to Classes & Subjects and
-                    click “Apply JSA Curriculum
-                    Defaults”.
-                  </p>
-                </div>
-              ) : (
-                availableSubjects.map(
-                  (subject) => {
-                    const arabic =
-                      subject.section ===
-                        "arabic" ||
-                      subject.scoringType ===
-                        "arabic-40-60";
-
-                    return (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Go to Classes & Subjects
+                      and configure the Arabic
+                      curriculum.
+                    </p>
+                  </div>
+                ) : (
+                  arabicSubjects.map(
+                    (subject) => (
                       <label
                         key={subject.id}
-                        className="flex cursor-pointer items-center gap-3 text-sm text-gray-700"
+                        className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
                         <input
                           type="checkbox"
@@ -852,18 +1071,61 @@ export default function AdminResultsPage() {
                           className="h-4 w-4 rounded border-gray-300"
                         />
 
-                        <span>
+                        <span className="flex-1">
                           {subject.name}
                         </span>
 
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
-                          {arabic
-                            ? "Arabic · 40/60"
-                            : "Main · 20/20/60"}
+                          Arabic · 40/60
                         </span>
                       </label>
-                    );
-                  }
+                    )
+                  )
+                )
+              ) : mainSubjects.length ===
+                0 ? (
+                <div>
+                  <p className="text-sm text-red-500">
+                    No main subjects are
+                    configured for this class
+                    level.
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-400">
+                    Go to Classes & Subjects
+                    and click “Apply JSA
+                    Curriculum Defaults”.
+                  </p>
+                </div>
+              ) : (
+                mainSubjects.map(
+                  (subject) => (
+                    <label
+                      key={subject.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSubjectIds.includes(
+                          subject.id
+                        )}
+                        onChange={() =>
+                          toggleSubject(
+                            subject.id
+                          )
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+
+                      <span className="flex-1">
+                        {subject.name}
+                      </span>
+
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                        Main · 20/20/60
+                      </span>
+                    </label>
+                  )
                 )
               )}
             </div>
@@ -873,13 +1135,15 @@ export default function AdminResultsPage() {
             </p>
           </div>
         </div>
-      </div>
+      )}
 
+      {/* SELECTED SUBJECTS + RESULT TABLE */}
       {selectedSubjects.length > 0 && (
         <div className="overflow-hidden rounded-card border border-gray-100 bg-white shadow-sm">
+          {/* SUBJECT BUTTONS */}
           <div className="border-b border-gray-100 px-4 py-3">
             <div className="flex flex-wrap gap-2">
-              {selectedSubjects.map(
+              {displayedSelectedSubjects.map(
                 (subject) => (
                   <button
                     key={subject.id}
@@ -901,6 +1165,14 @@ export default function AdminResultsPage() {
                 )
               )}
             </div>
+
+            {displayedSelectedSubjects.length ===
+              0 && (
+              <p className="text-sm text-gray-400">
+                No subjects selected in this
+                section yet.
+              </p>
+            )}
           </div>
 
           {loadingStudents ? (
@@ -910,27 +1182,61 @@ export default function AdminResultsPage() {
                 results...
               </p>
             </div>
-          ) : students.length === 0 ? (
+          ) : activeSection ===
+            "arabic" &&
+            arabicStudents.length === 0 ? (
+            <div className="p-6">
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-4">
+                <p className="font-medium text-yellow-800">
+                  No Arabic students found.
+                </p>
+
+                <p className="mt-1 text-sm text-yellow-700">
+                  Students in this class are not
+                  currently marked as attending the
+                  Arabic section.
+                </p>
+
+                <p className="mt-2 text-xs text-yellow-600">
+                  Go to the student profile and
+                  enable the Arabic Section option
+                  for students who attend Arabic.
+                </p>
+              </div>
+            </div>
+          ) : displayedStudents.length ===
+            0 ? (
             <div className="p-6">
               <p className="text-sm text-gray-400">
                 No students found in this class.
               </p>
             </div>
-          ) : (
+          ) : activeSubject ? (
             <>
+              {/* SUBJECT INFORMATION */}
               <div className="border-b border-gray-100 px-4 py-4">
                 <h2 className="font-semibold text-gray-800">
-                  {activeSubject?.name ||
-                    "Subject"}
+                  {activeSubject.name}
                 </h2>
 
                 <p className="mt-1 text-xs text-gray-500">
                   {isArabic
-                    ? "Arabic: CA 40 + Exam 60"
-                    : "Main: CA1 20 + CA2 20 + Exam 60"}
+                    ? `Arabic Section · ${arabicStudents.length} student${
+                        arabicStudents.length ===
+                        1
+                          ? ""
+                          : "s"
+                      } · CA 40 + Exam 60`
+                    : `Main School Subject · ${students.length} student${
+                        students.length ===
+                        1
+                          ? ""
+                          : "s"
+                      } · CA1 20 + CA2 20 + Exam 60`}
                 </p>
               </div>
 
+              {/* RESULTS TABLE */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -974,7 +1280,7 @@ export default function AdminResultsPage() {
                   </thead>
 
                   <tbody className="divide-y divide-gray-100">
-                    {students.map(
+                    {displayedStudents.map(
                       (student) => {
                         const row =
                           activeScores[
@@ -1044,6 +1350,13 @@ export default function AdminResultsPage() {
                               {
                                 student.lastName
                               }
+
+                              {isArabic &&
+                                student.attendsArabic && (
+                                  <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                                    Arabic
+                                  </span>
+                                )}
                             </td>
 
                             <td className="px-4 py-2">
@@ -1163,6 +1476,7 @@ export default function AdminResultsPage() {
                 </table>
               </div>
 
+              {/* SAVE */}
               <div className="flex justify-end border-t border-gray-100 px-4 py-4">
                 <Button
                   onClick={
@@ -1176,6 +1490,13 @@ export default function AdminResultsPage() {
                 </Button>
               </div>
             </>
+          ) : (
+            <div className="p-6">
+              <p className="text-sm text-gray-400">
+                Select a subject above to enter
+                results.
+              </p>
+            </div>
           )}
         </div>
       )}
