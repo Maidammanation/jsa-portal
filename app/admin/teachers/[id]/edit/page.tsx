@@ -78,17 +78,23 @@ if (value.includes("nursery")) return "nursery";
 
 function getLevelLabel(level: SchoolLevel | "") {
   switch (level) {
-    case "nursery":
-      return "Nursery";
-    case "primary":
-      return "Primary";
-    case "jss":
-      return "JSS";
-    case "ss":
-      return "SS";
-    default:
-      return "";
-  }
+  case "pre-nursery":
+    return "Pre Nursery";
+
+  case "nursery":
+    return "Nursery";
+
+  case "primary":
+    return "Primary";
+
+  case "jss":
+    return "JSS";
+
+  case "ss":
+    return "SS";
+
+  default:
+    return "";
 }
 
 export default function EditTeacherPage() {
