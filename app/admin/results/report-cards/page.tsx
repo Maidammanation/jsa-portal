@@ -265,8 +265,8 @@ export default function ReportCardsPage() {
         @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
 
         @page {
-          size: A4 portrait;
-          margin: 4mm;
+          size: portrait;
+          margin: 0;
         }
 
         .report-card-font {
@@ -275,8 +275,8 @@ export default function ReportCardsPage() {
 
         @media print {
           html, body {
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 100% !important;
+            height: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #fff !important;
@@ -297,9 +297,9 @@ export default function ReportCardsPage() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 202mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 4mm !important;
           }
 
           .print-button,
@@ -309,7 +309,7 @@ export default function ReportCardsPage() {
         }
       `}</style>
 
-      <div className="max-w-5xl space-y-4 report-card-font">
+      <div className="max-w-5xl space-y-4 report-card-font mx-auto">
         {/* CONTROL PANEL */}
         <div className="print:hidden print-controls grid grid-cols-1 gap-4 rounded-card border border-gray-100 bg-white p-6 shadow-sm md:grid-cols-2">
           <SelectInput
@@ -349,26 +349,26 @@ export default function ReportCardsPage() {
         )}
 
         {student && !loading && (
-          <div className="a4-report-wrapper">
-            {/* OUTER CONTAINER WITH DOUBLE BORDER EFFECT */}
-            <div className="w-[200mm] border-[3px] border-gray-800 p-[1.5mm] bg-white text-black mx-auto">
+          <div className="a4-report-wrapper w-full">
+            {/* FULL WIDTH STRETCH CONTAINER WITH DOUBLE BORDER */}
+            <div className="w-full border-[3px] border-gray-800 p-[1.5mm] bg-white text-black box-border">
               <div className="border border-gray-800 relative p-1">
 
                 {/* HEADER SECTION */}
                 <div className="text-center pt-1">
-                  <h1 className="text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
+                  <h1 className="text-[20px] sm:text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
                     JIDDA STANDARD ACADEMY
                   </h1>
 
-                  <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-2">
+                  <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1">
                     Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
                   </div>
-                  <div className="mt-0.5 bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-2">
+                  <div className="mt-0.5 bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-1">
                     Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
                   </div>
 
-                  <div className="relative mt-1 px-12">
-                    <div className="absolute left-1 top-0 h-11 w-11">
+                  <div className="relative mt-1 px-10">
+                    <div className="absolute left-1 top-0 h-10 w-10">
                       <Image
                         src={SCHOOL.logoPath}
                         alt="Logo"
@@ -377,10 +377,10 @@ export default function ReportCardsPage() {
                       />
                     </div>
 
-                    <p className="text-[10px] italic font-semibold">
+                    <p className="text-[9.5px] italic font-semibold">
                       Motto: Knowledge is Light
                     </p>
-                    <p className="text-[9px] font-bold">
+                    <p className="text-[8.5px] font-bold">
                       Phone Numbers: 08121414008, 08069121401
                     </p>
 
@@ -388,7 +388,7 @@ export default function ReportCardsPage() {
                       Email:
                     </div>
 
-                    <div className="absolute right-1 top-0 h-11 w-11">
+                    <div className="absolute right-1 top-0 h-10 w-10">
                       <Image
                         src={SCHOOL.logoPath}
                         alt="Logo"
@@ -399,7 +399,7 @@ export default function ReportCardsPage() {
                   </div>
 
                   <div className="mt-1 border-t border-b border-gray-800 py-0.5">
-                    <p className="text-[11px] font-bold italic tracking-wide">
+                    <p className="text-[10.5px] font-bold italic tracking-wide">
                       End of Term Examination Report Sheet (Primary Section)
                     </p>
                   </div>
@@ -598,13 +598,13 @@ export default function ReportCardsPage() {
                 </div>
 
                 {/* SIGNATURES & STAMP */}
-                <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[55px]">
+                <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[50px]">
                   <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
                     <div>
                       <p>Director&apos;s</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-4 text-[8px]">
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
                       26 February, 2026
                     </div>
                   </div>
@@ -614,11 +614,11 @@ export default function ReportCardsPage() {
                       <p>Headmaster&apos;s/Headmistress</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-4 text-[8px]">
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
                       26 February, 2026
                     </div>
 
-                    <div className="absolute right-[-5px] bottom-[-15px] h-24 w-24 z-10 pointer-events-none opacity-85">
+                    <div className="absolute right-[-5px] bottom-[-10px] h-20 w-20 z-10 pointer-events-none opacity-85">
                       <Image
                         src={SCHOOL.stampPath}
                         alt="Official Stamp"
@@ -631,7 +631,7 @@ export default function ReportCardsPage() {
 
               </div>
 
-              {/* UPDATED BRANDING FOOTER */}
+              {/* BRANDING FOOTER */}
               <div className="mt-0.5 text-[7px] italic text-gray-700 font-semibold">
                 Designed by Maidammanation tech company 08032191668 / 08117106867
               </div>
