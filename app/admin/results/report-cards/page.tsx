@@ -47,7 +47,6 @@ const emptyBehaviour: Behaviour = {
 
 function safeNumber(value: unknown): number {
   const number = Number(value);
-
   return Number.isFinite(number) ? number : 0;
 }
 
@@ -346,18 +345,38 @@ export default function ReportCardsPage() {
   return (
     <>
       <style jsx global>{`
+        /* =====================================================
+           TRUE A4 PAGE
+           ===================================================== */
+
         @page {
           size: A4 portrait;
-          margin: 5mm;
+          margin: 0;
         }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        /* =====================================================
+           PRINT
+           ===================================================== */
 
         @media print {
           html,
           body {
-            width: 100% !important;
-            height: auto !important;
+            width: 210mm !important;
+            height: 297mm !important;
+
+            min-width: 210mm !important;
+            max-width: 210mm !important;
+
+            min-height: 297mm !important;
+            max-height: 297mm !important;
+
             margin: 0 !important;
             padding: 0 !important;
+
             background: #fff !important;
           }
 
@@ -366,54 +385,102 @@ export default function ReportCardsPage() {
             print-color-adjust: exact !important;
           }
 
+          /* Hide everything first */
+
           body * {
             visibility: hidden;
           }
+
+          /* Show only report */
 
           .a4-report-wrapper,
           .a4-report-wrapper * {
             visibility: visible;
           }
 
+          /* =================================================
+             OUTER A4
+             ================================================= */
+
           .a4-report-wrapper {
             position: absolute !important;
-            left: 0 !important;
+
             top: 0 !important;
-            width: 100% !important;
+            left: 0 !important;
+
+            width: 210mm !important;
+            height: 297mm !important;
+
             margin: 0 !important;
             padding: 0 !important;
+
+            overflow: hidden !important;
+
+            background: #fff !important;
           }
 
           .a4-report {
-            width: 100% !important;
-            height: 287mm !important;
-            max-height: 287mm !important;
-            overflow: hidden !important;
+            position: relative !important;
+
+            width: 210mm !important;
+            height: 297mm !important;
+
             margin: 0 !important;
-            padding: 0 !important;
+
+            /*
+             * 5mm safe area around the report.
+             */
+            padding: 5mm !important;
+
+            overflow: hidden !important;
+
             background: #fff !important;
           }
+
+          /* =================================================
+             REPORT CARD
+             ================================================= */
 
           .report-card {
             width: 100% !important;
             height: 100% !important;
+
             margin: 0 !important;
             padding: 0 !important;
+
             border: 0 !important;
             box-shadow: none !important;
+
             overflow: hidden !important;
+
+            background: #fff !important;
           }
 
           .report-border {
+            width: 100% !important;
             height: 100% !important;
+
             margin: 0 !important;
-            border: 1.5px solid #000 !important;
+            padding: 0 !important;
+
+            border: 1.2px solid #000 !important;
+
             overflow: hidden !important;
+
+            background: #fff !important;
           }
+
+          /* =================================================
+             TABLES
+             ================================================= */
 
           .a4-report table {
             width: 100% !important;
+
+            margin: 0 !important;
+
             border-collapse: collapse !important;
+
             table-layout: fixed !important;
           }
 
@@ -421,7 +488,15 @@ export default function ReportCardsPage() {
           .a4-report td {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+
+            vertical-align: middle !important;
+
+            overflow: hidden !important;
           }
+
+          /* =================================================
+             HEADER
+             ================================================= */
 
           .print-header {
             padding: 1.5mm 2mm 0 !important;
@@ -430,69 +505,105 @@ export default function ReportCardsPage() {
           .print-logo {
             width: 12mm !important;
             height: 12mm !important;
+
+            min-width: 12mm !important;
+            min-height: 12mm !important;
           }
 
           .print-school-name {
-            font-size: 15px !important;
-            line-height: 15px !important;
+            font-size: 14px !important;
+            line-height: 14px !important;
+
+            margin: 0 !important;
           }
 
           .print-address {
-            font-size: 6px !important;
-            line-height: 7px !important;
-            margin-top: 1px !important;
-            padding: 1px 3px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
+
+            margin-top: 0.6mm !important;
+
+            padding: 0.6mm 1mm !important;
           }
 
           .print-motto {
-            font-size: 7px !important;
-            line-height: 8px !important;
-            margin-top: 1px !important;
+            font-size: 6.5px !important;
+            line-height: 7px !important;
+
+            margin-top: 0.5mm !important;
           }
 
           .print-phone {
-            font-size: 6px !important;
-            line-height: 7px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
+
+            margin: 0 !important;
           }
 
           .print-email {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
-            padding: 1px !important;
-            margin-top: 1px !important;
+            font-size: 5px !important;
+            line-height: 5.5px !important;
+
+            padding: 0.5mm !important;
+
+            margin-top: 0.5mm !important;
           }
 
           .print-title {
-            font-size: 8px !important;
-            line-height: 9px !important;
-            padding: 1px !important;
-            margin-top: 1px !important;
-          }
-
-          .print-section-title {
             font-size: 7px !important;
             line-height: 8px !important;
-            padding: 1px !important;
+
+            padding: 0.8mm !important;
+
+            margin-top: 0.6mm !important;
           }
 
-          .print-student-info {
+          .print-title p {
+            margin: 0 !important;
+          }
+
+          /* =================================================
+             SECTION HEADINGS
+             ================================================= */
+
+          .print-section-title {
             font-size: 6.5px !important;
             line-height: 7px !important;
+
+            padding: 0.7mm !important;
+
+            min-height: 5mm !important;
+          }
+
+          /* =================================================
+             STUDENT INFORMATION
+             ================================================= */
+
+          .print-student-info {
+            font-size: 6px !important;
+            line-height: 6.5px !important;
           }
 
           .print-student-info > div {
-            padding: 1px 2px !important;
+            padding: 0.8mm 1.2mm !important;
           }
 
+          /* =================================================
+             MAIN TABLE
+             ================================================= */
+
           .print-main-table {
-            font-size: 6px !important;
-            line-height: 7px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
           }
 
           .print-main-table th,
           .print-main-table td {
-            padding: 1px !important;
-            line-height: 7px !important;
+            padding: 0.65mm !important;
+
+            line-height: 6px !important;
+
+            height: auto !important;
           }
 
           .print-main-table th:nth-child(1),
@@ -502,7 +613,8 @@ export default function ReportCardsPage() {
 
           .print-main-table th:nth-child(2),
           .print-main-table td:nth-child(2) {
-            width: 27% !important;
+            width: 28% !important;
+
             text-align: left !important;
           }
 
@@ -530,15 +642,20 @@ export default function ReportCardsPage() {
             width: 14% !important;
           }
 
+          /* =================================================
+             ARABIC TABLE
+             ================================================= */
+
           .print-arabic-table {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 5px !important;
+            line-height: 5.5px !important;
           }
 
           .print-arabic-table th,
           .print-arabic-table td {
-            padding: 1px !important;
-            line-height: 6px !important;
+            padding: 0.55mm !important;
+
+            line-height: 5.5px !important;
           }
 
           .print-arabic-table th:nth-child(1),
@@ -577,105 +694,176 @@ export default function ReportCardsPage() {
             width: 6% !important;
           }
 
+          /* =================================================
+             OVERALL
+             ================================================= */
+
           .print-overall {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            font-size: 6px !important;
+            line-height: 6.5px !important;
           }
 
           .print-overall > div {
-            padding: 1px 2px !important;
+            padding: 0.7mm 1.2mm !important;
           }
 
+          /* =================================================
+             BEHAVIOURAL ASSESSMENT
+             ================================================= */
+
           .print-behaviour {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 5px !important;
+            line-height: 5.5px !important;
           }
 
           .print-behaviour > div {
-            padding: 1px 2px !important;
+            min-height: 5mm !important;
+
+            padding: 0.7mm 1mm !important;
           }
 
           .print-behaviour input {
-            width: 12px !important;
-            height: 10px !important;
-            font-size: 6px !important;
+            width: 10px !important;
+            height: 9px !important;
+
+            font-size: 5px !important;
+
+            padding: 0 !important;
           }
 
+          /* =================================================
+             GUIDE + COMMENT
+             ================================================= */
+
           .print-guide-comment {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 5px !important;
+            line-height: 5.5px !important;
           }
 
           .print-guide {
-            padding: 1px 2px !important;
+            padding: 0.8mm 1.2mm !important;
+          }
+
+          .print-guide p {
+            margin: 0 !important;
+
+            line-height: 5.5px !important;
           }
 
           .print-comment {
-            padding: 1px 2px !important;
+            padding: 0.8mm 1.2mm !important;
           }
 
           .print-comment-title {
-            font-size: 6px !important;
-            line-height: 7px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
+
+            margin: 0 !important;
           }
 
           .print-comment-text {
-            min-height: 17px !important;
-            height: 17px !important;
-            padding-top: 1px !important;
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            min-height: 13mm !important;
+            height: 13mm !important;
+
+            padding: 0.8mm !important;
+
+            margin-top: 0.5mm !important;
+
+            font-size: 5px !important;
+            line-height: 5.5px !important;
+
+            overflow: hidden !important;
           }
+
+          /* =================================================
+             NEXT TERM
+             ================================================= */
 
           .print-next-term {
-            font-size: 6px !important;
-            line-height: 7px !important;
-            padding: 1px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
+
+            padding: 0.8mm !important;
           }
 
-          /*
-           * SIGNATURE AREA
-           */
+          /* =================================================
+             SIGNATURES
+             ================================================= */
 
           .print-signatures {
-            font-size: 6px !important;
-            line-height: 7px !important;
+            font-size: 5.5px !important;
+            line-height: 6px !important;
+
+            height: 23mm !important;
+            max-height: 23mm !important;
           }
 
           .print-signatures > div {
-            min-height: 30mm !important;
-            height: 30mm !important;
-            padding: 1.5mm !important;
+            min-height: 23mm !important;
+            height: 23mm !important;
+            max-height: 23mm !important;
+
+            padding: 1mm !important;
+          }
+
+          .print-signatures p {
+            margin: 0 !important;
+
+            line-height: 6px !important;
           }
 
           .print-signature-line {
-            margin-top: 7mm !important;
-            padding-top: 1px !important;
+            margin-top: 5mm !important;
+
+            padding-top: 0.5mm !important;
+
+            font-size: 5px !important;
           }
 
-          /*
-           * OFFICIAL SCHOOL STAMP
-           */
+          /* =================================================
+             OFFICIAL STAMP
+             ================================================= */
 
           .school-stamp {
             position: absolute !important;
-            width: 28mm !important;
-            height: 28mm !important;
-            right: 8mm !important;
-            bottom: -4mm !important;
+
+            width: 24mm !important;
+            height: 24mm !important;
+
+            right: 5mm !important;
+            bottom: -2mm !important;
+
             z-index: 50 !important;
           }
 
           .school-stamp img {
             width: 100% !important;
             height: 100% !important;
+
             object-fit: contain !important;
           }
+
+          /* =================================================
+             HIDE CONTROLS
+             ================================================= */
 
           .print-button,
           .print-controls,
           .developer-footer {
             display: none !important;
+          }
+
+          /* =================================================
+             PREVENT PAGE BREAKS
+             ================================================= */
+
+          .a4-report,
+          .report-card,
+          .report-border {
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            break-before: avoid !important;
+            break-after: avoid !important;
           }
         }
       `}</style>
@@ -749,13 +937,23 @@ export default function ReportCardsPage() {
         {student && !loading && (
           <div className="a4-report-wrapper">
 
-            <div className="a4-report">
+            <div
+              className="a4-report"
+              style={{
+                width: "210mm",
+                minHeight: "297mm",
+                margin: "0 auto",
+                background: "#fff",
+              }}
+            >
 
-              <div className="report-card bg-white text-black">
+              <div className="report-card h-full bg-white text-black">
 
                 <div className="report-border border border-black">
 
-                  {/* SCHOOL HEADER */}
+                  {/* =================================================
+                      SCHOOL HEADER
+                      ================================================= */}
 
                   <div className="print-header px-3 pt-3">
 
@@ -832,7 +1030,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* STUDENT INFORMATION */}
+                  {/* =================================================
+                      STUDENT INFORMATION
+                      ================================================= */}
 
                   <div className="border-t border-black">
 
@@ -877,7 +1077,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* MAIN SUBJECTS */}
+                  {/* =================================================
+                      MAIN SUBJECTS
+                      ================================================= */}
 
                   <div className="border-t border-black">
 
@@ -1027,7 +1229,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* ARABIC SECTION */}
+                  {/* =================================================
+                      ARABIC SECTION
+                      ================================================= */}
 
                   {student.attendsArabic && (
                     <div className="border-t border-black">
@@ -1241,7 +1445,9 @@ export default function ReportCardsPage() {
                     </div>
                   )}
 
-                  {/* OVERALL */}
+                  {/* =================================================
+                      OVERALL
+                      ================================================= */}
 
                   <div className="border-t border-black">
 
@@ -1267,7 +1473,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* BEHAVIOURAL ASSESSMENT */}
+                  {/* =================================================
+                      BEHAVIOURAL ASSESSMENT
+                      ================================================= */}
 
                   <div className="border-t border-black">
 
@@ -1369,7 +1577,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* GUIDE + GENERAL COMMENT */}
+                  {/* =================================================
+                      GUIDE + GENERAL COMMENT
+                      ================================================= */}
 
                   <div className="print-guide-comment grid grid-cols-3 border-t border-black">
 
@@ -1401,7 +1611,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* NEXT TERM */}
+                  {/* =================================================
+                      NEXT TERM
+                      ================================================= */}
 
                   <div className="print-next-term border-t border-black p-1 text-center text-[8px]">
 
@@ -1427,7 +1639,9 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* SIGNATURES + OFFICIAL STAMP */}
+                  {/* =================================================
+                      SIGNATURES + OFFICIAL STAMP
+                      ================================================= */}
 
                   <div className="print-signatures relative grid grid-cols-2 border-t border-black text-[8px]">
 
@@ -1483,7 +1697,6 @@ export default function ReportCardsPage() {
                   </div>
 
                 </div>
-
               </div>
 
               {/* PRINT BUTTON */}
