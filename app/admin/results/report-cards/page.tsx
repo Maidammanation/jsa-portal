@@ -47,6 +47,7 @@ const emptyBehaviour: Behaviour = {
 
 function safeNumber(value: unknown): number {
   const number = Number(value);
+
   return Number.isFinite(number) ? number : 0;
 }
 
@@ -345,32 +346,31 @@ export default function ReportCardsPage() {
   return (
     <>
       <style jsx global>{`
-        /* =====================================================
-           TRUE A4 PAGE
-           ===================================================== */
+
+        /* =========================================================
+           A4 PAGE SETUP
+           ========================================================= */
 
         @page {
           size: A4 portrait;
-          margin: 0;
+          margin: 5mm;
         }
-
-        * {
-          box-sizing: border-box;
-        }
-
-        /* =====================================================
-           PRINT
-           ===================================================== */
 
         @media print {
-          html,
-          body {
+
+          html {
             width: 210mm !important;
             height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
 
+          body {
+            width: 210mm !important;
             min-width: 210mm !important;
             max-width: 210mm !important;
 
+            height: 297mm !important;
             min-height: 297mm !important;
             max-height: 297mm !important;
 
@@ -378,72 +378,67 @@ export default function ReportCardsPage() {
             padding: 0 !important;
 
             background: #fff !important;
-          }
 
-          body {
+            overflow: hidden !important;
+
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          /* Hide everything first */
-
           body * {
             visibility: hidden;
           }
-
-          /* Show only report */
 
           .a4-report-wrapper,
           .a4-report-wrapper * {
             visibility: visible;
           }
 
-          /* =================================================
-             OUTER A4
-             ================================================= */
+          /* =====================================================
+             OUTER A4 CONTAINER
+             ===================================================== */
 
           .a4-report-wrapper {
             position: absolute !important;
 
-            top: 0 !important;
             left: 0 !important;
+            top: 0 !important;
 
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 200mm !important;
+            height: 287mm !important;
 
             margin: 0 !important;
             padding: 0 !important;
 
-            overflow: hidden !important;
-
-            background: #fff !important;
+            overflow: visible !important;
           }
 
           .a4-report {
             position: relative !important;
 
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 200mm !important;
+            height: 287mm !important;
 
             margin: 0 !important;
+            padding: 0 !important;
 
-            /*
-             * 5mm safe area around the report.
-             */
-            padding: 5mm !important;
-
-            overflow: hidden !important;
+            overflow: visible !important;
 
             background: #fff !important;
           }
 
-          /* =================================================
-             REPORT CARD
-             ================================================= */
+          /*
+           * IMPORTANT:
+           *
+           * The report itself is intentionally stretched vertically.
+           * This is what makes the content occupy the A4 sheet instead
+           * of sitting in the upper half with a large empty bottom area.
+           */
 
           .report-card {
-            width: 100% !important;
-            height: 100% !important;
+            width: 200mm !important;
+
+            height: 287mm !important;
 
             margin: 0 !important;
             padding: 0 !important;
@@ -451,159 +446,155 @@ export default function ReportCardsPage() {
             border: 0 !important;
             box-shadow: none !important;
 
-            overflow: hidden !important;
-
-            background: #fff !important;
+            overflow: visible !important;
           }
 
           .report-border {
-            width: 100% !important;
-            height: 100% !important;
+            box-sizing: border-box !important;
+
+            width: 200mm !important;
+
+            /*
+             * Start with the full printable A4 height.
+             */
+            height: 287mm !important;
+
+            min-height: 287mm !important;
+            max-height: 287mm !important;
 
             margin: 0 !important;
             padding: 0 !important;
 
-            border: 1.2px solid #000 !important;
-
-            overflow: hidden !important;
+            border: 1.4px solid #000 !important;
 
             background: #fff !important;
+
+            overflow: visible !important;
+
+            /*
+             * The natural report is shorter than the A4 sheet.
+             * Scale it vertically so the entire report fills the page.
+             */
+            transform: scaleY(1.12) !important;
+
+            transform-origin: top center !important;
           }
 
-          /* =================================================
-             TABLES
-             ================================================= */
+          /* =====================================================
+             TABLE CONTROL
+             ===================================================== */
 
           .a4-report table {
             width: 100% !important;
 
-            margin: 0 !important;
-
             border-collapse: collapse !important;
 
             table-layout: fixed !important;
+
+            margin: 0 !important;
           }
 
           .a4-report th,
           .a4-report td {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-
-            vertical-align: middle !important;
-
-            overflow: hidden !important;
           }
 
-          /* =================================================
+          /* =====================================================
              HEADER
-             ================================================= */
+             ===================================================== */
 
           .print-header {
-            padding: 1.5mm 2mm 0 !important;
+            padding: 1.8mm 2.5mm 0 !important;
           }
 
           .print-logo {
-            width: 12mm !important;
-            height: 12mm !important;
-
-            min-width: 12mm !important;
-            min-height: 12mm !important;
+            width: 15mm !important;
+            height: 15mm !important;
           }
 
           .print-school-name {
-            font-size: 14px !important;
-            line-height: 14px !important;
-
-            margin: 0 !important;
+            font-size: 17px !important;
+            line-height: 18px !important;
+            font-weight: 800 !important;
           }
 
           .print-address {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 6.4px !important;
+            line-height: 7px !important;
 
-            margin-top: 0.6mm !important;
+            margin-top: 1.2px !important;
 
-            padding: 0.6mm 1mm !important;
+            padding: 1px 3px !important;
           }
 
           .print-motto {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            font-size: 7.5px !important;
+            line-height: 8px !important;
 
-            margin-top: 0.5mm !important;
+            margin-top: 1.2px !important;
           }
 
           .print-phone {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
-
-            margin: 0 !important;
+            font-size: 6.4px !important;
+            line-height: 7px !important;
           }
 
           .print-email {
-            font-size: 5px !important;
-            line-height: 5.5px !important;
+            font-size: 6px !important;
+            line-height: 6.5px !important;
 
-            padding: 0.5mm !important;
+            padding: 1px !important;
 
-            margin-top: 0.5mm !important;
+            margin-top: 1px !important;
           }
 
           .print-title {
-            font-size: 7px !important;
-            line-height: 8px !important;
+            font-size: 8.5px !important;
+            line-height: 9px !important;
 
-            padding: 0.8mm !important;
+            padding: 1px !important;
 
-            margin-top: 0.6mm !important;
+            margin-top: 1.2px !important;
           }
 
-          .print-title p {
-            margin: 0 !important;
-          }
-
-          /* =================================================
-             SECTION HEADINGS
-             ================================================= */
+          /* =====================================================
+             SECTION TITLES
+             ===================================================== */
 
           .print-section-title {
-            font-size: 6.5px !important;
-            line-height: 7px !important;
+            font-size: 7.5px !important;
+            line-height: 8px !important;
 
-            padding: 0.7mm !important;
-
-            min-height: 5mm !important;
+            padding: 1.2px !important;
           }
 
-          /* =================================================
+          /* =====================================================
              STUDENT INFORMATION
-             ================================================= */
+             ===================================================== */
 
           .print-student-info {
-            font-size: 6px !important;
-            line-height: 6.5px !important;
+            font-size: 6.7px !important;
+            line-height: 7.5px !important;
           }
 
           .print-student-info > div {
-            padding: 0.8mm 1.2mm !important;
+            padding: 1.4px 2.5px !important;
           }
 
-          /* =================================================
-             MAIN TABLE
-             ================================================= */
+          /* =====================================================
+             MAIN ACADEMIC TABLE
+             ===================================================== */
 
           .print-main-table {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 6.2px !important;
+            line-height: 7px !important;
           }
 
           .print-main-table th,
           .print-main-table td {
-            padding: 0.65mm !important;
-
-            line-height: 6px !important;
-
-            height: auto !important;
+            padding: 1.5px !important;
+            line-height: 7.5px !important;
           }
 
           .print-main-table th:nth-child(1),
@@ -613,8 +604,7 @@ export default function ReportCardsPage() {
 
           .print-main-table th:nth-child(2),
           .print-main-table td:nth-child(2) {
-            width: 28% !important;
-
+            width: 27% !important;
             text-align: left !important;
           }
 
@@ -642,20 +632,19 @@ export default function ReportCardsPage() {
             width: 14% !important;
           }
 
-          /* =================================================
+          /* =====================================================
              ARABIC TABLE
-             ================================================= */
+             ===================================================== */
 
           .print-arabic-table {
-            font-size: 5px !important;
-            line-height: 5.5px !important;
+            font-size: 5.8px !important;
+            line-height: 6.5px !important;
           }
 
           .print-arabic-table th,
           .print-arabic-table td {
-            padding: 0.55mm !important;
-
-            line-height: 5.5px !important;
+            padding: 1.5px !important;
+            line-height: 7px !important;
           }
 
           .print-arabic-table th:nth-child(1),
@@ -694,146 +683,156 @@ export default function ReportCardsPage() {
             width: 6% !important;
           }
 
-          /* =================================================
+          /* =====================================================
              OVERALL
-             ================================================= */
+             ===================================================== */
 
           .print-overall {
-            font-size: 6px !important;
-            line-height: 6.5px !important;
+            font-size: 6.7px !important;
+            line-height: 7.5px !important;
           }
 
           .print-overall > div {
-            padding: 0.7mm 1.2mm !important;
+            padding: 1.4px 2.5px !important;
           }
 
-          /* =================================================
+          /* =====================================================
              BEHAVIOURAL ASSESSMENT
-             ================================================= */
+             ===================================================== */
 
           .print-behaviour {
-            font-size: 5px !important;
-            line-height: 5.5px !important;
+            font-size: 5.8px !important;
+            line-height: 7px !important;
           }
 
           .print-behaviour > div {
-            min-height: 5mm !important;
-
-            padding: 0.7mm 1mm !important;
+            padding: 1.5px 2.5px !important;
+            min-height: 6.5mm !important;
           }
 
           .print-behaviour input {
-            width: 10px !important;
-            height: 9px !important;
+            width: 12px !important;
+            height: 10px !important;
 
-            font-size: 5px !important;
-
-            padding: 0 !important;
+            font-size: 6px !important;
           }
 
-          /* =================================================
+          /* =====================================================
              GUIDE + COMMENT
-             ================================================= */
+             ===================================================== */
 
           .print-guide-comment {
-            font-size: 5px !important;
-            line-height: 5.5px !important;
+            font-size: 5.8px !important;
+            line-height: 7px !important;
           }
 
           .print-guide {
-            padding: 0.8mm 1.2mm !important;
+            padding: 1.5px 2.5px !important;
           }
 
           .print-guide p {
             margin: 0 !important;
-
-            line-height: 5.5px !important;
+            line-height: 7px !important;
           }
 
           .print-comment {
-            padding: 0.8mm 1.2mm !important;
+            padding: 1.5px 2.5px !important;
           }
 
           .print-comment-title {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
-
-            margin: 0 !important;
+            font-size: 6.5px !important;
+            line-height: 7px !important;
           }
 
           .print-comment-text {
-            min-height: 13mm !important;
-            height: 13mm !important;
+            min-height: 18mm !important;
 
-            padding: 0.8mm !important;
+            height: 18mm !important;
 
-            margin-top: 0.5mm !important;
+            padding: 1.5px 2px !important;
 
-            font-size: 5px !important;
-            line-height: 5.5px !important;
+            font-size: 6px !important;
+            line-height: 7px !important;
 
-            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
           }
 
-          /* =================================================
+          /* =====================================================
              NEXT TERM
-             ================================================= */
+             ===================================================== */
 
           .print-next-term {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            font-size: 6.5px !important;
+            line-height: 8px !important;
 
-            padding: 0.8mm !important;
+            padding: 1.5px !important;
+
+            min-height: 7mm !important;
           }
 
-          /* =================================================
-             SIGNATURES
-             ================================================= */
+          /* =====================================================
+             SIGNATURE AREA
+             ===================================================== */
 
           .print-signatures {
-            font-size: 5.5px !important;
-            line-height: 6px !important;
+            position: relative !important;
 
-            height: 23mm !important;
-            max-height: 23mm !important;
+            font-size: 6.2px !important;
+            line-height: 7px !important;
+
+            height: 27mm !important;
+            min-height: 27mm !important;
+            max-height: 27mm !important;
+
+            overflow: visible !important;
           }
 
           .print-signatures > div {
-            min-height: 23mm !important;
-            height: 23mm !important;
-            max-height: 23mm !important;
+            position: relative !important;
 
-            padding: 1mm !important;
+            min-height: 27mm !important;
+            height: 27mm !important;
+            max-height: 27mm !important;
+
+            padding: 1.5mm !important;
+
+            overflow: visible !important;
           }
 
           .print-signatures p {
             margin: 0 !important;
 
-            line-height: 6px !important;
+            line-height: 7px !important;
           }
 
           .print-signature-line {
-            margin-top: 5mm !important;
+            margin-top: 6mm !important;
 
-            padding-top: 0.5mm !important;
+            padding-top: 0.8mm !important;
 
-            font-size: 5px !important;
+            font-size: 5.5px !important;
+
+            line-height: 6px !important;
           }
 
-          /* =================================================
-             OFFICIAL STAMP
-             ================================================= */
+          /* =====================================================
+             LARGE OFFICIAL SCHOOL STAMP
+             ===================================================== */
 
           .school-stamp {
             position: absolute !important;
 
-            width: 24mm !important;
-            height: 24mm !important;
+            width: 42mm !important;
+            height: 42mm !important;
 
             right: 5mm !important;
-            bottom: -2mm !important;
+            bottom: -12mm !important;
 
-            z-index: 50 !important;
+            z-index: 100 !important;
+
+            display: block !important;
           }
 
           .school-stamp img {
@@ -841,11 +840,13 @@ export default function ReportCardsPage() {
             height: 100% !important;
 
             object-fit: contain !important;
+
+            opacity: 0.9 !important;
           }
 
-          /* =================================================
-             HIDE CONTROLS
-             ================================================= */
+          /* =====================================================
+             HIDE PRINT CONTROLS
+             ===================================================== */
 
           .print-button,
           .print-controls,
@@ -853,10 +854,11 @@ export default function ReportCardsPage() {
             display: none !important;
           }
 
-          /* =================================================
-             PREVENT PAGE BREAKS
-             ================================================= */
+          /* =====================================================
+             PREVENT EXTRA PAGE
+             ===================================================== */
 
+          .a4-report-wrapper,
           .a4-report,
           .report-card,
           .report-border {
@@ -865,12 +867,23 @@ export default function ReportCardsPage() {
             break-before: avoid !important;
             break-after: avoid !important;
           }
+
+          /* =====================================================
+             INPUTS
+             ===================================================== */
+
+          input {
+            box-shadow: none !important;
+          }
         }
+
       `}</style>
 
-      <div className="max-w-5xl space-y-4">
+      {/* =========================================================
+          CONTROL PANEL
+          ========================================================= */}
 
-        {/* CONTROL PANEL */}
+      <div className="max-w-5xl space-y-4">
 
         <div className="print:hidden print-controls">
           <h1 className="text-xl font-semibold text-gray-800">
@@ -937,17 +950,9 @@ export default function ReportCardsPage() {
         {student && !loading && (
           <div className="a4-report-wrapper">
 
-            <div
-              className="a4-report"
-              style={{
-                width: "210mm",
-                minHeight: "297mm",
-                margin: "0 auto",
-                background: "#fff",
-              }}
-            >
+            <div className="a4-report">
 
-              <div className="report-card h-full bg-white text-black">
+              <div className="report-card bg-white text-black">
 
                 <div className="report-border border border-black">
 
@@ -1640,7 +1645,7 @@ export default function ReportCardsPage() {
                   </div>
 
                   {/* =================================================
-                      SIGNATURES + OFFICIAL STAMP
+                      SIGNATURES + LARGE OFFICIAL STAMP
                       ================================================= */}
 
                   <div className="print-signatures relative grid grid-cols-2 border-t border-black text-[8px]">
@@ -1679,9 +1684,9 @@ export default function ReportCardsPage() {
                         Signature / Date
                       </div>
 
-                      {/* OFFICIAL SCHOOL STAMP */}
+                      {/* LARGE OFFICIAL SCHOOL STAMP */}
 
-                      <div className="school-stamp absolute bottom-[-12px] right-[18px] z-20 h-[72px] w-[72px]">
+                      <div className="school-stamp absolute bottom-[-20px] right-[8px] z-20 h-[42mm] w-[42mm]">
 
                         <Image
                           src={SCHOOL.stampPath}
@@ -1697,9 +1702,12 @@ export default function ReportCardsPage() {
                   </div>
 
                 </div>
+
               </div>
 
-              {/* PRINT BUTTON */}
+              {/* =====================================================
+                  PRINT BUTTON
+                  ===================================================== */}
 
               <div className="print:hidden print-button flex justify-end p-4">
 
@@ -1720,6 +1728,10 @@ export default function ReportCardsPage() {
     </>
   );
 }
+
+/* ===============================================================
+   BEHAVIOUR FIELD
+   =============================================================== */
 
 function BehaviourField({
   label,
