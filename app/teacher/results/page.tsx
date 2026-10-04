@@ -238,8 +238,6 @@ export default function TeacherResultsPage() {
 
   /*
    * FORM MASTER CLASS ID
-   *
-   * Supports both old and new teacher records.
    */
   const formMasterClassId =
     teacher?.formClassId ||
@@ -248,9 +246,6 @@ export default function TeacherResultsPage() {
 
   /*
    * FORM MASTER NAME
-   *
-   * Supports records where the class name
-   * was saved instead of the class ID.
    */
   const formMasterClassName =
     teacher?.formMasterClassName?.trim() ||
@@ -265,18 +260,12 @@ export default function TeacherResultsPage() {
 
   /*
    * ASSIGNED CLASSES
-   *
-   * Normal assigned class IDs.
    */
   const assignedClasses = useMemo(() => {
     const ids = new Set(
       teacher?.classIds || []
     );
 
-    /*
-     * Always add Form Master class ID
-     * when it exists.
-     */
     if (formMasterClassId) {
       ids.add(formMasterClassId);
     }
@@ -293,9 +282,6 @@ export default function TeacherResultsPage() {
 
   /*
    * FORM MASTER CLASS
-   *
-   * First try ID.
-   * Then try saved class name.
    */
   const formMasterClass = useMemo(() => {
     if (formMasterClassId) {
@@ -353,10 +339,6 @@ export default function TeacherResultsPage() {
 
   /*
    * REAL FORM MASTER CLASS ID
-   *
-   * This is important when an old teacher
-   * record stored the CLASS NAME instead
-   * of the class document ID.
    */
   const resolvedFormMasterClassId =
     formMasterClass?.id ||
@@ -446,10 +428,6 @@ export default function TeacherResultsPage() {
 
   /*
    * GET SUBJECTS FOR CLASS
-   *
-   * Used by Form Master.
-   *
-   * Music is excluded.
    */
   function getSubjectsForClass(
     selectedClassId: string
@@ -471,12 +449,6 @@ export default function TeacherResultsPage() {
         classroom.name
       );
 
-    /*
-     * If the class level is unknown,
-     * allow all subjects except Music.
-     *
-     * This protects older class records.
-     */
     if (!level) {
       return subjects.filter(
         (subject) =>
@@ -489,9 +461,6 @@ export default function TeacherResultsPage() {
 
     return subjects.filter(
       (subject) => {
-        /*
-         * Never show Music.
-         */
         if (
           subject.name
             .trim()
@@ -501,10 +470,6 @@ export default function TeacherResultsPage() {
           return false;
         }
 
-        /*
-         * Subjects with levels:
-         * respect their level.
-         */
         if (
           Array.isArray(
             subject.levels
@@ -516,10 +481,6 @@ export default function TeacherResultsPage() {
           );
         }
 
-        /*
-         * Old subjects with no levels:
-         * allow them.
-         */
         return true;
       }
     );
@@ -534,10 +495,6 @@ export default function TeacherResultsPage() {
         return [];
       }
 
-      /*
-       * FORM MASTER:
-       * all applicable subjects.
-       */
       if (
         selectedClassIsFormMasterClass
       ) {
@@ -546,10 +503,6 @@ export default function TeacherResultsPage() {
         );
       }
 
-      /*
-       * NORMAL TEACHER:
-       * assigned subjects only.
-       */
       return mySubjects.filter(
         (subject) => {
           if (
@@ -705,13 +658,6 @@ export default function TeacherResultsPage() {
         setError("");
         setMessage("");
 
-        /*
-         * IMPORTANT:
-         *
-         * Use the robust teacher student
-         * lookup instead of the old
-         * getStudentsByClass().
-         */
         const [
           studentList,
           existingResults,
@@ -732,8 +678,95 @@ export default function TeacherResultsPage() {
           return;
         }
 
-        const list =
-          studentList as Student[];
+        /*
+         * Convert the generic Firestore
+         * records into the exact Student
+         * type expected by this page.
+         */
+        const list: Student[] =
+          studentList.map(
+            (student) => ({
+              id: String(
+                student.id ?? ""
+              ),
+
+              admissionNo: String(
+                student.admissionNo ??
+                  ""
+              ),
+
+              firstName: String(
+                student.firstName ??
+                  ""
+              ),
+
+              lastName: String(
+                student.lastName ??
+                  ""
+              ),
+
+              classId: String(
+                student.classId ??
+                  classId
+              ),
+
+              className:
+                student.className !=
+                null
+                  ? String(
+                      student.className
+                    )
+                  : undefined,
+
+              gender:
+                student.gender ===
+                "female"
+                  ? "female"
+                  : "male",
+
+              dateOfBirth:
+                student.dateOfBirth !=
+                null
+                  ? String(
+                      student.dateOfBirth
+                    )
+                  : undefined,
+
+              parentUid:
+                student.parentUid !=
+                null
+                  ? String(
+                      student.parentUid
+                    )
+                  : undefined,
+
+              parentName:
+                student.parentName !=
+                null
+                  ? String(
+                      student.parentName
+                    )
+                  : undefined,
+
+              status:
+                student.status ===
+                "inactive"
+                  ? "inactive"
+                  : "active",
+
+              photoUrl:
+                student.photoUrl !=
+                null
+                  ? String(
+                      student.photoUrl
+                    )
+                  : undefined,
+
+              attendsArabic:
+                student.attendsArabic ===
+                true,
+            })
+          );
 
         setStudents(list);
 
@@ -841,9 +874,6 @@ export default function TeacherResultsPage() {
         selectedSubject
       );
 
-    /*
-     * Arabic has no CA2.
-     */
     if (
       arabic &&
       field === "ca2"
@@ -1001,10 +1031,6 @@ export default function TeacherResultsPage() {
               ] ||
               emptyScore();
 
-            /*
-             * ARABIC CA = 40
-             * NORMAL CA1 = 20
-             */
             const ca1 = arabic
               ? Math.min(
                   40,
@@ -1025,11 +1051,6 @@ export default function TeacherResultsPage() {
                   )
                 );
 
-            /*
-             * Arabic CA2 = 0.
-             *
-             * Normal CA2 = 20.
-             */
             const ca2 = arabic
               ? 0
               : Math.min(
@@ -1042,9 +1063,6 @@ export default function TeacherResultsPage() {
                   )
                 );
 
-            /*
-             * EXAM = 60
-             */
             const exam =
               Math.min(
                 60,
@@ -1056,9 +1074,6 @@ export default function TeacherResultsPage() {
                 )
               );
 
-            /*
-             * TOTAL
-             */
             const total = arabic
               ? ca1 + exam
               : computeTotal(
@@ -1067,17 +1082,11 @@ export default function TeacherResultsPage() {
                   exam
                 );
 
-            /*
-             * GRADE
-             */
             const grade =
               computeGrade(
                 total
               );
 
-            /*
-             * REMARK
-             */
             const remark =
               computeRemark(
                 grade
