@@ -36,21 +36,32 @@ export default function ParentDashboardPage() {
   useEffect(() => {
     if (!profile?.uid) return;
 
-    getParentByAuthUid(profile.uid).then(async (data) => {
-      const p = data as ParentRecord | null;
+    const loadParentData = async () => {
+      try {
+        const data = await getParentByAuthUid(profile.uid);
+        const p = data as ParentRecord | null;
 
-      setParent(p);
+        setParent(p);
 
-      if (!p) {
+        if (!p) {
+          setLoading(false);
+          return;
+        }
+
+        // IMPORTANT:
+        // students.parentUid stores the authenticated parent's UID.
+        const kids = await getChildrenForParent(profile.uid);
+
+        setChildren(kids as ChildRecord[]);
+      } catch (error) {
+        console.error("Failed to load parent dashboard:", error);
+        setChildren([]);
+      } finally {
         setLoading(false);
-        return;
       }
+    };
 
-      const kids = await getChildrenForParent(p.id);
-
-      setChildren(kids as ChildRecord[]);
-      setLoading(false);
-    });
+    loadParentData();
   }, [profile?.uid]);
 
   if (loading) {
@@ -92,13 +103,13 @@ export default function ParentDashboardPage() {
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {children.map((c) => (
+            {children.map((child) => (
               <InfoCard
-                key={c.id}
-                title={`${c.firstName} ${c.lastName}`}
+                key={child.id}
+                title={`${child.firstName} ${child.lastName}`}
               >
                 <p>
-                  {c.className || c.classId}
+                  {child.className || child.classId}
                 </p>
               </InfoCard>
             ))}
