@@ -113,11 +113,17 @@ const quickManagement = [
     icon: "🏫",
   },
   {
-    label: "Results & Report Cards",
-    description: "Academic results and report cards",
-    href: "/admin/results",
-    icon: "📊",
-  },
+  label: "Results & Report Cards",
+  description: "Upload, edit, delete and manage results",
+  href: "/admin/results",
+  icon: "📊",
+},
+{
+  label: "Results Control Centre",
+  description: "Master result list and bulk result management",
+  href: "/admin/results/manage",
+  icon: "🛠️",
+},
   {
     label: "Attendance",
     description: "Monitor student attendance",
