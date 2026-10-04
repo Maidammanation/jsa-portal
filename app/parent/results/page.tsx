@@ -60,9 +60,6 @@ export default function ParentResultsPage() {
   const [error, setError] =
     useState("");
 
-  /*
-   * Load parent and children.
-   */
   useEffect(() => {
     if (!profile?.uid) return;
 
@@ -88,11 +85,20 @@ export default function ParentResultsPage() {
           return;
         }
 
+        /*
+         * IMPORTANT:
+         * students.parentUid stores the
+         * authenticated parent's UID.
+         *
+         * Do NOT use p.id here.
+         */
         const [
           kids,
           subjectList,
         ] = await Promise.all([
-          getChildrenForParent(p.id),
+          getChildrenForParent(
+            profile.uid
+          ),
           getSubjects(),
         ]);
 
@@ -107,16 +113,14 @@ export default function ParentResultsPage() {
           subjectList as Subject[]
         );
 
-        /*
-         * Automatically select the
-         * child when there is only one.
-         */
         if (
           childList.length === 1
         ) {
           setChildId(
             childList[0].id
           );
+        } else {
+          setChildId("");
         }
       } catch (err) {
         if (!mounted) return;
@@ -140,20 +144,17 @@ export default function ParentResultsPage() {
     };
   }, [profile?.uid]);
 
-  /*
-   * Load results only after they
-   * have been published.
-   */
   useEffect(() => {
     if (!childId) {
       setResults([]);
+      setLoadingResults(false);
       return;
     }
 
     /*
-     * Parents can select children even
-     * before publication, but actual
-     * result data is not requested.
+     * Parents can select children before
+     * publication, but actual result data
+     * is not requested until published.
      */
     if (resultStatus !== "published") {
       setResults([]);
