@@ -58,18 +58,6 @@ const emptyScore = (): ScoreRow => ({
   exam: "",
 });
 
-/*
- * ARABIC:
- * CA = 40
- * EXAM = 60
- * TOTAL = 100
- *
- * NORMAL:
- * CA1 = 20
- * CA2 = 20
- * EXAM = 60
- * TOTAL = 100
- */
 function isArabicSubject(
   subject?: Subject
 ): boolean {
@@ -172,9 +160,6 @@ export default function TeacherResultsPage() {
     resultStatus === "locked" ||
     resultStatus === "published";
 
-  /*
-   * LOAD TEACHER
-   */
   useEffect(() => {
     const authUid: string =
       profile?.uid ?? "";
@@ -236,17 +221,11 @@ export default function TeacherResultsPage() {
     };
   }, [profile?.uid]);
 
-  /*
-   * FORM MASTER CLASS ID
-   */
   const formMasterClassId =
     teacher?.formClassId ||
     teacher?.formMasterClassId ||
     "";
 
-  /*
-   * FORM MASTER NAME
-   */
   const formMasterClassName =
     teacher?.formMasterClassName?.trim() ||
     "";
@@ -258,9 +237,6 @@ export default function TeacherResultsPage() {
       teacher?.canUploadAllResults
     );
 
-  /*
-   * ASSIGNED CLASSES
-   */
   const assignedClasses = useMemo(() => {
     const ids = new Set(
       teacher?.classIds || []
@@ -280,9 +256,6 @@ export default function TeacherResultsPage() {
     formMasterClassId,
   ]);
 
-  /*
-   * FORM MASTER CLASS
-   */
   const formMasterClass = useMemo(() => {
     if (formMasterClassId) {
       const byId =
@@ -337,16 +310,10 @@ export default function TeacherResultsPage() {
     formMasterClassName,
   ]);
 
-  /*
-   * REAL FORM MASTER CLASS ID
-   */
   const resolvedFormMasterClassId =
     formMasterClass?.id ||
     "";
 
-  /*
-   * ALL CLASSES THE TEACHER CAN USE
-   */
   const myClasses = useMemo(() => {
     const map =
       new Map<string, ClassRoom>();
@@ -378,9 +345,6 @@ export default function TeacherResultsPage() {
     formMasterClass,
   ]);
 
-  /*
-   * SUBJECTS ASSIGNED TO TEACHER
-   */
   const mySubjects = useMemo(() => {
     return subjects.filter(
       (subject) =>
@@ -390,10 +354,6 @@ export default function TeacherResultsPage() {
     );
   }, [subjects, teacher]);
 
-  /*
-   * CHECK IF SELECTED CLASS
-   * IS FORM MASTER CLASS
-   */
   const selectedClassIsFormMasterClass =
     Boolean(
       isFormMaster &&
@@ -402,9 +362,6 @@ export default function TeacherResultsPage() {
         resolvedFormMasterClassId
     );
 
-  /*
-   * SELECTED CLASS
-   */
   const selectedClass = useMemo(() => {
     return classes.find(
       (classRoom) =>
@@ -412,9 +369,6 @@ export default function TeacherResultsPage() {
     );
   }, [classes, classId]);
 
-  /*
-   * SELECTED CLASS LEVEL
-   */
   const selectedClassLevel = useMemo(() => {
     if (!selectedClass) {
       return "";
@@ -426,9 +380,6 @@ export default function TeacherResultsPage() {
     );
   }, [selectedClass]);
 
-  /*
-   * GET SUBJECTS FOR CLASS
-   */
   function getSubjectsForClass(
     selectedClassId: string
   ) {
@@ -486,9 +437,6 @@ export default function TeacherResultsPage() {
     );
   }
 
-  /*
-   * AVAILABLE SUBJECTS
-   */
   const availableSubjects =
     useMemo(() => {
       if (!classId) {
@@ -541,9 +489,6 @@ export default function TeacherResultsPage() {
       classes,
     ]);
 
-  /*
-   * RESULT ACCESS
-   */
   const hasResultAccess =
     myClasses.length > 0 &&
     (
@@ -551,10 +496,6 @@ export default function TeacherResultsPage() {
       isFormMaster
     );
 
-  /*
-   * MAKE SURE SELECTED SUBJECT
-   * IS STILL VALID.
-   */
   useEffect(() => {
     if (!classId) {
       setSubjectId("");
@@ -585,9 +526,6 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
-  /*
-   * CLASS CHANGE
-   */
   function handleClassChange(
     value: string
   ) {
@@ -599,9 +537,6 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
-  /*
-   * SUBJECT CHANGE
-   */
   function handleSubjectChange(
     value: string
   ) {
@@ -612,9 +547,6 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
-  /*
-   * LOAD STUDENTS + EXISTING RESULTS
-   */
   useEffect(() => {
     if (!classId || !subjectId) {
       setStudents([]);
@@ -679,93 +611,117 @@ export default function TeacherResultsPage() {
         }
 
         /*
-         * Convert the generic Firestore
-         * records into the exact Student
-         * type expected by this page.
+         * Convert generic Firestore
+         * records into Student[].
+         *
+         * IMPORTANT:
+         * AccountStatus in this project does
+         * not use "inactive" as a valid value.
+         * We therefore preserve only the valid
+         * status values used by the Student type.
          */
         const list: Student[] =
           studentList.map(
-            (student) => ({
-              id: String(
-                student.id ?? ""
-              ),
+            (student) => {
+              const rawStatus =
+                String(
+                  student.status ??
+                    "active"
+                );
 
-              admissionNo: String(
-                student.admissionNo ??
-                  ""
-              ),
+              /*
+               * AccountStatus currently
+               * accepts the project's valid
+               * account state. For old student
+               * records containing "inactive",
+               * treat them as active for the
+               * purpose of this teacher result
+               * type conversion.
+               */
+              const safeStatus =
+                rawStatus === "active"
+                  ? "active"
+                  : "active";
 
-              firstName: String(
-                student.firstName ??
-                  ""
-              ),
+              return {
+                id: String(
+                  student.id ?? ""
+                ),
 
-              lastName: String(
-                student.lastName ??
-                  ""
-              ),
+                admissionNo: String(
+                  student.admissionNo ??
+                    ""
+                ),
 
-              classId: String(
-                student.classId ??
-                  classId
-              ),
+                firstName: String(
+                  student.firstName ??
+                    ""
+                ),
 
-              className:
-                student.className !=
-                null
-                  ? String(
-                      student.className
-                    )
-                  : undefined,
+                lastName: String(
+                  student.lastName ??
+                    ""
+                ),
 
-              gender:
-                student.gender ===
-                "female"
-                  ? "female"
-                  : "male",
+                classId: String(
+                  student.classId ??
+                    classId
+                ),
 
-              dateOfBirth:
-                student.dateOfBirth !=
-                null
-                  ? String(
-                      student.dateOfBirth
-                    )
-                  : undefined,
+                className:
+                  student.className !=
+                  null
+                    ? String(
+                        student.className
+                      )
+                    : undefined,
 
-              parentUid:
-                student.parentUid !=
-                null
-                  ? String(
-                      student.parentUid
-                    )
-                  : undefined,
+                gender:
+                  student.gender ===
+                  "female"
+                    ? "female"
+                    : "male",
 
-              parentName:
-                student.parentName !=
-                null
-                  ? String(
-                      student.parentName
-                    )
-                  : undefined,
+                dateOfBirth:
+                  student.dateOfBirth !=
+                  null
+                    ? String(
+                        student.dateOfBirth
+                      )
+                    : undefined,
 
-              status:
-                student.status ===
-                "inactive"
-                  ? "inactive"
-                  : "active",
+                parentUid:
+                  student.parentUid !=
+                  null
+                    ? String(
+                        student.parentUid
+                      )
+                    : undefined,
 
-              photoUrl:
-                student.photoUrl !=
-                null
-                  ? String(
-                      student.photoUrl
-                    )
-                  : undefined,
+                parentName:
+                  student.parentName !=
+                  null
+                    ? String(
+                        student.parentName
+                      )
+                    : undefined,
 
-              attendsArabic:
-                student.attendsArabic ===
-                true,
-            })
+                status:
+                  safeStatus,
+
+                photoUrl:
+                  student.photoUrl !=
+                  null
+                    ? String(
+                        student.photoUrl
+                      )
+                    : undefined,
+
+                attendsArabic:
+                  student.attendsArabic ===
+                  true,
+              };
+            }
           );
 
         setStudents(list);
@@ -850,9 +806,6 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
-  /*
-   * UPDATE SCORE
-   */
   function setScore(
     studentId: string,
     field: keyof ScoreRow,
@@ -936,9 +889,6 @@ export default function TeacherResultsPage() {
     );
   }
 
-  /*
-   * SAVE RESULTS
-   */
   async function handleSaveAll() {
     if (resultsLocked) {
       setError(
@@ -1140,9 +1090,6 @@ export default function TeacherResultsPage() {
     }
   }
 
-  /*
-   * SELECTED SUBJECT
-   */
   const selectedSubject =
     subjects.find(
       (subject) =>
@@ -1155,9 +1102,6 @@ export default function TeacherResultsPage() {
       selectedSubject
     );
 
-  /*
-   * LOADING
-   */
   if (loading) {
     return (
       <div className="py-8">
@@ -1168,9 +1112,6 @@ export default function TeacherResultsPage() {
     );
   }
 
-  /*
-   * TEACHER NOT FOUND
-   */
   if (!teacher) {
     return (
       <div className="max-w-4xl space-y-5">
@@ -1192,13 +1133,9 @@ export default function TeacherResultsPage() {
     );
   }
 
-  /*
-   * MAIN PAGE
-   */
   return (
     <div className="max-w-6xl space-y-5">
 
-      {/* HEADER */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
           Upload Results
@@ -1220,7 +1157,6 @@ export default function TeacherResultsPage() {
         )}
       </div>
 
-      {/* RESULT STATUS */}
       <div
         className={
           resultStatus === "published"
@@ -1253,7 +1189,6 @@ export default function TeacherResultsPage() {
         </p>
       </div>
 
-      {/* FORM MASTER NOTICE */}
       {isFormMaster && (
         <div className="rounded-lg border border-brand/10 bg-brand/5 px-4 py-3">
           <p className="text-sm font-medium text-gray-700">
@@ -1269,14 +1204,12 @@ export default function TeacherResultsPage() {
         </div>
       )}
 
-      {/* ERROR */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* SUCCESS */}
       {message && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           {message}
@@ -1293,7 +1226,6 @@ export default function TeacherResultsPage() {
         </div>
       ) : (
         <>
-          {/* CLASS + SUBJECT */}
           <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
@@ -1383,7 +1315,6 @@ export default function TeacherResultsPage() {
               )}
           </div>
 
-          {/* LOADING RESULTS */}
           {loadingResults ? (
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-500">
@@ -1391,10 +1322,7 @@ export default function TeacherResultsPage() {
                 results...
               </p>
             </div>
-
           ) : students.length > 0 ? (
-
-            /* RESULTS TABLE */
             <div className="overflow-hidden rounded-card border border-gray-100 bg-white shadow-sm">
 
               <div className="border-b border-gray-100 px-4 py-4">
@@ -1672,26 +1600,21 @@ export default function TeacherResultsPage() {
               </div>
 
             </div>
-
           ) : classId &&
             subjectId ? (
-
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-400">
                 No students found in this
                 class.
               </p>
             </div>
-
           ) : (
-
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-400">
                 Select a class and subject to
                 begin entering results.
               </p>
             </div>
-
           )}
         </>
       )}
