@@ -1,173 +1,137 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { InfoCard, ActionCard } from "@/components/Cards";
 import {
   getParentByAuthUid,
   getChildrenForParent,
 } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
 interface ParentRecord {
   id: string;
+  firstName: string;
+  lastName: string;
 }
 
 interface ChildRecord {
   id: string;
   firstName: string;
   lastName: string;
-  admissionNo: string;
   className?: string;
   classId: string;
-  gender: string;
 }
 
-export default function ParentChildrenPage() {
+export default function ParentDashboardPage() {
+  const router = useRouter();
   const { profile } = useAuth();
+  const { session, term } = useSchoolSettings();
 
+  const [parent, setParent] = useState<ParentRecord | null>(null);
   const [children, setChildren] = useState<ChildRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    if (!profile?.uid) return;
 
-    async function loadChildren() {
-      if (!profile?.uid) {
-        if (mounted) {
-          setLoading(false);
-        }
+    getParentByAuthUid(profile.uid).then(async (data) => {
+      const p = data as ParentRecord | null;
+
+      setParent(p);
+
+      if (!p) {
+        setLoading(false);
         return;
       }
 
-      try {
-        setLoading(true);
-        setError("");
+      const kids = await getChildrenForParent(p.id);
 
-        const data = await getParentByAuthUid(profile.uid);
-        const parent = data as ParentRecord | null;
-
-        if (!parent) {
-          if (mounted) {
-            setChildren([]);
-            setLoading(false);
-          }
-          return;
-        }
-
-        const kids = await getChildrenForParent(parent.id);
-
-        if (mounted) {
-          setChildren(kids as ChildRecord[]);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Failed to load children:", err);
-
-        if (mounted) {
-          setError("Unable to load your children. Please try again.");
-          setLoading(false);
-        }
-      }
-    }
-
-    loadChildren();
-
-    return () => {
-      mounted = false;
-    };
+      setChildren(kids as ChildRecord[]);
+      setLoading(false);
+    });
   }, [profile?.uid]);
 
   if (loading) {
     return (
-      <div className="max-w-2xl">
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
-          <p className="text-sm text-gray-500">
-            Loading your children...
-          </p>
-        </div>
-      </div>
+      <p className="text-sm text-gray-400">
+        Loading...
+      </p>
     );
   }
 
-  if (error) {
+  if (!parent) {
     return (
-      <div className="max-w-2xl">
-        <div className="bg-white rounded-card border border-red-100 shadow-sm p-6">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      </div>
+      <p className="text-sm text-status-disabled">
+        No parent record is linked to your account yet. Contact your administrator.
+      </p>
     );
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
-          My Children
+          Welcome, {parent.firstName}
         </h1>
 
-        <p className="text-sm text-gray-500 mt-1">
-          View the students linked to your parent account.
+        <p className="text-sm text-gray-500">
+          {session} &middot; {term}
         </p>
       </div>
 
-      {children.length === 0 ? (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
-          <p className="text-sm text-gray-500">
-            No children linked to your account yet.
+      <section>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          My Children
+        </h2>
+
+        {children.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            No children linked to your account yet. Contact your administrator.
           </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {children.map((c) => (
+              <InfoCard
+                key={c.id}
+                title={`${c.firstName} ${c.lastName}`}
+              >
+                <p>
+                  {c.className || c.classId}
+                </p>
+              </InfoCard>
+            ))}
+          </div>
+        )}
+      </section>
 
-          <p className="text-xs text-gray-400 mt-2">
-            Contact the school administrator if you believe this is incorrect.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {children.map((child) => (
-            <div
-              key={child.id}
-              className="bg-white rounded-card border border-gray-100 shadow-sm p-4"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-gray-800">
-                    {child.firstName} {child.lastName}
-                  </p>
+      {children.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Quick Links
+          </h2>
 
-                  <p className="text-xs text-gray-500 mt-1">
-                    Admission No: {child.admissionNo}
-                  </p>
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <ActionCard
+              label="My Children"
+              icon="👪"
+              onClick={() => router.push("/parent/children")}
+            />
 
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                  {child.gender}
-                </span>
-              </div>
+            <ActionCard
+              label="Results"
+              icon="📊"
+              onClick={() => router.push("/parent/results")}
+            />
 
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-gray-400">
-                    Class
-                  </p>
-
-                  <p className="text-sm font-medium text-gray-700">
-                    {child.className || child.classId || "Not assigned"}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-400">
-                    Admission Number
-                  </p>
-
-                  <p className="text-sm font-medium text-gray-700">
-                    {child.admissionNo || "Not available"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            <ActionCard
+              label="Fees"
+              icon="💰"
+              onClick={() => router.push("/parent/fees")}
+            />
+          </div>
+        </section>
       )}
     </div>
   );
