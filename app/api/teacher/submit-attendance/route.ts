@@ -1,7 +1,17 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import {
+  NextResponse,
+  type NextRequest,
+} from "next/server";
 
-const SESSION_COOKIE_NAME = "jsa_session";
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+export const runtime = "nodejs";
+
+const SESSION_COOKIE_NAME =
+  "jsa_session";
 
 type TeacherData = {
   authUid?: string;
@@ -13,21 +23,34 @@ type TeacherData = {
 
 type AttendanceRecord = {
   studentId: string;
-  status: "present" | "absent" | "late";
+  status:
+    | "present"
+    | "absent"
+    | "late";
 };
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
+function asStringArray(
+  value: unknown
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
-  return value.filter(
-    (item): item is string =>
-      typeof item === "string" && item.trim() !== ""
-  );
+  return value
+    .filter(
+      (item): item is string =>
+        typeof item === "string" &&
+        item.trim() !== ""
+    )
+    .map((item) => item.trim());
 }
 
 function isAttendanceStatus(
   value: unknown
-): value is "present" | "absent" | "late" {
+): value is
+  | "present"
+  | "absent"
+  | "late" {
   return (
     value === "present" ||
     value === "absent" ||
@@ -35,63 +58,78 @@ function isAttendanceStatus(
   );
 }
 
-export async function POST(request: NextRequest) {
+function cleanString(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+export async function POST(
+  request: NextRequest
+) {
   try {
     /*
-     * 1. Verify secure server session.
+     * 1. Verify session.
      */
     const sessionCookie =
-      request.cookies.get(SESSION_COOKIE_NAME)?.value;
+      request.cookies.get(
+        SESSION_COOKIE_NAME
+      )?.value;
 
     if (!sessionCookie) {
       return NextResponse.json(
-        { error: "Not authenticated." },
+        {
+          error:
+            "Not authenticated.",
+        },
         { status: 401 }
       );
     }
 
-    const decoded = await adminAuth().verifySessionCookie(
-      sessionCookie,
-      true
-    );
+    const decoded =
+      await adminAuth().verifySessionCookie(
+        sessionCookie,
+        true
+      );
 
     /*
-     * 2. Verify the logged-in user's profile.
+     * 2. Verify user profile.
      */
-    const userRef = adminDb().doc(
-      `users/${decoded.uid}`
-    );
-
-    const userDoc = await userRef.get();
+    const userDoc =
+      await adminDb()
+        .doc(`users/${decoded.uid}`)
+        .get();
 
     if (!userDoc.exists) {
       return NextResponse.json(
-        { error: "User profile was not found." },
+        {
+          error:
+            "User profile was not found.",
+        },
         { status: 404 }
       );
     }
 
-    const userData = userDoc.data() || {};
+    const userData =
+      userDoc.data() || {};
 
-    /*
-     * Only teachers can use this endpoint.
-     */
     if (userData.role !== "teacher") {
       return NextResponse.json(
         {
           error:
-            "Only teachers can submit attendance through this endpoint.",
+            "Only teachers can submit attendance.",
         },
         { status: 403 }
       );
     }
 
-    /*
-     * Suspended/disabled teachers cannot submit attendance.
-     */
     if (
-      userData.status === "suspended" ||
-      userData.status === "disabled"
+      userData.status ===
+        "suspended" ||
+      userData.status ===
+        "disabled"
     ) {
       return NextResponse.json(
         {
@@ -103,47 +141,55 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-     * 3. Read the requested attendance data.
+     * 3. Read request.
      */
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    const {
-      classId,
-      date,
-      records,
-    } = body;
+    const classId =
+      cleanString(body.classId);
 
-    if (
-      typeof classId !== "string" ||
-      !classId.trim()
-    ) {
+    const date =
+      cleanString(body.date);
+
+    const records =
+      body.records;
+
+    if (!classId) {
       return NextResponse.json(
-        { error: "A class is required." },
+        {
+          error:
+            "A class is required.",
+        },
         { status: 400 }
       );
     }
 
-    if (
-      typeof date !== "string" ||
-      !date.trim()
-    ) {
+    if (!date) {
       return NextResponse.json(
-        { error: "An attendance date is required." },
+        {
+          error:
+            "An attendance date is required.",
+        },
         { status: 400 }
       );
     }
 
     if (!Array.isArray(records)) {
       return NextResponse.json(
-        { error: "Attendance records are required." },
+        {
+          error:
+            "Attendance records are required.",
+        },
         { status: 400 }
       );
     }
 
     /*
-     * 4. Validate every attendance record.
+     * 4. Validate records.
      */
-    const normalizedRecords: AttendanceRecord[] = [];
+    const normalizedRecords: AttendanceRecord[] =
+      [];
 
     for (const record of records) {
       if (
@@ -160,9 +206,10 @@ export async function POST(request: NextRequest) {
       }
 
       const studentId =
-        "studentId" in record &&
-        typeof record.studentId === "string"
-          ? record.studentId.trim()
+        "studentId" in record
+          ? cleanString(
+              record.studentId
+            )
           : "";
 
       const status =
@@ -180,7 +227,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!isAttendanceStatus(status)) {
+      if (
+        !isAttendanceStatus(
+          status
+        )
+      ) {
         return NextResponse.json(
           {
             error:
@@ -196,7 +247,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (normalizedRecords.length === 0) {
+    if (
+      normalizedRecords.length === 0
+    ) {
       return NextResponse.json(
         {
           error:
@@ -207,160 +260,17 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-     * 5. Load all teacher records.
-     *
-     * We intentionally verify permissions on the server
-     * instead of trusting the browser.
+     * Prevent duplicate students.
      */
-    const teachersSnapshot = await adminDb()
-      .collection("teachers")
-      .get();
-
-    const teachers: {
-      id: string;
-      data: TeacherData;
-    }[] = teachersSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      data: doc.data() as TeacherData,
-    }));
-
-    /*
-     * Find the currently authenticated teacher.
-     */
-    const currentTeacher = teachers.find(
-      (teacher) =>
-        teacher.data.authUid === decoded.uid
-    );
-
-    if (!currentTeacher) {
-      return NextResponse.json(
-        {
-          error:
-            "Your teacher record could not be found.",
-        },
-        { status: 404 }
-      );
-    }
-
-    /*
-     * 6. Determine the classes assigned to this teacher.
-     */
-    const currentClassIds = asStringArray(
-      currentTeacher.data.classIds
-    );
-
-    if (!currentClassIds.includes(classId)) {
-      return NextResponse.json(
-        {
-          error:
-            "You are not assigned to this class.",
-        },
-        { status: 403 }
-      );
-    }
-
-    /*
-     * 7. Count how many teachers are assigned
-     * to each class.
-     */
-    const teacherCountByClass: Record<
-      string,
-      number
-    > = {};
-
-    for (const teacher of teachers) {
-      const classIds = asStringArray(
-        teacher.data.classIds
-      );
-
-      for (const assignedClassId of classIds) {
-        teacherCountByClass[
-          assignedClassId
-        ] =
-          (teacherCountByClass[
-            assignedClassId
-          ] || 0) + 1;
-      }
-    }
-
-    /*
-     * 8. Determine Form Master class.
-     */
-    const formMasterClassId =
-      currentTeacher.data.formClassId ||
-      currentTeacher.data.formMasterClassId ||
-      "";
-
-    const isFormMaster =
-      Boolean(formMasterClassId) &&
-      classId === formMasterClassId;
-
-    /*
-     * 9. Determine whether this teacher is the
-     * sole teacher assigned to this class.
-     */
-    const isOnlyTeacher =
-      teacherCountByClass[classId] === 1;
-
-    /*
-     * Attendance is permitted only when:
-     *
-     * A. Teacher is Form Master for this class
-     * OR
-     * B. Teacher is the only teacher assigned
-     *    to this class.
-     */
-    if (!isFormMaster && !isOnlyTeacher) {
-      return NextResponse.json(
-        {
-          error:
-            "You are not authorized to take attendance for this class.",
-        },
-        { status: 403 }
-      );
-    }
-
-    /*
-     * 10. Verify every student belongs to the
-     * requested class.
-     *
-     * This prevents a teacher from submitting
-     * attendance for students from another class.
-     */
-    const studentIds = normalizedRecords.map(
-      (record) => record.studentId
-    );
-
     const uniqueStudentIds = [
-      ...new Set(studentIds),
+      ...new Set(
+        normalizedRecords.map(
+          (record) =>
+            record.studentId
+        )
+      ),
     ];
 
-    const studentsSnapshot = await adminDb()
-      .collection("students")
-      .where("classId", "==", classId)
-      .get();
-
-    const validStudentIds = new Set(
-      studentsSnapshot.docs.map(
-        (doc) => doc.id
-      )
-    );
-
-    for (const studentId of uniqueStudentIds) {
-      if (!validStudentIds.has(studentId)) {
-        return NextResponse.json(
-          {
-            error:
-              "One or more students do not belong to the selected class.",
-          },
-          { status: 403 }
-        );
-      }
-    }
-
-    /*
-     * 11. Prevent duplicate student entries.
-     */
     if (
       uniqueStudentIds.length !==
       normalizedRecords.length
@@ -375,41 +285,323 @@ export async function POST(request: NextRequest) {
     }
 
     /*
-     * 12. Find an existing attendance session.
+     * 5. Load teachers.
      */
-    const attendanceQuery = await adminDb()
-      .collection("attendance")
-      .where("classId", "==", classId)
-      .where("date", "==", date)
-      .get();
+    const teachersSnapshot =
+      await adminDb()
+        .collection("teachers")
+        .get();
+
+    const teachers = teachersSnapshot.docs.map(
+      (doc) => ({
+        id: doc.id,
+        data:
+          doc.data() as TeacherData,
+      })
+    );
+
+    /*
+     * Find current teacher.
+     */
+    const currentTeacher =
+      teachers.find(
+        (teacher) =>
+          teacher.data.authUid ===
+          decoded.uid
+      );
+
+    if (!currentTeacher) {
+      return NextResponse.json(
+        {
+          error:
+            "Your teacher record could not be found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    /*
+     * 6. Determine effective teacher classes.
+     */
+    const currentClassIds =
+      asStringArray(
+        currentTeacher.data.classIds
+      );
+
+    const formMasterClassId =
+      typeof currentTeacher.data
+        .formClassId === "string" &&
+      currentTeacher.data.formClassId.trim()
+        ? currentTeacher.data.formClassId.trim()
+        : typeof currentTeacher.data
+            .formMasterClassId ===
+            "string" &&
+          currentTeacher.data.formMasterClassId.trim()
+        ? currentTeacher.data.formMasterClassId.trim()
+        : "";
+
+    const effectiveClassIds =
+      new Set<string>(
+        currentClassIds
+      );
+
+    if (formMasterClassId) {
+      effectiveClassIds.add(
+        formMasterClassId
+      );
+    }
+
+    /*
+     * Teacher must have the class.
+     */
+    if (
+      !effectiveClassIds.has(
+        classId
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "You are not assigned to this class.",
+        },
+        { status: 403 }
+      );
+    }
+
+    /*
+     * 7. Count teachers assigned to
+     * normal classIds.
+     */
+    const teacherCountByClass: Record<
+      string,
+      number
+    > = {};
+
+    for (const teacher of teachers) {
+      const classIds =
+        asStringArray(
+          teacher.data.classIds
+        );
+
+      for (const assignedClassId of classIds) {
+        teacherCountByClass[
+          assignedClassId
+        ] =
+          (teacherCountByClass[
+            assignedClassId
+          ] || 0) + 1;
+      }
+    }
+
+    /*
+     * 8. Form Master permission.
+     */
+    const isFormMaster =
+      Boolean(
+        formMasterClassId
+      ) &&
+      classId ===
+        formMasterClassId;
+
+    /*
+     * 9. Single-teacher permission.
+     */
+    const isOnlyTeacher =
+      teacherCountByClass[
+        classId
+      ] === 1;
+
+    /*
+     * Must be Form Master OR sole teacher.
+     */
+    if (
+      !isFormMaster &&
+      !isOnlyTeacher
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "You are not authorized to take attendance for this class.",
+        },
+        { status: 403 }
+      );
+    }
+
+    /*
+     * 10. Resolve class name.
+     */
+    let className = "";
+
+    try {
+      const classDoc =
+        await adminDb()
+          .collection("classes")
+          .doc(classId)
+          .get();
+
+      if (classDoc.exists) {
+        className =
+          cleanString(
+            classDoc.data()?.name
+          );
+      }
+    } catch (error) {
+      console.warn(
+        "Could not resolve class name:",
+        error
+      );
+    }
+
+    /*
+     * If class ID itself was actually a
+     * class name, try resolving by name.
+     */
+    if (!className) {
+      try {
+        const classByName =
+          await adminDb()
+            .collection("classes")
+            .where(
+              "name",
+              "==",
+              classId
+            )
+            .limit(1)
+            .get();
+
+        if (
+          !classByName.empty
+        ) {
+          className =
+            cleanString(
+              classByName.docs[0].data()
+                .name
+            );
+        }
+      } catch (error) {
+        console.warn(
+          "Could not resolve class by name:",
+          error
+        );
+      }
+    }
+
+    /*
+     * 11. Load submitted students individually.
+     *
+     * We deliberately do NOT depend on one
+     * Firestore query here because older student
+     * records may use either classId or className.
+     */
+    for (const studentId of uniqueStudentIds) {
+      const studentDoc =
+        await adminDb()
+          .collection("students")
+          .doc(studentId)
+          .get();
+
+      if (!studentDoc.exists) {
+        return NextResponse.json(
+          {
+            error:
+              "One or more selected students could not be found.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const student =
+        studentDoc.data() || {};
+
+      const studentClassId =
+        cleanString(
+          student.classId
+        );
+
+      const studentClassName =
+        cleanString(
+          student.className
+        );
+
+      const belongsToClass =
+        studentClassId ===
+          classId ||
+        Boolean(
+          className &&
+            studentClassId ===
+              className
+        ) ||
+        Boolean(
+          className &&
+            studentClassName ===
+              className
+        );
+
+      if (!belongsToClass) {
+        return NextResponse.json(
+          {
+            error:
+              "One or more students do not belong to the selected class.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    /*
+     * 12. Find existing attendance.
+     */
+    const attendanceQuery =
+      await adminDb()
+        .collection("attendance")
+        .where(
+          "classId",
+          "==",
+          classId
+        )
+        .where(
+          "date",
+          "==",
+          date
+        )
+        .limit(1)
+        .get();
 
     const takenBy =
-      userData.name ||
-      userData.email ||
+      cleanString(
+        userData.name
+      ) ||
+      cleanString(
+        userData.email
+      ) ||
       "teacher";
 
-    if (!attendanceQuery.empty) {
-      /*
-       * Update existing attendance.
-       */
+    if (
+      !attendanceQuery.empty
+    ) {
       const attendanceDoc =
         attendanceQuery.docs[0];
 
       await attendanceDoc.ref.update({
-        records: normalizedRecords,
+        records:
+          normalizedRecords,
         takenBy,
+        updatedAt:
+          new Date(),
       });
     } else {
-      /*
-       * Create new attendance session.
-       */
       await adminDb()
         .collection("attendance")
         .add({
           classId,
+          className:
+            className || null,
           date,
-          records: normalizedRecords,
+          records:
+            normalizedRecords,
           takenBy,
+          createdAt:
+            new Date(),
         });
     }
 
@@ -419,11 +611,13 @@ export async function POST(request: NextRequest) {
     await adminDb()
       .collection("activityLog")
       .add({
-        action: "Attendance submitted",
+        action:
+          "Attendance submitted",
         actor: takenBy,
         details:
           `${normalizedRecords.length} student(s) — ${date}`,
-        createdAt: new Date(),
+        createdAt:
+          new Date(),
       });
 
     return NextResponse.json({
@@ -431,17 +625,17 @@ export async function POST(request: NextRequest) {
       message:
         "Attendance submitted successfully.",
     });
-  } catch (err) {
+  } catch (error) {
     console.error(
-      "Could not submit attendance securely:",
-      err
+      "Could not submit attendance:",
+      error
     );
 
     return NextResponse.json(
       {
         error:
-          err instanceof Error
-            ? err.message
+          error instanceof Error
+            ? error.message
             : "Could not submit attendance.",
       },
       { status: 500 }
