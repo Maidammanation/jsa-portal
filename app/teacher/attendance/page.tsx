@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { TextInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
+
 import {
   getTeacherByAuthUid,
   getClasses,
-  getStudentsByClass,
   getAttendanceSession,
 } from "@/services/database";
+
+import {
+  getTeacherStudentsByClass,
+} from "@/services/teacherClassStudents";
+
 import { useAuth } from "@/lib/useAuth";
+
 import type {
   AttendanceStatus,
   ClassRoom,
@@ -20,10 +27,15 @@ interface TeacherRecord {
   id: string;
   firstName?: string;
   lastName?: string;
+  name?: string;
   email?: string;
+  authUid?: string;
+
+  classIds?: string[];
 
   formClassId?: string | null;
   formMasterClassId?: string | null;
+  formMasterClassName?: string | null;
 }
 
 interface AttendancePermissions {
@@ -67,8 +79,10 @@ const statusStyle: Record<
 > = {
   present:
     "bg-status-active/10 text-status-active border-status-active/30",
+
   absent:
     "bg-status-disabled/10 text-status-disabled border-status-disabled/30",
+
   late:
     "bg-status-suspended/10 text-status-suspended border-status-suspended/30",
 };
@@ -76,10 +90,13 @@ const statusStyle: Record<
 function getTodayLocalDate() {
   const now = new Date();
 
-  const year = now.getFullYear();
+  const year =
+    now.getFullYear();
+
   const month = String(
     now.getMonth() + 1
   ).padStart(2, "0");
+
   const day = String(
     now.getDate()
   ).padStart(2, "0");
@@ -91,34 +108,46 @@ export default function TeacherAttendancePage() {
   const { profile } = useAuth();
 
   const [teacher, setTeacher] =
-    useState<TeacherRecord | null>(null);
+    useState<TeacherRecord | null>(
+      null
+    );
 
   const [classes, setClasses] =
     useState<ClassRoom[]>([]);
 
   const [permissions, setPermissions] =
-    useState<AttendancePermissions | null>(null);
+    useState<AttendancePermissions | null>(
+      null
+    );
 
-  const [selectedClassId, setSelectedClassId] =
-    useState("");
+  const [
+    selectedClassId,
+    setSelectedClassId,
+  ] = useState("");
 
-  const [date, setDate] = useState(
-    getTodayLocalDate()
-  );
+  const [date, setDate] =
+    useState(
+      getTodayLocalDate()
+    );
 
-  const [students, setStudents] = useState<
-    Student[]
-  >([]);
+  const [students, setStudents] =
+    useState<Student[]>([]);
 
-  const [marks, setMarks] = useState<
-    Record<string, AttendanceStatus>
-  >({});
+  const [marks, setMarks] =
+    useState<
+      Record<
+        string,
+        AttendanceStatus
+      >
+    >({});
 
   const [loading, setLoading] =
     useState(true);
 
-  const [loadingStudents, setLoadingStudents] =
-    useState(false);
+  const [
+    loadingStudents,
+    setLoadingStudents,
+  ] = useState(false);
 
   const [saving, setSaving] =
     useState(false);
@@ -130,11 +159,13 @@ export default function TeacherAttendancePage() {
     useState("");
 
   /*
-   * Load teacher information, classes and
-   * server-side attendance permissions.
+   * Load teacher, classes and server
+   * permissions.
    */
   useEffect(() => {
-    if (!profile?.uid) return;
+    if (!profile?.uid) {
+      return;
+    }
 
     let mounted = true;
 
@@ -142,8 +173,12 @@ export default function TeacherAttendancePage() {
     setError("");
 
     Promise.all([
-      getTeacherByAuthUid(profile.uid),
+      getTeacherByAuthUid(
+        profile.uid
+      ),
+
       getClasses(),
+
       fetch(
         "/api/teacher/attendance-permissions",
         {
@@ -158,19 +193,25 @@ export default function TeacherAttendancePage() {
           classList,
           permissionResponse,
         ]) => {
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
 
           const t =
-            teacherRecord as TeacherRecord | null;
+            teacherRecord as
+              | TeacherRecord
+              | null;
 
           const allClasses =
             classList as ClassRoom[];
 
-          if (!permissionResponse.ok) {
+          if (
+            !permissionResponse.ok
+          ) {
             const data =
-              await permissionResponse.json().catch(
-                () => ({})
-              );
+              await permissionResponse
+                .json()
+                .catch(() => ({}));
 
             throw new Error(
               data.error ||
@@ -181,23 +222,28 @@ export default function TeacherAttendancePage() {
           const permissionData =
             (await permissionResponse.json()) as AttendancePermissions;
 
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
 
           setTeacher(t);
           setClasses(allClasses);
-          setPermissions(permissionData);
+          setPermissions(
+            permissionData
+          );
 
           /*
-           * Prefer the Form Master class.
-           * Otherwise use the first permitted class.
+           * Prefer Form Master class.
            */
           const preferredClassId =
-            permissionData.formMasterClassId &&
+            permissionData
+              .formMasterClassId &&
             permissionData.attendanceClassIds.includes(
               permissionData.formMasterClassId
             )
               ? permissionData.formMasterClassId
-              : permissionData.attendanceClassIds[0] ||
+              : permissionData
+                    .attendanceClassIds[0] ||
                 "";
 
           setSelectedClassId(
@@ -206,7 +252,9 @@ export default function TeacherAttendancePage() {
         }
       )
       .catch((err) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setError(
           err instanceof Error
@@ -226,16 +274,17 @@ export default function TeacherAttendancePage() {
   }, [profile?.uid]);
 
   /*
-   * Resolve the currently selected class.
+   * Selected class.
    */
   const selectedClass =
     classes.find(
-      (cls) => cls.id === selectedClassId
+      (cls) =>
+        cls.id ===
+        selectedClassId
     ) || null;
 
   /*
-   * Determine whether the selected class is
-   * the teacher's Form Master class.
+   * Form Master status.
    */
   const isSelectedFormMaster =
     Boolean(
@@ -245,8 +294,7 @@ export default function TeacherAttendancePage() {
     );
 
   /*
-   * Determine whether the selected class is
-   * a single-teacher class.
+   * Single-teacher class.
    */
   const isSelectedSingleTeacherClass =
     Boolean(
@@ -256,11 +304,14 @@ export default function TeacherAttendancePage() {
     );
 
   /*
-   * Load students and existing attendance
-   * whenever the selected class or date changes.
+   * Load students whenever class/date
+   * changes.
    */
   useEffect(() => {
-    if (!selectedClassId || !date) {
+    if (
+      !selectedClassId ||
+      !date
+    ) {
       setStudents([]);
       setMarks({});
       return;
@@ -283,7 +334,14 @@ export default function TeacherAttendancePage() {
     setError("");
 
     Promise.all([
-      getStudentsByClass(selectedClassId),
+      /*
+       * IMPORTANT:
+       * Use the new robust loader.
+       */
+      getTeacherStudentsByClass(
+        selectedClassId
+      ),
+
       getAttendanceSession(
         selectedClassId,
         date
@@ -294,13 +352,112 @@ export default function TeacherAttendancePage() {
           studentList,
           existingSession,
         ]) => {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
 
+          /*
+           * Convert Firestore records safely
+           * into Student objects.
+           */
           const list =
-            studentList as Student[];
+            (studentList as unknown[]).map(
+              (item) => {
+                const raw =
+                  item as Record<
+                    string,
+                    unknown
+                  >;
+
+                const status =
+                  raw.status ===
+                  "active"
+                    ? "active"
+                    : "active";
+
+                return {
+                  id: String(
+                    raw.id || ""
+                  ),
+
+                  admissionNo:
+                    String(
+                      raw.admissionNo ||
+                        ""
+                    ),
+
+                  firstName:
+                    String(
+                      raw.firstName ||
+                        ""
+                    ),
+
+                  lastName:
+                    String(
+                      raw.lastName ||
+                        ""
+                    ),
+
+                  classId:
+                    String(
+                      raw.classId ||
+                        selectedClassId
+                    ),
+
+                  className:
+                    raw.className
+                      ? String(
+                          raw.className
+                        )
+                      : undefined,
+
+                  gender:
+                    raw.gender ===
+                    "female"
+                      ? "female"
+                      : "male",
+
+                  dateOfBirth:
+                    raw.dateOfBirth
+                      ? String(
+                          raw.dateOfBirth
+                        )
+                      : undefined,
+
+                  parentUid:
+                    raw.parentUid
+                      ? String(
+                          raw.parentUid
+                        )
+                      : undefined,
+
+                  parentName:
+                    raw.parentName
+                      ? String(
+                          raw.parentName
+                        )
+                      : undefined,
+
+                  status,
+
+                  photoUrl:
+                    raw.photoUrl
+                      ? String(
+                          raw.photoUrl
+                        )
+                      : undefined,
+
+                  attendsArabic:
+                    raw.attendsArabic ===
+                    true,
+                } as Student;
+              }
+            );
 
           const existing =
-            existingSession as ExistingAttendanceSession | null;
+            existingSession as
+              | ExistingAttendanceSession
+              | null;
 
           setStudents(list);
 
@@ -309,22 +466,26 @@ export default function TeacherAttendancePage() {
             AttendanceStatus
           > = {};
 
-          list.forEach((student) => {
-            const prior =
-              existing?.records?.find(
-                (record) =>
-                  record.studentId ===
-                  student.id
-              );
+          list.forEach(
+            (student) => {
+              const prior =
+                existing?.records?.find(
+                  (record) =>
+                    record.studentId ===
+                    student.id
+                );
 
-            /*
-             * Default new attendance to Present.
-             */
-            initialMarks[student.id] =
-              prior?.status || "present";
-          });
+              initialMarks[
+                student.id
+              ] =
+                prior?.status ||
+                "present";
+            }
+          );
 
-          setMarks(initialMarks);
+          setMarks(
+            initialMarks
+          );
 
           if (existing) {
             setMessage(
@@ -334,7 +495,9 @@ export default function TeacherAttendancePage() {
         }
       )
       .catch((err) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         setStudents([]);
         setMarks({});
@@ -347,7 +510,9 @@ export default function TeacherAttendancePage() {
       })
       .finally(() => {
         if (!cancelled) {
-          setLoadingStudents(false);
+          setLoadingStudents(
+            false
+          );
         }
       });
 
@@ -361,20 +526,24 @@ export default function TeacherAttendancePage() {
   ]);
 
   /*
-   * Change the selected class.
+   * Change class.
    */
   const handleClassChange = (
     classId: string
   ) => {
-    setSelectedClassId(classId);
+    setSelectedClassId(
+      classId
+    );
+
     setMessage("");
     setError("");
+
     setStudents([]);
     setMarks({});
   };
 
   /*
-   * Change one student's attendance status.
+   * Change one student.
    */
   const setMark = (
     studentId: string,
@@ -390,7 +559,7 @@ export default function TeacherAttendancePage() {
   };
 
   /*
-   * Mark every student with the same status.
+   * Mark everyone.
    */
   const markAll = (
     status: AttendanceStatus
@@ -400,9 +569,12 @@ export default function TeacherAttendancePage() {
       AttendanceStatus
     > = {};
 
-    students.forEach((student) => {
-      next[student.id] = status;
-    });
+    students.forEach(
+      (student) => {
+        next[student.id] =
+          status;
+      }
+    );
 
     setMarks(next);
     setMessage("");
@@ -410,98 +582,114 @@ export default function TeacherAttendancePage() {
   };
 
   /*
-   * Submit attendance securely through the
-   * server-side attendance endpoint.
+   * Submit.
    */
-  const handleSubmit = async () => {
-    if (!selectedClassId) {
-      setError(
-        "Please select a class."
-      );
-      return;
-    }
-
-    if (
-      !permissions?.attendanceClassIds.includes(
-        selectedClassId
-      )
-    ) {
-      setError(
-        "You are not authorized to take attendance for this class."
-      );
-      return;
-    }
-
-    if (!date) {
-      setError("Please select a date.");
-      return;
-    }
-
-    if (students.length === 0) {
-      setError(
-        "There are no students in this class."
-      );
-      return;
-    }
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const records = students.map(
-        (student) => ({
-          studentId: student.id,
-          status:
-            marks[student.id] || "present",
-        })
-      );
-
-      const response = await fetch(
-        "/api/teacher/submit-attendance",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            classId: selectedClassId,
-            date,
-            records,
-          }),
-        }
-      );
-
-      const data =
-        await response.json().catch(
-          () => ({})
+  const handleSubmit =
+    async () => {
+      if (!selectedClassId) {
+        setError(
+          "Please select a class."
         );
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Could not submit attendance."
-        );
+        return;
       }
 
-      setMessage(
-        data.message ||
-          "Attendance submitted successfully."
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not submit attendance."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+      if (
+        !permissions?.attendanceClassIds.includes(
+          selectedClassId
+        )
+      ) {
+        setError(
+          "You are not authorized to take attendance for this class."
+        );
+        return;
+      }
+
+      if (!date) {
+        setError(
+          "Please select a date."
+        );
+        return;
+      }
+
+      if (
+        students.length === 0
+      ) {
+        setError(
+          "There are no students in this class."
+        );
+        return;
+      }
+
+      setSaving(true);
+      setMessage("");
+      setError("");
+
+      try {
+        const records =
+          students.map(
+            (student) => ({
+              studentId:
+                student.id,
+
+              status:
+                marks[
+                  student.id
+                ] ||
+                "present",
+            })
+          );
+
+        const response =
+          await fetch(
+            "/api/teacher/submit-attendance",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                classId:
+                  selectedClassId,
+
+                date,
+
+                records,
+              }),
+            }
+          );
+
+        const data =
+          await response
+            .json()
+            .catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Could not submit attendance."
+          );
+        }
+
+        setMessage(
+          data.message ||
+            "Attendance submitted successfully."
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not submit attendance."
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
 
   /*
-   * Loading teacher information.
+   * Loading.
    */
   if (loading) {
     return (
@@ -518,12 +706,14 @@ export default function TeacherAttendancePage() {
   }
 
   /*
-   * No teacher record or no attendance permission.
+   * No permission.
    */
   if (
     !teacher ||
     !permissions?.canMarkAttendance ||
-    permissions.attendanceClassIds.length === 0
+    permissions
+      .attendanceClassIds
+      .length === 0
   ) {
     return (
       <div className="space-y-4">
@@ -539,13 +729,15 @@ export default function TeacherAttendancePage() {
 
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
           <p className="text-sm text-status-disabled">
-            You are not authorized to take attendance
-            for any assigned class.
+            You are not authorized to
+            take attendance for any
+            assigned class.
           </p>
 
           <p className="text-sm text-gray-400 mt-1">
-            Contact your administrator if you believe
-            this is incorrect.
+            Contact your administrator
+            if you believe this is
+            incorrect.
           </p>
         </div>
       </div>
@@ -553,8 +745,7 @@ export default function TeacherAttendancePage() {
   }
 
   /*
-   * If the selected class has somehow become
-   * unavailable, stop before displaying attendance.
+   * Invalid selection safeguard.
    */
   if (
     !selectedClassId ||
@@ -564,20 +755,15 @@ export default function TeacherAttendancePage() {
   ) {
     return (
       <div className="space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800">
-            Take Attendance
-          </h1>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Attendance
-          </p>
-        </div>
+        <h1 className="text-xl font-semibold text-gray-800">
+          Take Attendance
+        </h1>
 
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
           <p className="text-sm text-status-disabled">
-            No authorized attendance class is
-            currently selected.
+            No authorized attendance
+            class is currently
+            selected.
           </p>
         </div>
       </div>
@@ -586,6 +772,7 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="max-w-4xl space-y-4">
+
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
@@ -605,9 +792,11 @@ export default function TeacherAttendancePage() {
       </div>
 
       {/* Class selector */}
-      {permissions.attendanceClassIds.length >
-        1 && (
+      {permissions
+        .attendanceClassIds
+        .length > 1 && (
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6 max-w-sm">
+
           <label
             htmlFor="attendance-class"
             className="block text-sm font-medium text-gray-700 mb-2"
@@ -617,7 +806,9 @@ export default function TeacherAttendancePage() {
 
           <select
             id="attendance-class"
-            value={selectedClassId}
+            value={
+              selectedClassId
+            }
             onChange={(e) =>
               handleClassChange(
                 e.target.value
@@ -631,7 +822,8 @@ export default function TeacherAttendancePage() {
                 const cls =
                   classes.find(
                     (item) =>
-                      item.id === classId
+                      item.id ===
+                      classId
                   );
 
                 const isFormMaster =
@@ -645,6 +837,7 @@ export default function TeacherAttendancePage() {
                   >
                     {cls?.name ||
                       "Assigned Class"}
+
                     {isFormMaster
                       ? " — Form Master"
                       : ""}
@@ -656,7 +849,7 @@ export default function TeacherAttendancePage() {
         </div>
       )}
 
-      {/* Attendance notice */}
+      {/* Role notice */}
       <div className="bg-brand/5 border border-brand/10 rounded-card px-4 py-3">
         <p className="text-sm text-brand-dark">
           You are taking attendance as{" "}
@@ -681,7 +874,10 @@ export default function TeacherAttendancePage() {
           type="date"
           value={date}
           onChange={(e) => {
-            setDate(e.target.value);
+            setDate(
+              e.target.value
+            );
+
             setMessage("");
             setError("");
           }}
@@ -701,25 +897,30 @@ export default function TeacherAttendancePage() {
         </p>
       )}
 
-      {/* Loading students */}
+      {/* Loading */}
       {loadingStudents && (
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
           <p className="text-sm text-gray-400">
-            Loading students and attendance...
+            Loading students and
+            attendance...
           </p>
         </div>
       )}
 
-      {/* Student attendance */}
+      {/* Students */}
       {!loadingStudents &&
         students.length > 0 && (
           <div className="bg-white rounded-card border border-gray-100 shadow-sm">
+
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-4 border-b border-gray-100">
+
               <div>
                 <p className="text-sm font-medium text-gray-700">
-                  {students.length} student
-                  {students.length === 1
+                  {students.length}{" "}
+                  student
+                  {students.length ===
+                  1
                     ? ""
                     : "s"}
                 </p>
@@ -730,10 +931,13 @@ export default function TeacherAttendancePage() {
               </div>
 
               <div className="flex flex-wrap gap-3">
+
                 <button
                   type="button"
                   onClick={() =>
-                    markAll("present")
+                    markAll(
+                      "present"
+                    )
                   }
                   disabled={saving}
                   className="text-xs text-status-active hover:underline disabled:opacity-50"
@@ -744,7 +948,9 @@ export default function TeacherAttendancePage() {
                 <button
                   type="button"
                   onClick={() =>
-                    markAll("absent")
+                    markAll(
+                      "absent"
+                    )
                   }
                   disabled={saving}
                   className="text-xs text-status-disabled hover:underline disabled:opacity-50"
@@ -755,35 +961,51 @@ export default function TeacherAttendancePage() {
                 <button
                   type="button"
                   onClick={() =>
-                    markAll("late")
+                    markAll(
+                      "late"
+                    )
                   }
                   disabled={saving}
                   className="text-xs text-status-suspended hover:underline disabled:opacity-50"
                 >
                   Mark all late
                 </button>
+
               </div>
             </div>
 
-            {/* Students */}
+            {/* Student list */}
             <ul className="divide-y divide-gray-100">
+
               {students.map(
-                (student, index) => (
+                (
+                  student,
+                  index
+                ) => (
                   <li
-                    key={student.id}
+                    key={
+                      student.id
+                    }
                     className="px-4 py-4"
                   >
+
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
                       {/* Student */}
                       <div className="flex items-start gap-3">
+
                         <span className="text-xs text-gray-400 w-5 pt-1">
                           {index + 1}.
                         </span>
 
                         <div>
                           <p className="text-sm text-gray-700 font-medium">
-                            {student.firstName}{" "}
-                            {student.lastName}
+                            {
+                              student.firstName
+                            }{" "}
+                            {
+                              student.lastName
+                            }
                           </p>
 
                           {student.admissionNo && (
@@ -795,12 +1017,16 @@ export default function TeacherAttendancePage() {
                             </p>
                           )}
                         </div>
+
                       </div>
 
-                      {/* Status buttons */}
+                      {/* Status */}
                       <div className="flex gap-2 sm:justify-end">
+
                         {STATUS_OPTIONS.map(
-                          (option) => {
+                          (
+                            option
+                          ) => {
                             const selected =
                               marks[
                                 student.id
@@ -819,12 +1045,13 @@ export default function TeacherAttendancePage() {
                                     option.value
                                   )
                                 }
-                                disabled={saving}
+                                disabled={
+                                  saving
+                                }
                                 className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                                   selected
                                     ? statusStyle[
-                                        option
-                                          .value
+                                        option.value
                                       ]
                                     : "border-gray-200 text-gray-400 hover:border-gray-300"
                                 } disabled:opacity-50`}
@@ -836,36 +1063,46 @@ export default function TeacherAttendancePage() {
                             );
                           }
                         )}
+
                       </div>
+
                     </div>
                   </li>
                 )
               )}
+
             </ul>
 
             {/* Submit */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-4 border-t border-gray-100">
+
               <div>
                 <p className="text-xs text-gray-400">
-                  Check each student's status before
+                  Check each student's
+                  status before
                   submitting.
                 </p>
 
                 <p className="text-xs text-gray-400 mt-1">
-                  Existing attendance for this date
-                  will be updated.
+                  Existing attendance
+                  for this date will
+                  be updated.
                 </p>
               </div>
 
               <Button
-                onClick={handleSubmit}
+                onClick={
+                  handleSubmit
+                }
                 disabled={saving}
               >
                 {saving
                   ? "Submitting..."
                   : "Submit Attendance"}
               </Button>
+
             </div>
+
           </div>
         )}
 
@@ -873,6 +1110,7 @@ export default function TeacherAttendancePage() {
       {!loadingStudents &&
         students.length === 0 && (
           <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+
             <p className="text-sm text-gray-400">
               No students found in{" "}
               <span className="font-medium text-gray-600">
@@ -881,8 +1119,17 @@ export default function TeacherAttendancePage() {
               </span>
               .
             </p>
+
+            <p className="text-xs text-gray-400 mt-2">
+              The system checked both
+              the class ID and class
+              name stored on student
+              records.
+            </p>
+
           </div>
         )}
+
     </div>
   );
 }
