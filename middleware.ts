@@ -1,31 +1,154 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Edge middleware can't run the Firebase Admin SDK directly (it needs Node's
-// crypto APIs), so it delegates verification to /api/auth/verify — a Node-runtime
-// route — forwarding the incoming Cookie header. If that route says the session
-// is invalid/missing, we redirect to /login.
-//
-// This only confirms the visitor is authenticated. Matching the visitor's role
-// to the section they're viewing (e.g. blocking a teacher from /admin) is handled
-// client-side in DashboardShell, since role lives in Firestore, not the session
-// cookie's claims.
+type UserRole =
+  | "super-admin"
+  | "admin"
+  | "teacher"
+  | "student"
+  | "parent";
 
-export async function middleware(request: NextRequest) {
-  const verifyUrl = new URL("/api/auth/verify", request.url);
+const ROLE_HOME: Record<UserRole, string> = {
+  "super-admin": "/super-admin",
+  admin: "/admin",
+  teacher: "/teacher",
+  student: "/student",
+  parent: "/parent",
+};
 
-  const verifyResponse = await fetch(verifyUrl, {
-    headers: { cookie: request.headers.get("cookie") || "" },
-  });
-
-  if (verifyResponse.ok) {
-    return NextResponse.next();
+/**
+ * Determines whether a user role is allowed to access
+ * the requested protected section.
+ */
+function isAllowed(
+  role: UserRole,
+  pathname: string
+): boolean {
+  // Super Admin has access to its own dashboard AND
+  // the existing /admin management section.
+  if (pathname.startsWith("/super-admin")) {
+    return role === "super-admin";
   }
 
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
-  return NextResponse.redirect(loginUrl);
+  if (pathname.startsWith("/admin")) {
+    return (
+      role === "admin" ||
+      role === "super-admin"
+    );
+  }
+
+  if (pathname.startsWith("/teacher")) {
+    return role === "teacher";
+  }
+
+  if (pathname.startsWith("/student")) {
+    return role === "student";
+  }
+
+  if (pathname.startsWith("/parent")) {
+    return role === "parent";
+  }
+
+  return false;
+}
+
+export async function middleware(
+  request: NextRequest
+) {
+  const pathname = request.nextUrl.pathname;
+
+  const verifyUrl = new URL(
+    "/api/auth/verify",
+    request.url
+  );
+
+  try {
+    // Ask the server-side verification route to validate
+    // the Firebase session and return the Firestore role.
+    const verifyResponse = await fetch(
+      verifyUrl,
+      {
+        method: "GET",
+        headers: {
+          cookie:
+            request.headers.get("cookie") || "",
+        },
+        cache: "no-store",
+      }
+    );
+
+    // No valid session.
+    if (!verifyResponse.ok) {
+      const loginUrl = new URL(
+        "/login",
+        request.url
+      );
+
+      loginUrl.searchParams.set(
+        "redirect",
+        pathname
+      );
+
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const data = await verifyResponse.json();
+
+    if (
+      !data?.authenticated ||
+      !data?.role
+    ) {
+      const loginUrl = new URL(
+        "/login",
+        request.url
+      );
+
+      loginUrl.searchParams.set(
+        "redirect",
+        pathname
+      );
+
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const role = data.role as UserRole;
+
+    // SERVER-SIDE authorization.
+    //
+    // This is the important security improvement:
+    // the user cannot bypass this by typing another
+    // dashboard URL into the browser.
+    if (!isAllowed(role, pathname)) {
+      return NextResponse.redirect(
+        new URL(
+          ROLE_HOME[role],
+          request.url
+        )
+      );
+    }
+
+    return NextResponse.next();
+  } catch {
+    // If verification itself fails, fail closed.
+    const loginUrl = new URL(
+      "/login",
+      request.url
+    );
+
+    loginUrl.searchParams.set(
+      "redirect",
+      pathname
+    );
+
+    return NextResponse.redirect(loginUrl);
+  }
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/teacher/:path*", "/student/:path*", "/parent/:path*", "/super-admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/teacher/:path*",
+    "/student/:path*",
+    "/parent/:path*",
+    "/super-admin/:path*",
+  ],
 };
