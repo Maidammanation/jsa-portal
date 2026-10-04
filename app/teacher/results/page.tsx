@@ -47,14 +47,32 @@ type ScoreRow = {
   exam: string;
 };
 
-type SubjectScores =
-  Record<string, ScoreRow>;
+type SubjectScores = Record<string, ScoreRow>;
 
 const emptyScore = (): ScoreRow => ({
   ca1: "",
   ca2: "",
   exam: "",
 });
+
+/**
+ * Arabic uses:
+ * CA = 40
+ * Exam = 60
+ * Total = 100
+ *
+ * Normal subjects use:
+ * CA1 = 20
+ * CA2 = 20
+ * Exam = 60
+ * Total = 100
+ */
+function isArabicSubject(subject?: Subject): boolean {
+  return (
+    subject?.section === "arabic" ||
+    subject?.scoringType === "arabic-40-60"
+  );
+}
 
 function getClassLevel(
   level?: string,
@@ -149,6 +167,9 @@ export default function TeacherResultsPage() {
     resultStatus === "locked" ||
     resultStatus === "published";
 
+  /*
+   * LOAD TEACHER DATA
+   */
   useEffect(() => {
     if (!profile?.uid) return;
 
@@ -204,6 +225,9 @@ export default function TeacherResultsPage() {
     };
   }, [profile?.uid]);
 
+  /*
+   * FORM MASTER
+   */
   const formMasterClassId =
     teacher?.formClassId ||
     teacher?.formMasterClassId ||
@@ -215,6 +239,9 @@ export default function TeacherResultsPage() {
       teacher?.canUploadAllResults
     );
 
+  /*
+   * ASSIGNED CLASSES
+   */
   const assignedClasses = useMemo(() => {
     return classes.filter((classRoom) =>
       teacher?.classIds?.includes(
@@ -223,6 +250,9 @@ export default function TeacherResultsPage() {
     );
   }, [classes, teacher]);
 
+  /*
+   * FORM MASTER CLASS
+   */
   const formMasterClass = useMemo(() => {
     return classes.find(
       (classRoom) =>
@@ -231,6 +261,9 @@ export default function TeacherResultsPage() {
     );
   }, [classes, formMasterClassId]);
 
+  /*
+   * MY CLASSES
+   */
   const myClasses = useMemo(() => {
     const map =
       new Map<string, ClassRoom>();
@@ -263,6 +296,9 @@ export default function TeacherResultsPage() {
     formMasterClass,
   ]);
 
+  /*
+   * SUBJECTS ASSIGNED TO TEACHER
+   */
   const mySubjects = useMemo(() => {
     return subjects.filter((subject) =>
       teacher?.subjectIds?.includes(
@@ -271,6 +307,9 @@ export default function TeacherResultsPage() {
     );
   }, [subjects, teacher]);
 
+  /*
+   * IS SELECTED CLASS THE FORM MASTER CLASS?
+   */
   const selectedClassIsFormMasterClass =
     Boolean(
       isFormMaster &&
@@ -278,6 +317,9 @@ export default function TeacherResultsPage() {
       classId === formMasterClassId
     );
 
+  /*
+   * SELECTED CLASS
+   */
   const selectedClass = useMemo(() => {
     return classes.find(
       (classRoom) =>
@@ -285,6 +327,9 @@ export default function TeacherResultsPage() {
     );
   }, [classes, classId]);
 
+  /*
+   * SELECTED CLASS LEVEL
+   */
   const selectedClassLevel = useMemo(() => {
     if (!selectedClass) return "";
 
@@ -294,6 +339,9 @@ export default function TeacherResultsPage() {
     );
   }, [selectedClass]);
 
+  /*
+   * GET SUBJECTS AVAILABLE FOR A CLASS
+   */
   function getSubjectsForClass(
     selectedClassId: string
   ) {
@@ -316,6 +364,9 @@ export default function TeacherResultsPage() {
 
     return subjects.filter(
       (subject) => {
+        /*
+         * Music remains excluded.
+         */
         if (
           subject.name
             .trim()
@@ -334,10 +385,17 @@ export default function TeacherResultsPage() {
     );
   }
 
+  /*
+   * SUBJECTS AVAILABLE TO CURRENT TEACHER
+   */
   const availableSubjects =
     useMemo(() => {
       if (!classId) return [];
 
+      /*
+       * Form Master can access all
+       * subjects configured for the class.
+       */
       if (
         selectedClassIsFormMasterClass
       ) {
@@ -346,6 +404,10 @@ export default function TeacherResultsPage() {
         );
       }
 
+      /*
+       * Normal teacher only gets
+       * assigned subjects.
+       */
       return mySubjects.filter(
         (subject) => {
           if (
@@ -382,6 +444,9 @@ export default function TeacherResultsPage() {
       classes,
     ]);
 
+  /*
+   * DOES TEACHER HAVE RESULT ACCESS?
+   */
   const hasResultAccess =
     myClasses.length > 0 &&
     (
@@ -389,6 +454,10 @@ export default function TeacherResultsPage() {
       isFormMaster
     );
 
+  /*
+   * MAKE SURE SELECTED SUBJECT
+   * IS STILL AVAILABLE
+   */
   useEffect(() => {
     if (!classId) {
       setSubjectId("");
@@ -416,6 +485,9 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
+  /*
+   * CLASS CHANGE
+   */
   function handleClassChange(
     value: string
   ) {
@@ -427,6 +499,9 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
+  /*
+   * SUBJECT CHANGE
+   */
   function handleSubjectChange(
     value: string
   ) {
@@ -437,6 +512,9 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
+  /*
+   * LOAD STUDENTS + EXISTING RESULTS
+   */
   useEffect(() => {
     if (!classId || !subjectId) {
       setStudents([]);
@@ -525,6 +603,13 @@ export default function TeacherResultsPage() {
                   )
                 : "",
 
+            /*
+             * Arabic results store
+             * ca2 as 0.
+             *
+             * We still load it safely
+             * for compatibility.
+             */
             ca2:
               previous?.ca2 !==
                 undefined &&
@@ -575,12 +660,46 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
+  /*
+   * SCORE INPUT HANDLER
+   *
+   * Normal:
+   * CA1 0-20
+   * CA2 0-20
+   * Exam 0-60
+   *
+   * Arabic:
+   * CA 0-40
+   * Exam 0-60
+   * CA2 disabled
+   */
   function setScore(
     studentId: string,
     field: keyof ScoreRow,
     value: string
   ) {
     if (resultsLocked) return;
+
+    const selectedSubject =
+      subjects.find(
+        (subject) =>
+          subject.id === subjectId
+      );
+
+    const arabic =
+      isArabicSubject(
+        selectedSubject
+      );
+
+    /*
+     * Arabic has no CA2.
+     */
+    if (
+      arabic &&
+      field === "ca2"
+    ) {
+      return;
+    }
 
     let nextValue = value;
 
@@ -596,10 +715,16 @@ export default function TeacherResultsPage() {
         return;
       }
 
-      const maximum =
-        field === "exam"
-          ? 60
-          : 20;
+      let maximum = 20;
+
+      if (field === "exam") {
+        maximum = 60;
+      } else if (
+        arabic &&
+        field === "ca1"
+      ) {
+        maximum = 40;
+      }
 
       if (
         numberValue >
@@ -629,6 +754,9 @@ export default function TeacherResultsPage() {
     }));
   }
 
+  /*
+   * SAVE ALL RESULTS
+   */
   async function handleSaveAll() {
     if (resultsLocked) {
       setError(
@@ -645,6 +773,7 @@ export default function TeacherResultsPage() {
       setError(
         "Please select a class."
       );
+
       return;
     }
 
@@ -652,6 +781,7 @@ export default function TeacherResultsPage() {
       setError(
         "Please select a subject."
       );
+
       return;
     }
 
@@ -696,6 +826,20 @@ export default function TeacherResultsPage() {
         profile?.email ||
         "teacher";
 
+      /*
+       * Determine scoring system once.
+       */
+      const selectedSubject =
+        subjects.find(
+          (subject) =>
+            subject.id === subjectId
+        );
+
+      const arabic =
+        isArabicSubject(
+          selectedSubject
+        );
+
       await Promise.all(
         students.map(
           (student) => {
@@ -705,27 +849,43 @@ export default function TeacherResultsPage() {
               ] ||
               emptyScore();
 
-            const ca1 =
-              Math.min(
-                20,
-                Math.max(
-                  0,
-                  Number(
-                    row.ca1
-                  ) || 0
+            /*
+             * Arabic:
+             * CA = 40
+             * Exam = 60
+             * CA2 is always 0
+             */
+            const ca1 = arabic
+              ? Math.min(
+                  40,
+                  Math.max(
+                    0,
+                    Number(
+                      row.ca1
+                    ) || 0
+                  )
                 )
-              );
+              : Math.min(
+                  20,
+                  Math.max(
+                    0,
+                    Number(
+                      row.ca1
+                    ) || 0
+                  )
+                );
 
-            const ca2 =
-              Math.min(
-                20,
-                Math.max(
-                  0,
-                  Number(
-                    row.ca2
-                  ) || 0
-                )
-              );
+            const ca2 = arabic
+              ? 0
+              : Math.min(
+                  20,
+                  Math.max(
+                    0,
+                    Number(
+                      row.ca2
+                    ) || 0
+                  )
+                );
 
             const exam =
               Math.min(
@@ -738,12 +898,20 @@ export default function TeacherResultsPage() {
                 )
               );
 
-            const total =
-              computeTotal(
-                ca1,
-                ca2,
-                exam
-              );
+            /*
+             * Arabic:
+             * CA 40 + Exam 60
+             *
+             * Normal:
+             * CA1 20 + CA2 20 + Exam 60
+             */
+            const total = arabic
+              ? ca1 + exam
+              : computeTotal(
+                  ca1,
+                  ca2,
+                  exam
+                );
 
             const grade =
               computeGrade(
@@ -798,6 +966,23 @@ export default function TeacherResultsPage() {
     }
   }
 
+  /*
+   * SELECTED SUBJECT
+   */
+  const selectedSubject =
+    subjects.find(
+      (subject) =>
+        subject.id === subjectId
+    );
+
+  const selectedSubjectIsArabic =
+    isArabicSubject(
+      selectedSubject
+    );
+
+  /*
+   * LOADING
+   */
   if (loading) {
     return (
       <div className="py-8">
@@ -808,6 +993,9 @@ export default function TeacherResultsPage() {
     );
   }
 
+  /*
+   * TEACHER NOT FOUND
+   */
   if (!teacher) {
     return (
       <div className="max-w-4xl space-y-5">
@@ -829,6 +1017,9 @@ export default function TeacherResultsPage() {
     );
   }
 
+  /*
+   * PAGE
+   */
   return (
     <div className="max-w-6xl space-y-5">
 
@@ -1027,19 +1218,22 @@ export default function TeacherResultsPage() {
           ) : students.length > 0 ? (
             <div className="overflow-hidden rounded-card border border-gray-100 bg-white shadow-sm">
 
+              {/* TABLE HEADER */}
               <div className="border-b border-gray-100 px-4 py-4">
                 <h2 className="font-semibold text-gray-800">
-                  {subjects.find(
-                    (subject) =>
-                      subject.id ===
-                      subjectId
-                  )?.name ||
+                  {selectedSubject?.name ||
                     "Selected Subject"}
                 </h2>
 
-                <p className="mt-1 text-xs text-gray-500">
-                  CA1: 20 | CA2: 20 | Exam: 60
-                </p>
+                {selectedSubjectIsArabic ? (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    Arabic Scoring: CA 40 | Exam 60 | Total 100
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-500">
+                    CA1: 20 | CA2: 20 | Exam: 60 | Total: 100
+                  </p>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -1051,12 +1245,16 @@ export default function TeacherResultsPage() {
                       </th>
 
                       <th className="px-4 py-3">
-                        CA1 (20)
+                        {selectedSubjectIsArabic
+                          ? "CA (40)"
+                          : "CA1 (20)"}
                       </th>
 
-                      <th className="px-4 py-3">
-                        CA2 (20)
-                      </th>
+                      {!selectedSubjectIsArabic && (
+                        <th className="px-4 py-3">
+                          CA2 (20)
+                        </th>
+                      )}
 
                       <th className="px-4 py-3">
                         Exam (60)
@@ -1085,27 +1283,49 @@ export default function TeacherResultsPage() {
                           ] ||
                           emptyScore();
 
+                        /*
+                         * Arabic:
+                         * CA max 40
+                         *
+                         * Normal:
+                         * CA1 max 20
+                         */
                         const ca1 =
-                          Math.min(
-                            20,
-                            Math.max(
-                              0,
-                              Number(
-                                row.ca1
-                              ) || 0
-                            )
-                          );
+                          selectedSubjectIsArabic
+                            ? Math.min(
+                                40,
+                                Math.max(
+                                  0,
+                                  Number(
+                                    row.ca1
+                                  ) || 0
+                                )
+                              )
+                            : Math.min(
+                                20,
+                                Math.max(
+                                  0,
+                                  Number(
+                                    row.ca1
+                                  ) || 0
+                                )
+                              );
 
+                        /*
+                         * Arabic does not use CA2.
+                         */
                         const ca2 =
-                          Math.min(
-                            20,
-                            Math.max(
-                              0,
-                              Number(
-                                row.ca2
-                              ) || 0
-                            )
-                          );
+                          selectedSubjectIsArabic
+                            ? 0
+                            : Math.min(
+                                20,
+                                Math.max(
+                                  0,
+                                  Number(
+                                    row.ca2
+                                  ) || 0
+                                )
+                              );
 
                         const exam =
                           Math.min(
@@ -1118,12 +1338,18 @@ export default function TeacherResultsPage() {
                             )
                           );
 
+                        /*
+                         * Calculate the total according
+                         * to the subject scoring system.
+                         */
                         const total =
-                          computeTotal(
-                            ca1,
-                            ca2,
-                            exam
-                          );
+                          selectedSubjectIsArabic
+                            ? ca1 + exam
+                            : computeTotal(
+                                ca1,
+                                ca2,
+                                exam
+                              );
 
                         const grade =
                           computeGrade(
@@ -1136,6 +1362,7 @@ export default function TeacherResultsPage() {
                               student.id
                             }
                           >
+                            {/* STUDENT */}
                             <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                               {
                                 student.firstName
@@ -1145,11 +1372,16 @@ export default function TeacherResultsPage() {
                               }
                             </td>
 
+                            {/* CA1 / ARABIC CA */}
                             <td className="px-4 py-2">
                               <input
                                 type="number"
                                 min={0}
-                                max={20}
+                                max={
+                                  selectedSubjectIsArabic
+                                    ? 40
+                                    : 20
+                                }
                                 value={
                                   row.ca1
                                 }
@@ -1171,32 +1403,36 @@ export default function TeacherResultsPage() {
                               />
                             </td>
 
-                            <td className="px-4 py-2">
-                              <input
-                                type="number"
-                                min={0}
-                                max={20}
-                                value={
-                                  row.ca2
-                                }
-                                disabled={
-                                  resultsLocked
-                                }
-                                onChange={(
-                                  event
-                                ) =>
-                                  setScore(
-                                    student.id,
-                                    "ca2",
+                            {/* CA2 — NORMAL SUBJECTS ONLY */}
+                            {!selectedSubjectIsArabic && (
+                              <td className="px-4 py-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={20}
+                                  value={
+                                    row.ca2
+                                  }
+                                  disabled={
+                                    resultsLocked
+                                  }
+                                  onChange={(
                                     event
-                                      .target
-                                      .value
-                                  )
-                                }
-                                className="w-20 rounded border border-gray-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-                              />
-                            </td>
+                                  ) =>
+                                    setScore(
+                                      student.id,
+                                      "ca2",
+                                      event
+                                        .target
+                                        .value
+                                    )
+                                  }
+                                  className="w-20 rounded border border-gray-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                                />
+                              </td>
+                            )}
 
+                            {/* EXAM */}
                             <td className="px-4 py-2">
                               <input
                                 type="number"
@@ -1223,14 +1459,17 @@ export default function TeacherResultsPage() {
                               />
                             </td>
 
+                            {/* TOTAL */}
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {total}
                             </td>
 
+                            {/* GRADE */}
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {grade}
                             </td>
 
+                            {/* REMARK */}
                             <td className="px-4 py-2 text-gray-600">
                               {computeRemark(
                                 grade
