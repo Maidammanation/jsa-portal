@@ -4,7 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================================
-    // JSA FIRESTORE SECURITY RULES
+    // JIDDA STANDARD ACADEMY FIRESTORE SECURITY RULES
     // ============================================================
     //
     // Roles:
@@ -19,9 +19,9 @@ service cloud.firestore {
     // ============================================================
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // USER PROFILE HELPERS
-    // ------------------------------------------------------------
+    // ============================================================
 
     function signedIn() {
       return request.auth != null;
@@ -79,32 +79,31 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // USERS
-    // ------------------------------------------------------------
-    //
-    // Users contain authentication profile information.
-    // Normal users must never be allowed to browse other users.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /users/{uid} {
 
-      // A user may read only their own profile.
-      // Admins can read team/user profiles.
+      // Users can read their own profile.
+      // Administrators can read user/team profiles.
       allow read: if accountIsActive()
         && (
           request.auth.uid == uid
           || isAdminOrSuperAdmin()
         );
 
-      // Only administrators can create/update/delete user profiles.
+      // Only administrators can create user profiles.
       allow create: if isAdminOrSuperAdmin();
 
+      // Administrators can update any user.
+      //
+      // A normal user may update their own profile only while
+      // keeping their role and account status unchanged.
       allow update: if isAdminOrSuperAdmin()
         || (
           accountIsActive()
           && request.auth.uid == uid
-          // A normal user cannot change their own role/status.
           && request.resource.data.role == resource.data.role
           && request.resource.data.status == resource.data.status
         );
@@ -113,26 +112,23 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // STUDENTS
-    // ------------------------------------------------------------
-    //
-    // Admin/Super Admin:
-    //   Full student management.
-    //
-    // Student:
-    //   Own student document only.
-    //
-    // Parent:
-    //   Only children linked through parentUid.
-    //
-    // Teacher:
-    //   Read access is needed by the current teacher portal.
-    //   Writes remain admin-only.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /students/{studentId} {
 
+      // Admin/Super Admin:
+      // Full access.
+      //
+      // Teacher:
+      // Read access for school operations.
+      //
+      // Student:
+      // Own record only.
+      //
+      // Parent:
+      // Child record only.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || (
@@ -144,14 +140,17 @@ service cloud.firestore {
           && resource.data.parentUid == request.auth.uid
         );
 
+      // Only administrators can create students.
       allow create: if isAdminOrSuperAdmin();
 
+      // Administrators can update students.
+      //
+      // A student may update only permitted parts of their own
+      // profile and cannot change ownership, class or admission no.
       allow update: if isAdminOrSuperAdmin()
         || (
           isStudent()
           && resource.data.authUid == request.auth.uid
-          // Students cannot move themselves to another class,
-          // change admission number, or change ownership.
           && request.resource.data.authUid == resource.data.authUid
           && request.resource.data.classId == resource.data.classId
           && request.resource.data.admissionNo == resource.data.admissionNo
@@ -162,13 +161,12 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // CLASSES
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /classes/{classId} {
 
-      // Teachers need class information.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || isStudent()
@@ -182,9 +180,9 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // SUBJECTS
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /subjects/{subjectId} {
 
@@ -201,15 +199,14 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // TEACHERS
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /teachers/{teacherId} {
 
-      // Teachers can read teacher records because the current
-      // teacher dashboard uses this collection to identify
-      // the logged-in teacher and assignments.
+      // Teachers need to read teacher records so the current
+      // teacher portal can identify assignments.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher();
 
@@ -221,9 +218,9 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // PARENTS
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /parents/{parentId} {
 
@@ -251,25 +248,19 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // RESULTS
-    // ------------------------------------------------------------
-    //
-    // Admin/Super Admin:
-    //   Full control.
-    //
-    // Teacher:
-    //   Current portal requires result read/write access.
-    //
-    // Student:
-    //   Can read only results belonging to themselves.
-    //
-    // Parent:
-    //   Can read results belonging to their children.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /results/{resultId} {
 
+      // Administrators have full result control.
+      //
+      // Teachers currently require result read/write access.
+      //
+      // Students can only read their own results.
+      //
+      // Parents can only read results belonging to their children.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || (
@@ -302,35 +293,19 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // ATTENDANCE
-    // ------------------------------------------------------------
-    //
-    // Current attendance documents contain:
-    // classId
-    // date
-    // records[]
-    // takenBy
-    //
-    // Admins have full control.
-    // Teachers need read/write for the current portal.
-    // Students/parents may read attendance belonging to
-    // the student's class.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /attendance/{attendanceId} {
 
+      // Admins and teachers need attendance access.
+      //
+      // Students/parents are allowed to read attendance records
+      // used by the current portal.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
-        || (
-          isStudent()
-          && exists(
-            /databases/$(database)/documents/students/$(resource.data.classId)
-          )
-          && get(
-            /databases/$(database)/documents/students/$(resource.data.classId)
-          ).data.classId == resource.data.classId
-        )
+        || isStudent()
         || isParent();
 
       allow create: if isAdminOrSuperAdmin()
@@ -343,13 +318,13 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // FEE STRUCTURE
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /feeStructure/{feeId} {
 
-      // School financial structure must not be publicly readable.
+      // Current student/parent fee pages require read access.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || isParent()
@@ -363,17 +338,23 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // FEE PAYMENTS
-    // ------------------------------------------------------------
-    //
-    // Payment documents use studentId.
-    // Parents/students are allowed to read only payments
-    // belonging to the relevant student.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /feePayments/{paymentId} {
 
+      // Admin/Super Admin:
+      // Full access.
+      //
+      // Teacher:
+      // Current portal requires read access.
+      //
+      // Student:
+      // Own payments only.
+      //
+      // Parent:
+      // Child payments only.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || (
@@ -403,12 +384,14 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // PROMOTION HISTORY
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /promotionHistory/{historyId} {
 
+      // Admin/Super Admin can review promotion history.
+      // Teachers can read it where needed.
       allow read: if isAdminOrSuperAdmin()
         || isTeacher();
 
@@ -420,33 +403,81 @@ service cloud.firestore {
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
     // ACTIVITY LOG
-    // ------------------------------------------------------------
-    //
-    // Users should not be able to rewrite audit history.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /activityLog/{activityId} {
 
+      // Only administrators can read audit history.
       allow read: if isAdminOrSuperAdmin();
 
+      // Admins and teachers can create activity records.
       allow create: if isAdminOrSuperAdmin()
         || isTeacher();
 
+      // Audit records cannot be edited.
       allow update: if false;
+
+      // Only Super Admin can delete audit records.
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // ============================================================
+    // SCHOOL SETTINGS
+    // ============================================================
+    //
+    // Document:
+    // schoolSettings/current
+    //
+    // Stores:
+    // - Current academic session
+    // - Current academic term
+    //
+    // All active portal users may READ the current academic
+    // period because it is used throughout the portal.
+    //
+    // Only Admin/Super Admin can change it.
+    // Only Super Admin can delete it.
+    // ============================================================
+
+    match /schoolSettings/{settingId} {
+
+      allow read: if accountIsActive();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
 
       allow delete: if isSuperAdmin();
     }
 
 
-    // ------------------------------------------------------------
+    // ============================================================
+    // ANNOUNCEMENTS
+    // ============================================================
+
+    match /announcements/{announcementId} {
+
+      // All active portal users can read school announcements.
+      allow read: if accountIsActive();
+
+      // Only administrators can publish or modify announcements.
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ============================================================
     // DEFAULT DENY
-    // ------------------------------------------------------------
+    // ============================================================
     //
     // Any collection not explicitly listed above is blocked.
-    // This is extremely important.
-    // ------------------------------------------------------------
+    // ============================================================
 
     match /{document=**} {
       allow read, write: if false;
