@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { SelectInput } from "@/components/Forms";
+
 import {
   getParentByAuthUid,
   getChildrenForParent,
   getFeeStructure,
   getPaymentsForStudent,
+  getClasses,
 } from "@/services/database";
+
 import { useAuth } from "@/lib/useAuth";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
@@ -30,97 +34,254 @@ interface FeeRow {
   amount: number;
 }
 
+interface ClassRecord {
+  id: string;
+  name?: string;
+}
+
 export default function ParentFeesPage() {
   const { profile } = useAuth();
-  const { session, term } = useSchoolSettings();
 
-  const [children, setChildren] = useState<ChildRecord[]>([]);
-  const [childId, setChildId] = useState("");
+  const {
+    session,
+    term,
+  } = useSchoolSettings();
 
-  const [amountDue, setAmountDue] = useState(0);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [children, setChildren] =
+    useState<ChildRecord[]>([]);
 
-  const [loading, setLoading] = useState(true);
-  const [feesLoading, setFeesLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [childId, setChildId] =
+    useState("");
 
+  const [amountDue, setAmountDue] =
+    useState(0);
+
+  const [payments, setPayments] =
+    useState<PaymentRow[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [feesLoading, setFeesLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  /*
+   * Load children linked to the
+   * authenticated parent.
+   */
   useEffect(() => {
     if (!profile?.uid) return;
+
+    let mounted = true;
 
     const loadChildren = async () => {
       try {
         setLoading(true);
         setError("");
 
-        const parent = await getParentByAuthUid(profile.uid);
+        const parent =
+          await getParentByAuthUid(
+            profile.uid
+          );
+
+        if (!mounted) return;
 
         if (!parent) {
           setChildren([]);
+          setChildId("");
           return;
         }
 
-        // IMPORTANT:
-        // students.parentUid stores the authenticated parent's UID.
-        const kids = await getChildrenForParent(profile.uid);
+        /*
+         * IMPORTANT:
+         * students.parentUid stores
+         * the authenticated parent's UID.
+         */
+        const kids =
+          await getChildrenForParent(
+            profile.uid
+          );
 
-        const childList = kids as ChildRecord[];
+        if (!mounted) return;
+
+        const childList =
+          kids as ChildRecord[];
 
         setChildren(childList);
 
-        if (childList.length === 1) {
-          setChildId(childList[0].id);
-        } else if (childList.length === 0) {
+        if (
+          childList.length === 1
+        ) {
+          setChildId(
+            childList[0].id
+          );
+        } else if (
+          childList.length === 0
+        ) {
+          setChildId("");
+        } else {
           setChildId("");
         }
       } catch (err) {
-        console.error("Failed to load parent fees:", err);
-        setError("Unable to load your children and fees.");
+        console.error(
+          "Failed to load parent fees:",
+          err
+        );
+
+        if (!mounted) return;
+
+        setError(
+          "Unable to load your children and fees."
+        );
+
         setChildren([]);
+        setChildId("");
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadChildren();
+
+    return () => {
+      mounted = false;
+    };
   }, [profile?.uid]);
 
+  /*
+   * Load fee information for the
+   * selected child.
+   */
   useEffect(() => {
     if (!childId) {
+      setAmountDue(0);
+      setPayments([]);
+      setFeesLoading(false);
+      return;
+    }
+
+    const child =
+      children.find(
+        (item) =>
+          item.id === childId
+      );
+
+    if (!child) {
       setAmountDue(0);
       setPayments([]);
       return;
     }
 
-    const child = children.find(
-      (item) => item.id === childId
-    );
-
-    if (!child) return;
+    let mounted = true;
 
     const loadFees = async () => {
       try {
         setFeesLoading(true);
         setError("");
 
-        const [feeStructure, paymentList] =
-          await Promise.all([
-            getFeeStructure(term, session),
-            getPaymentsForStudent(
-              childId,
-              term,
-              session
-            ),
-          ]);
+        /*
+         * We load classes as well because
+         * older student records may store:
+         *
+         * classId = class document ID
+         *
+         * while older records may store:
+         *
+         * classId = class name
+         *
+         * or:
+         *
+         * className = class name
+         */
+        const [
+          feeStructure,
+          paymentList,
+          classList,
+        ] = await Promise.all([
+          getFeeStructure(
+            term,
+            session
+          ),
+
+          getPaymentsForStudent(
+            childId,
+            term,
+            session
+          ),
+
+          getClasses(),
+        ]);
+
+        if (!mounted) return;
 
         const feeRows =
           feeStructure as FeeRow[];
 
-        const feeRow = feeRows.find(
-          (fee) => fee.classId === child.classId
-        );
+        const classes =
+          classList as ClassRecord[];
+
+        /*
+         * Find the actual class record
+         * using any known class identifier.
+         */
+        const childClass =
+          classes.find(
+            (item) =>
+              item.id ===
+                child.classId ||
+              item.name ===
+                child.classId ||
+              item.id ===
+                child.className ||
+              item.name ===
+                child.className
+          );
+
+        /*
+         * Build all possible identifiers
+         * for this student's class.
+         */
+        const classCandidates =
+          new Set(
+            [
+              child.classId,
+              child.className,
+              childClass?.id,
+              childClass?.name,
+            ]
+              .filter(Boolean)
+              .map((value) =>
+                String(value)
+                  .trim()
+                  .toLowerCase()
+              )
+          );
+
+        /*
+         * Match fee structure against
+         * either the class ID or class name.
+         */
+        const feeRow =
+          feeRows.find(
+            (fee) =>
+              classCandidates.has(
+                String(
+                  fee.classId || ""
+                )
+                  .trim()
+                  .toLowerCase()
+              )
+          );
 
         setAmountDue(
-          Number(feeRow?.amount || 0)
+          Number(
+            feeRow?.amount || 0
+          )
         );
 
         setPayments(
@@ -132,17 +293,26 @@ export default function ParentFeesPage() {
           err
         );
 
+        if (!mounted) return;
+
         setAmountDue(0);
         setPayments([]);
+
         setError(
           "Unable to load the fee information for this student."
         );
       } finally {
-        setFeesLoading(false);
+        if (mounted) {
+          setFeesLoading(false);
+        }
       }
     };
 
     loadFees();
+
+    return () => {
+      mounted = false;
+    };
   }, [
     childId,
     children,
@@ -150,25 +320,35 @@ export default function ParentFeesPage() {
     session,
   ]);
 
-  const formatNaira = (amount: number) => {
-    return `₦${Number(amount || 0).toLocaleString()}`;
+  const formatNaira = (
+    amount: number
+  ) => {
+    return `₦${Number(
+      amount || 0
+    ).toLocaleString()}`;
   };
 
-  const totalPaid = payments.reduce(
-    (sum, payment) =>
-      sum + Number(payment.amount || 0),
-    0
-  );
+  const totalPaid =
+    payments.reduce(
+      (sum, payment) =>
+        sum +
+        Number(
+          payment.amount || 0
+        ),
+      0
+    );
 
-  const balance = Math.max(
-    amountDue - totalPaid,
-    0
-  );
+  const balance =
+    Math.max(
+      amountDue - totalPaid,
+      0
+    );
 
-  const overpaid = Math.max(
-    totalPaid - amountDue,
-    0
-  );
+  const overpaid =
+    Math.max(
+      totalPaid - amountDue,
+      0
+    );
 
   if (loading) {
     return (
@@ -180,9 +360,12 @@ export default function ParentFeesPage() {
     );
   }
 
-  if (children.length === 0) {
+  if (
+    children.length === 0
+  ) {
     return (
       <div className="max-w-3xl space-y-4">
+
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
             Fees
@@ -194,14 +377,19 @@ export default function ParentFeesPage() {
         </div>
 
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+
           <p className="text-sm text-status-disabled">
-            No children linked to your account yet.
+            No children linked to your
+            account yet.
           </p>
 
           <p className="text-xs text-gray-400 mt-1">
-            Contact your school administrator if your
-            child should be linked to this account.
+            Contact your school
+            administrator if your child
+            should be linked to this
+            account.
           </p>
+
         </div>
       </div>
     );
@@ -209,6 +397,8 @@ export default function ParentFeesPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+
+      {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
           School Fees
@@ -219,54 +409,71 @@ export default function ParentFeesPage() {
         </p>
       </div>
 
+      {/* Child selector */}
       {children.length > 1 && (
         <div className="max-w-sm">
+
           <SelectInput
             label="Child"
             value={childId}
             onChange={(event) =>
-              setChildId(event.target.value)
+              setChildId(
+                event.target.value
+              )
             }
             options={[
               {
-                label: "Select a child",
+                label:
+                  "Select a child",
                 value: "",
               },
-              ...children.map((child) => ({
-                label: `${child.firstName} ${child.lastName}`,
-                value: child.id,
-              })),
+
+              ...children.map(
+                (child) => ({
+                  label: `${child.firstName} ${child.lastName}`,
+                  value: child.id,
+                })
+              ),
             ]}
           />
+
         </div>
       )}
 
-      {children.length === 1 && childId && (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm px-4 py-3">
-          <p className="text-xs text-gray-400">
-            Student
-          </p>
+      {/* Single child */}
+      {children.length === 1 &&
+        childId && (
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm px-4 py-3">
 
-          <p className="font-semibold text-gray-800">
-            {children[0].firstName}{" "}
-            {children[0].lastName}
-          </p>
+            <p className="text-xs text-gray-400">
+              Student
+            </p>
 
-          <p className="text-sm text-gray-500">
-            {children[0].className ||
-              children[0].classId}
-          </p>
-        </div>
-      )}
+            <p className="font-semibold text-gray-800">
+              {children[0].firstName}{" "}
+              {children[0].lastName}
+            </p>
 
+            <p className="text-sm text-gray-500">
+              {children[0].className ||
+                children[0].classId}
+            </p>
+
+          </div>
+        )}
+
+      {/* Error */}
       {error && (
         <div className="rounded-card border border-red-100 bg-red-50 p-4">
+
           <p className="text-sm text-red-600">
             {error}
           </p>
+
         </div>
       )}
 
+      {/* Selected child */}
       {childId && (
         <>
           {feesLoading ? (
@@ -275,28 +482,39 @@ export default function ParentFeesPage() {
             </p>
           ) : (
             <>
+              {/* Fee summary */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5 text-center">
+
                   <p className="text-xs text-gray-400 uppercase tracking-wide">
                     Amount Due
                   </p>
 
                   <p className="text-xl font-semibold text-gray-800 mt-1">
-                    {formatNaira(amountDue)}
+                    {formatNaira(
+                      amountDue
+                    )}
                   </p>
+
                 </div>
 
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5 text-center">
+
                   <p className="text-xs text-gray-400 uppercase tracking-wide">
                     Amount Paid
                   </p>
 
                   <p className="text-xl font-semibold text-gray-800 mt-1">
-                    {formatNaira(totalPaid)}
+                    {formatNaira(
+                      totalPaid
+                    )}
                   </p>
+
                 </div>
 
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5 text-center">
+
                   <p className="text-xs text-gray-400 uppercase tracking-wide">
                     Balance
                   </p>
@@ -308,89 +526,129 @@ export default function ParentFeesPage() {
                         : "text-status-disabled"
                     }`}
                   >
-                    {formatNaira(balance)}
+                    {formatNaira(
+                      balance
+                    )}
                   </p>
+
                 </div>
+
               </div>
 
+              {/* No fee structure */}
               {amountDue === 0 && (
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+
                   <p className="text-sm text-gray-500">
-                    No fee structure has been set for this
-                    student's class for the current
-                    session and term.
+                    No fee structure has
+                    been set for this
+                    student's class for
+                    the current session
+                    and term.
                   </p>
+
                 </div>
               )}
 
-              {balance <= 0 && amountDue > 0 && (
-                <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-                  <p className="text-sm font-medium text-status-active">
-                    Fees fully paid.
-                  </p>
+              {/* Fully paid */}
+              {balance <= 0 &&
+                amountDue > 0 && (
+                  <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
 
-                  {overpaid > 0 && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      Overpayment:{" "}
-                      {formatNaira(overpaid)}
+                    <p className="text-sm font-medium text-status-active">
+                      Fees fully paid.
                     </p>
-                  )}
-                </div>
-              )}
 
+                    {overpaid > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Overpayment:{" "}
+                        {formatNaira(
+                          overpaid
+                        )}
+                      </p>
+                    )}
+
+                  </div>
+                )}
+
+              {/* Outstanding */}
               {balance > 0 && (
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+
                   <p className="text-sm font-medium text-status-disabled">
                     Outstanding balance:{" "}
-                    {formatNaira(balance)}
+                    {formatNaira(
+                      balance
+                    )}
                   </p>
+
                 </div>
               )}
 
+              {/* Payment history */}
               <section className="space-y-3">
+
                 <div>
                   <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                     Payment History
                   </h2>
 
                   <p className="text-xs text-gray-400">
-                    Payments recorded for {term},{" "}
+                    Payments recorded for{" "}
+                    {term},{" "}
                     {session}.
                   </p>
                 </div>
 
                 <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
-                  {payments.length === 0 ? (
+
+                  {payments.length ===
+                  0 ? (
                     <p className="px-4 py-8 text-sm text-gray-400 text-center">
-                      No payments recorded yet.
+                      No payments recorded
+                      yet.
                     </p>
                   ) : (
                     <div className="divide-y divide-gray-100">
-                      {payments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex items-center justify-between gap-4 px-4 py-4"
-                        >
-                          <div>
-                            <p className="text-sm text-gray-700">
-                              {payment.datePaid}
+
+                      {payments.map(
+                        (payment) => (
+                          <div
+                            key={
+                              payment.id
+                            }
+                            className="flex items-center justify-between gap-4 px-4 py-4"
+                          >
+
+                            <div>
+
+                              <p className="text-sm text-gray-700">
+                                {
+                                  payment.datePaid
+                                }
+                              </p>
+
+                              <p className="text-xs text-gray-400">
+                                Payment recorded
+                              </p>
+
+                            </div>
+
+                            <p className="font-semibold text-gray-800">
+                              {formatNaira(
+                                payment.amount
+                              )}
                             </p>
 
-                            <p className="text-xs text-gray-400">
-                              Payment recorded
-                            </p>
                           </div>
+                        )
+                      )}
 
-                          <p className="font-semibold text-gray-800">
-                            {formatNaira(
-                              payment.amount
-                            )}
-                          </p>
-                        </div>
-                      ))}
                     </div>
                   )}
+
                 </div>
+
               </section>
             </>
           )}
