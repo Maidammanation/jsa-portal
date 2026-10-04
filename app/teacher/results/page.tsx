@@ -9,10 +9,13 @@ import {
   getTeacherByAuthUid,
   getClasses,
   getSubjects,
-  getStudentsByClass,
   getResultsFor,
   saveResult,
 } from "@/services/database";
+
+import {
+  getTeacherStudentsByClass,
+} from "@/services/teacherClassStudents";
 
 import {
   computeTotal,
@@ -67,7 +70,9 @@ const emptyScore = (): ScoreRow => ({
  * EXAM = 60
  * TOTAL = 100
  */
-function isArabicSubject(subject?: Subject): boolean {
+function isArabicSubject(
+  subject?: Subject
+): boolean {
   return (
     subject?.section === "arabic" ||
     subject?.scoringType === "arabic-40-60"
@@ -168,20 +173,16 @@ export default function TeacherResultsPage() {
     resultStatus === "published";
 
   /*
-   * LOAD TEACHER DATA
-   *
-   * IMPORTANT:
-   * authUid is explicitly typed as string.
-   * This fixes the Vercel error:
-   *
-   * Argument of type 'string | undefined'
-   * is not assignable to parameter of type 'string'.
+   * LOAD TEACHER
    */
   useEffect(() => {
     const authUid: string =
       profile?.uid ?? "";
 
-    if (!authUid) return;
+    if (!authUid) {
+      setLoading(false);
+      return;
+    }
 
     let mounted = true;
 
@@ -236,40 +237,130 @@ export default function TeacherResultsPage() {
   }, [profile?.uid]);
 
   /*
-   * FORM MASTER
+   * FORM MASTER CLASS ID
+   *
+   * Supports both old and new teacher records.
    */
   const formMasterClassId =
     teacher?.formClassId ||
     teacher?.formMasterClassId ||
     "";
 
+  /*
+   * FORM MASTER NAME
+   *
+   * Supports records where the class name
+   * was saved instead of the class ID.
+   */
+  const formMasterClassName =
+    teacher?.formMasterClassName?.trim() ||
+    "";
+
   const isFormMaster =
     Boolean(formMasterClassId) ||
+    Boolean(formMasterClassName) ||
     Boolean(
       teacher?.canUploadAllResults
     );
 
   /*
    * ASSIGNED CLASSES
+   *
+   * Normal assigned class IDs.
    */
   const assignedClasses = useMemo(() => {
-    return classes.filter((classRoom) =>
-      teacher?.classIds?.includes(
-        classRoom.id
-      )
+    const ids = new Set(
+      teacher?.classIds || []
     );
-  }, [classes, teacher]);
+
+    /*
+     * Always add Form Master class ID
+     * when it exists.
+     */
+    if (formMasterClassId) {
+      ids.add(formMasterClassId);
+    }
+
+    return classes.filter(
+      (classRoom) =>
+        ids.has(classRoom.id)
+    );
+  }, [
+    classes,
+    teacher,
+    formMasterClassId,
+  ]);
 
   /*
    * FORM MASTER CLASS
+   *
+   * First try ID.
+   * Then try saved class name.
    */
   const formMasterClass = useMemo(() => {
-    return classes.find(
-      (classRoom) =>
-        classRoom.id ===
+    if (formMasterClassId) {
+      const byId =
+        classes.find(
+          (classRoom) =>
+            classRoom.id ===
+            formMasterClassId
+        );
+
+      if (byId) {
+        return byId;
+      }
+
+      const normalizedStored =
         formMasterClassId
-    );
-  }, [classes, formMasterClassId]);
+          .trim()
+          .toLowerCase();
+
+      const byName =
+        classes.find(
+          (classRoom) =>
+            classRoom.name
+              ?.trim()
+              .toLowerCase() ===
+            normalizedStored
+        );
+
+      if (byName) {
+        return byName;
+      }
+    }
+
+    if (formMasterClassName) {
+      const normalizedName =
+        formMasterClassName
+          .trim()
+          .toLowerCase();
+
+      return classes.find(
+        (classRoom) =>
+          classRoom.name
+            ?.trim()
+            .toLowerCase() ===
+          normalizedName
+      );
+    }
+
+    return undefined;
+  }, [
+    classes,
+    formMasterClassId,
+    formMasterClassName,
+  ]);
+
+  /*
+   * REAL FORM MASTER CLASS ID
+   *
+   * This is important when an old teacher
+   * record stored the CLASS NAME instead
+   * of the class document ID.
+   */
+  const resolvedFormMasterClassId =
+    formMasterClass?.id ||
+    "";
 
   /*
    * ALL CLASSES THE TEACHER CAN USE
@@ -287,14 +378,13 @@ export default function TeacherResultsPage() {
       }
     );
 
-    if (
-      isFormMaster &&
-      formMasterClass
-    ) {
-      map.set(
-        formMasterClass.id,
-        formMasterClass
-      );
+    if (isFormMaster) {
+      if (formMasterClass) {
+        map.set(
+          formMasterClass.id,
+          formMasterClass
+        );
+      }
     }
 
     return Array.from(
@@ -310,18 +400,24 @@ export default function TeacherResultsPage() {
    * SUBJECTS ASSIGNED TO TEACHER
    */
   const mySubjects = useMemo(() => {
-    return subjects.filter((subject) =>
-      teacher?.subjectIds?.includes(
-        subject.id
-      )
+    return subjects.filter(
+      (subject) =>
+        teacher?.subjectIds?.includes(
+          subject.id
+        )
     );
   }, [subjects, teacher]);
 
+  /*
+   * CHECK IF SELECTED CLASS
+   * IS FORM MASTER CLASS
+   */
   const selectedClassIsFormMasterClass =
     Boolean(
       isFormMaster &&
-      formMasterClassId &&
-      classId === formMasterClassId
+      resolvedFormMasterClassId &&
+      classId ===
+        resolvedFormMasterClassId
     );
 
   /*
@@ -338,7 +434,9 @@ export default function TeacherResultsPage() {
    * SELECTED CLASS LEVEL
    */
   const selectedClassLevel = useMemo(() => {
-    if (!selectedClass) return "";
+    if (!selectedClass) {
+      return "";
+    }
 
     return getClassLevel(
       selectedClass.level,
@@ -347,7 +445,11 @@ export default function TeacherResultsPage() {
   }, [selectedClass]);
 
   /*
-   * GET SUBJECTS FOR A CLASS
+   * GET SUBJECTS FOR CLASS
+   *
+   * Used by Form Master.
+   *
+   * Music is excluded.
    */
   function getSubjectsForClass(
     selectedClassId: string
@@ -359,7 +461,9 @@ export default function TeacherResultsPage() {
           selectedClassId
       );
 
-    if (!classroom) return [];
+    if (!classroom) {
+      return [];
+    }
 
     const level =
       getClassLevel(
@@ -367,12 +471,26 @@ export default function TeacherResultsPage() {
         classroom.name
       );
 
-    if (!level) return [];
+    /*
+     * If the class level is unknown,
+     * allow all subjects except Music.
+     *
+     * This protects older class records.
+     */
+    if (!level) {
+      return subjects.filter(
+        (subject) =>
+          subject.name
+            .trim()
+            .toLowerCase() !==
+          "music"
+      );
+    }
 
     return subjects.filter(
       (subject) => {
         /*
-         * Music is intentionally excluded.
+         * Never show Music.
          */
         if (
           subject.name
@@ -383,11 +501,26 @@ export default function TeacherResultsPage() {
           return false;
         }
 
-        return Boolean(
-          subject.levels?.includes(
+        /*
+         * Subjects with levels:
+         * respect their level.
+         */
+        if (
+          Array.isArray(
+            subject.levels
+          ) &&
+          subject.levels.length > 0
+        ) {
+          return subject.levels.includes(
             level
-          )
-        );
+          );
+        }
+
+        /*
+         * Old subjects with no levels:
+         * allow them.
+         */
+        return true;
       }
     );
   }
@@ -397,12 +530,13 @@ export default function TeacherResultsPage() {
    */
   const availableSubjects =
     useMemo(() => {
-      if (!classId) return [];
+      if (!classId) {
+        return [];
+      }
 
       /*
        * FORM MASTER:
-       * Can see all applicable subjects
-       * for the selected Form Master class.
+       * all applicable subjects.
        */
       if (
         selectedClassIsFormMasterClass
@@ -414,7 +548,7 @@ export default function TeacherResultsPage() {
 
       /*
        * NORMAL TEACHER:
-       * Only assigned subjects.
+       * assigned subjects only.
        */
       return mySubjects.filter(
         (subject) => {
@@ -432,7 +566,9 @@ export default function TeacherResultsPage() {
           }
 
           if (
-            !subject.levels ||
+            !Array.isArray(
+              subject.levels
+            ) ||
             subject.levels.length === 0
           ) {
             return true;
@@ -453,7 +589,7 @@ export default function TeacherResultsPage() {
     ]);
 
   /*
-   * CHECK RESULT ACCESS
+   * RESULT ACCESS
    */
   const hasResultAccess =
     myClasses.length > 0 &&
@@ -464,7 +600,7 @@ export default function TeacherResultsPage() {
 
   /*
    * MAKE SURE SELECTED SUBJECT
-   * REMAINS VALID AFTER CLASS CHANGE
+   * IS STILL VALID.
    */
   useEffect(() => {
     if (!classId) {
@@ -474,12 +610,15 @@ export default function TeacherResultsPage() {
       return;
     }
 
-    if (!subjectId) return;
+    if (!subjectId) {
+      return;
+    }
 
     const stillAvailable =
       availableSubjects.some(
         (subject) =>
-          subject.id === subjectId
+          subject.id ===
+          subjectId
       );
 
     if (!stillAvailable) {
@@ -533,13 +672,15 @@ export default function TeacherResultsPage() {
     const classAllowed =
       myClasses.some(
         (classRoom) =>
-          classRoom.id === classId
+          classRoom.id ===
+          classId
       );
 
     const subjectAllowed =
       availableSubjects.some(
         (subject) =>
-          subject.id === subjectId
+          subject.id ===
+          subjectId
       );
 
     if (
@@ -564,11 +705,18 @@ export default function TeacherResultsPage() {
         setError("");
         setMessage("");
 
+        /*
+         * IMPORTANT:
+         *
+         * Use the robust teacher student
+         * lookup instead of the old
+         * getStudentsByClass().
+         */
         const [
           studentList,
           existingResults,
         ] = await Promise.all([
-          getStudentsByClass(
+          getTeacherStudentsByClass(
             classId
           ),
 
@@ -580,7 +728,9 @@ export default function TeacherResultsPage() {
           ),
         ]);
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         const list =
           studentList as Student[];
@@ -593,47 +743,53 @@ export default function TeacherResultsPage() {
         const initial: SubjectScores =
           {};
 
-        list.forEach((student) => {
-          const previous =
-            results.find(
-              (result) =>
-                result.studentId ===
-                student.id
-            );
+        list.forEach(
+          (student) => {
+            const previous =
+              results.find(
+                (result) =>
+                  result.studentId ===
+                  student.id
+              );
 
-          initial[student.id] = {
-            ca1:
-              previous?.ca1 !==
-                undefined &&
-              previous?.ca1 !== null
-                ? String(
-                    previous.ca1
-                  )
-                : "",
+            initial[
+              student.id
+            ] = {
+              ca1:
+                previous?.ca1 !==
+                  undefined &&
+                previous?.ca1 !== null
+                  ? String(
+                      previous.ca1
+                    )
+                  : "",
 
-            ca2:
-              previous?.ca2 !==
-                undefined &&
-              previous?.ca2 !== null
-                ? String(
-                    previous.ca2
-                  )
-                : "",
+              ca2:
+                previous?.ca2 !==
+                  undefined &&
+                previous?.ca2 !== null
+                  ? String(
+                      previous.ca2
+                    )
+                  : "",
 
-            exam:
-              previous?.exam !==
-                undefined &&
-              previous?.exam !== null
-                ? String(
-                    previous.exam
-                  )
-                : "",
-          };
-        });
+              exam:
+                previous?.exam !==
+                  undefined &&
+                previous?.exam !== null
+                  ? String(
+                      previous.exam
+                    )
+                  : "",
+            };
+          }
+        );
 
         setScores(initial);
       } catch (err) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setError(
           err instanceof Error
@@ -662,19 +818,22 @@ export default function TeacherResultsPage() {
   ]);
 
   /*
-   * UPDATE ONE SCORE
+   * UPDATE SCORE
    */
   function setScore(
     studentId: string,
     field: keyof ScoreRow,
     value: string
   ) {
-    if (resultsLocked) return;
+    if (resultsLocked) {
+      return;
+    }
 
     const selectedSubject =
       subjects.find(
         (subject) =>
-          subject.id === subjectId
+          subject.id ===
+          subjectId
       );
 
     const arabic =
@@ -730,23 +889,25 @@ export default function TeacherResultsPage() {
       }
     }
 
-    setScores((previous) => ({
-      ...previous,
+    setScores(
+      (previous) => ({
+        ...previous,
 
-      [studentId]: {
-        ...(previous[
-          studentId
-        ] ||
-          emptyScore()),
+        [studentId]: {
+          ...(previous[
+            studentId
+          ] ||
+            emptyScore()),
 
-        [field]:
-          nextValue,
-      },
-    }));
+          [field]:
+            nextValue,
+        },
+      })
+    );
   }
 
   /*
-   * SAVE ALL RESULTS
+   * SAVE RESULTS
    */
   async function handleSaveAll() {
     if (resultsLocked) {
@@ -779,13 +940,15 @@ export default function TeacherResultsPage() {
     const classAllowed =
       myClasses.some(
         (classRoom) =>
-          classRoom.id === classId
+          classRoom.id ===
+          classId
       );
 
     const subjectAllowed =
       availableSubjects.some(
         (subject) =>
-          subject.id === subjectId
+          subject.id ===
+          subjectId
       );
 
     if (
@@ -820,7 +983,8 @@ export default function TeacherResultsPage() {
       const selectedSubject =
         subjects.find(
           (subject) =>
-            subject.id === subjectId
+            subject.id ===
+            subjectId
         );
 
       const arabic =
@@ -838,8 +1002,8 @@ export default function TeacherResultsPage() {
               emptyScore();
 
             /*
-             * ARABIC:
-             * CA = 40
+             * ARABIC CA = 40
+             * NORMAL CA1 = 20
              */
             const ca1 = arabic
               ? Math.min(
@@ -862,11 +1026,9 @@ export default function TeacherResultsPage() {
                 );
 
             /*
-             * ARABIC:
-             * CA2 is always 0.
+             * Arabic CA2 = 0.
              *
-             * NORMAL:
-             * CA2 = 20
+             * Normal CA2 = 20.
              */
             const ca2 = arabic
               ? 0
@@ -975,7 +1137,8 @@ export default function TeacherResultsPage() {
   const selectedSubject =
     subjects.find(
       (subject) =>
-        subject.id === subjectId
+        subject.id ===
+        subjectId
     );
 
   const selectedSubjectIsArabic =
@@ -984,7 +1147,7 @@ export default function TeacherResultsPage() {
     );
 
   /*
-   * LOADING SCREEN
+   * LOADING
    */
   if (loading) {
     return (
@@ -1121,7 +1284,7 @@ export default function TeacherResultsPage() {
         </div>
       ) : (
         <>
-          {/* CLASS AND SUBJECT */}
+          {/* CLASS + SUBJECT */}
           <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
@@ -1293,9 +1456,6 @@ export default function TeacherResultsPage() {
                           ] ||
                           emptyScore();
 
-                        /*
-                         * CA
-                         */
                         const ca1 =
                           selectedSubjectIsArabic
                             ? Math.min(
@@ -1317,9 +1477,6 @@ export default function TeacherResultsPage() {
                                 )
                               );
 
-                        /*
-                         * CA2
-                         */
                         const ca2 =
                           selectedSubjectIsArabic
                             ? 0
@@ -1333,9 +1490,6 @@ export default function TeacherResultsPage() {
                                 )
                               );
 
-                        /*
-                         * EXAM
-                         */
                         const exam =
                           Math.min(
                             60,
@@ -1347,9 +1501,6 @@ export default function TeacherResultsPage() {
                             )
                           );
 
-                        /*
-                         * TOTAL
-                         */
                         const total =
                           selectedSubjectIsArabic
                             ? ca1 + exam
@@ -1359,9 +1510,6 @@ export default function TeacherResultsPage() {
                                 exam
                               );
 
-                        /*
-                         * GRADE
-                         */
                         const grade =
                           computeGrade(
                             total
@@ -1374,7 +1522,6 @@ export default function TeacherResultsPage() {
                             }
                           >
 
-                            {/* STUDENT */}
                             <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                               {
                                 student.firstName
@@ -1384,7 +1531,6 @@ export default function TeacherResultsPage() {
                               }
                             </td>
 
-                            {/* CA1 / ARABIC CA */}
                             <td className="px-4 py-2">
                               <input
                                 type="number"
@@ -1415,7 +1561,6 @@ export default function TeacherResultsPage() {
                               />
                             </td>
 
-                            {/* CA2 — NORMAL ONLY */}
                             {!selectedSubjectIsArabic && (
                               <td className="px-4 py-2">
                                 <input
@@ -1444,7 +1589,6 @@ export default function TeacherResultsPage() {
                               </td>
                             )}
 
-                            {/* EXAM */}
                             <td className="px-4 py-2">
                               <input
                                 type="number"
@@ -1471,17 +1615,14 @@ export default function TeacherResultsPage() {
                               />
                             </td>
 
-                            {/* TOTAL */}
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {total}
                             </td>
 
-                            {/* GRADE */}
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {grade}
                             </td>
 
-                            {/* REMARK */}
                             <td className="px-4 py-2 text-gray-600">
                               {computeRemark(
                                 grade
@@ -1497,7 +1638,6 @@ export default function TeacherResultsPage() {
                 </table>
               </div>
 
-              {/* SAVE BUTTON */}
               <div className="flex justify-end border-t border-gray-100 px-4 py-4">
 
                 <Button
@@ -1527,7 +1667,6 @@ export default function TeacherResultsPage() {
           ) : classId &&
             subjectId ? (
 
-            /* NO STUDENTS */
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-400">
                 No students found in this
@@ -1537,7 +1676,6 @@ export default function TeacherResultsPage() {
 
           ) : (
 
-            /* NOTHING SELECTED */
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-400">
                 Select a class and subject to
