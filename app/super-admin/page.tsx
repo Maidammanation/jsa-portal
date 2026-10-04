@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { getAdminStats, getRecentActivity } from "@/services/database";
 import { SCHOOL } from "@/settings/config";
+import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
 type Stats = {
   totalStudents: number;
@@ -113,17 +114,17 @@ const quickManagement = [
     icon: "🏫",
   },
   {
-  label: "Results & Report Cards",
-  description: "Upload, edit, delete and manage results",
-  href: "/admin/results",
-  icon: "📊",
-},
-{
-  label: "Results Control Centre",
-  description: "Master result list and bulk result management",
-  href: "/admin/results/manage",
-  icon: "🛠️",
-},
+    label: "Results & Report Cards",
+    description: "Upload, edit, delete and manage results",
+    href: "/admin/results",
+    icon: "📊",
+  },
+  {
+    label: "Results Control Centre",
+    description: "Master result list and bulk result management",
+    href: "/admin/results/manage",
+    icon: "🛠️",
+  },
   {
     label: "Attendance",
     description: "Monitor student attendance",
@@ -167,6 +168,26 @@ export default function SuperAdminDashboardPage() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // ============================================================
+  // LIVE SCHOOL SESSION / TERM
+  // ============================================================
+  //
+  // This now comes from Firestore through useSchoolSettings()
+  // instead of using the static SCHOOL.session / SCHOOL.term.
+  //
+  // Therefore when Admin changes the academic period in:
+  //
+  // /admin/settings
+  //
+  // this Super Admin dashboard updates automatically.
+  // ============================================================
+
+  const {
+    session,
+    term,
+    loading: settingsLoading,
+  } = useSchoolSettings();
 
   useEffect(() => {
     let mounted = true;
@@ -220,6 +241,7 @@ export default function SuperAdminDashboardPage() {
         <div className="relative p-6 sm:p-8">
           {/* Decorative elements */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/5" />
+
           <div className="pointer-events-none absolute -bottom-24 right-24 h-64 w-64 rounded-full bg-white/5" />
 
           <div className="relative z-10">
@@ -240,18 +262,38 @@ export default function SuperAdminDashboardPage() {
                 </p>
               </div>
 
+              {/* =====================================================
+                  LIVE ACADEMIC PERIOD
+              ===================================================== */}
               <div className="shrink-0 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 backdrop-blur-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                   Current Academic Period
                 </p>
 
-                <p className="mt-1 text-lg font-bold">
-                  {SCHOOL.session}
-                </p>
+                {settingsLoading ? (
+                  <div className="mt-2 space-y-2">
+                    <div className="h-5 w-28 animate-pulse rounded bg-white/10" />
 
-                <p className="mt-1 text-sm text-gray-300">
-                  {SCHOOL.term}
-                </p>
+                    <div className="h-4 w-20 animate-pulse rounded bg-white/10" />
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-1 text-lg font-bold">
+                      {session}
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-300">
+                      {term}
+                    </p>
+                  </>
+                )}
+
+                <Link
+                  href="/admin/settings"
+                  className="mt-3 inline-block text-[11px] font-semibold text-gray-400 transition hover:text-white hover:underline"
+                >
+                  Change academic period →
+                </Link>
               </div>
             </div>
           </div>
@@ -268,7 +310,10 @@ export default function SuperAdminDashboardPage() {
 
             <div>
               <p className="font-semibold">Dashboard notice</p>
-              <p className="mt-0.5">{error}</p>
+
+              <p className="mt-0.5">
+                {error}
+              </p>
             </div>
           </div>
         </div>
@@ -377,6 +422,7 @@ export default function SuperAdminDashboardPage() {
 
                     <div className="flex-1">
                       <div className="h-3 w-40 rounded bg-gray-200" />
+
                       <div className="mt-2 h-2.5 w-64 rounded bg-gray-100" />
                     </div>
                   </div>
@@ -488,7 +534,7 @@ export default function SuperAdminDashboardPage() {
       </section>
 
       {/* =========================================================
-          SYSTEM STATUS / FUTURE ARCHITECTURE
+          SYSTEM STATUS
       ========================================================= */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -503,18 +549,20 @@ export default function SuperAdminDashboardPage() {
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
               The portal is structured around students, teachers, parents,
-              classes, subjects, attendance, fees and academic results. The
-              next major architecture layer can support multiple campuses or
-              annexes without changing the core academic records.
+              classes, subjects, attendance, fees and academic results.
+              The system is also prepared for future multi-campus and
+              annex management.
             </p>
           </div>
 
           <div className="grid shrink-0 grid-cols-2 gap-2">
             <div className="rounded-xl bg-gray-50 px-4 py-3 text-center">
               <p className="text-lg">🏫</p>
+
               <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 Campus
               </p>
+
               <p className="text-xs font-bold text-gray-700">
                 Ready to build
               </p>
@@ -522,9 +570,11 @@ export default function SuperAdminDashboardPage() {
 
             <div className="rounded-xl bg-gray-50 px-4 py-3 text-center">
               <p className="text-lg">🔐</p>
+
               <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 Control
               </p>
+
               <p className="text-xs font-bold text-gray-700">
                 Super Admin
               </p>
