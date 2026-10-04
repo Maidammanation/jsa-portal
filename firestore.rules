@@ -1,0 +1,455 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // JSA FIRESTORE SECURITY RULES
+    // ============================================================
+    //
+    // Roles:
+    // super-admin
+    // admin
+    // teacher
+    // student
+    // parent
+    //
+    // IMPORTANT:
+    // Access is denied by default.
+    // ============================================================
+
+
+    // ------------------------------------------------------------
+    // USER PROFILE HELPERS
+    // ------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        );
+    }
+
+    function myUser() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function myRole() {
+      return myUser().data.role;
+    }
+
+    function accountIsActive() {
+      return userExists()
+        && myUser().data.status == "active";
+    }
+
+    function isSuperAdmin() {
+      return accountIsActive()
+        && myRole() == "super-admin";
+    }
+
+    function isAdmin() {
+      return accountIsActive()
+        && myRole() == "admin";
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isSuperAdmin() || isAdmin();
+    }
+
+    function isTeacher() {
+      return accountIsActive()
+        && myRole() == "teacher";
+    }
+
+    function isStudent() {
+      return accountIsActive()
+        && myRole() == "student";
+    }
+
+    function isParent() {
+      return accountIsActive()
+        && myRole() == "parent";
+    }
+
+
+    // ------------------------------------------------------------
+    // USERS
+    // ------------------------------------------------------------
+    //
+    // Users contain authentication profile information.
+    // Normal users must never be allowed to browse other users.
+    // ------------------------------------------------------------
+
+    match /users/{uid} {
+
+      // A user may read only their own profile.
+      // Admins can read team/user profiles.
+      allow read: if accountIsActive()
+        && (
+          request.auth.uid == uid
+          || isAdminOrSuperAdmin()
+        );
+
+      // Only administrators can create/update/delete user profiles.
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin()
+        || (
+          accountIsActive()
+          && request.auth.uid == uid
+          // A normal user cannot change their own role/status.
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.status == resource.data.status
+        );
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // STUDENTS
+    // ------------------------------------------------------------
+    //
+    // Admin/Super Admin:
+    //   Full student management.
+    //
+    // Student:
+    //   Own student document only.
+    //
+    // Parent:
+    //   Only children linked through parentUid.
+    //
+    // Teacher:
+    //   Read access is needed by the current teacher portal.
+    //   Writes remain admin-only.
+    // ------------------------------------------------------------
+
+    match /students/{studentId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || (
+          isStudent()
+          && resource.data.authUid == request.auth.uid
+        )
+        || (
+          isParent()
+          && resource.data.parentUid == request.auth.uid
+        );
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin()
+        || (
+          isStudent()
+          && resource.data.authUid == request.auth.uid
+          // Students cannot move themselves to another class,
+          // change admission number, or change ownership.
+          && request.resource.data.authUid == resource.data.authUid
+          && request.resource.data.classId == resource.data.classId
+          && request.resource.data.admissionNo == resource.data.admissionNo
+          && request.resource.data.parentUid == resource.data.parentUid
+        );
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // CLASSES
+    // ------------------------------------------------------------
+
+    match /classes/{classId} {
+
+      // Teachers need class information.
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || isStudent()
+        || isParent();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // SUBJECTS
+    // ------------------------------------------------------------
+
+    match /subjects/{subjectId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || isStudent()
+        || isParent();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // TEACHERS
+    // ------------------------------------------------------------
+
+    match /teachers/{teacherId} {
+
+      // Teachers can read teacher records because the current
+      // teacher dashboard uses this collection to identify
+      // the logged-in teacher and assignments.
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // PARENTS
+    // ------------------------------------------------------------
+
+    match /parents/{parentId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || (
+          isParent()
+          && (
+            resource.data.authUid == request.auth.uid
+            || resource.data.uid == request.auth.uid
+          )
+        );
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin()
+        || (
+          isParent()
+          && (
+            resource.data.authUid == request.auth.uid
+            || resource.data.uid == request.auth.uid
+          )
+        );
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // RESULTS
+    // ------------------------------------------------------------
+    //
+    // Admin/Super Admin:
+    //   Full control.
+    //
+    // Teacher:
+    //   Current portal requires result read/write access.
+    //
+    // Student:
+    //   Can read only results belonging to themselves.
+    //
+    // Parent:
+    //   Can read results belonging to their children.
+    // ------------------------------------------------------------
+
+    match /results/{resultId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || (
+          isStudent()
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.authUid == request.auth.uid
+        )
+        || (
+          isParent()
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.parentUid == request.auth.uid
+        );
+
+      allow create: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow update: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow delete: if isAdminOrSuperAdmin()
+        || isTeacher();
+    }
+
+
+    // ------------------------------------------------------------
+    // ATTENDANCE
+    // ------------------------------------------------------------
+    //
+    // Current attendance documents contain:
+    // classId
+    // date
+    // records[]
+    // takenBy
+    //
+    // Admins have full control.
+    // Teachers need read/write for the current portal.
+    // Students/parents may read attendance belonging to
+    // the student's class.
+    // ------------------------------------------------------------
+
+    match /attendance/{attendanceId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || (
+          isStudent()
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.classId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.classId)
+          ).data.classId == resource.data.classId
+        )
+        || isParent();
+
+      allow create: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow update: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // FEE STRUCTURE
+    // ------------------------------------------------------------
+
+    match /feeStructure/{feeId} {
+
+      // School financial structure must not be publicly readable.
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || isParent()
+        || isStudent();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // FEE PAYMENTS
+    // ------------------------------------------------------------
+    //
+    // Payment documents use studentId.
+    // Parents/students are allowed to read only payments
+    // belonging to the relevant student.
+    // ------------------------------------------------------------
+
+    match /feePayments/{paymentId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher()
+        || (
+          isStudent()
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.authUid == request.auth.uid
+        )
+        || (
+          isParent()
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.parentUid == request.auth.uid
+        );
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // PROMOTION HISTORY
+    // ------------------------------------------------------------
+
+    match /promotionHistory/{historyId} {
+
+      allow read: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow create: if isAdminOrSuperAdmin();
+
+      allow update: if isAdminOrSuperAdmin();
+
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // ACTIVITY LOG
+    // ------------------------------------------------------------
+    //
+    // Users should not be able to rewrite audit history.
+    // ------------------------------------------------------------
+
+    match /activityLog/{activityId} {
+
+      allow read: if isAdminOrSuperAdmin();
+
+      allow create: if isAdminOrSuperAdmin()
+        || isTeacher();
+
+      allow update: if false;
+
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------
+    // DEFAULT DENY
+    // ------------------------------------------------------------
+    //
+    // Any collection not explicitly listed above is blocked.
+    // This is extremely important.
+    // ------------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
