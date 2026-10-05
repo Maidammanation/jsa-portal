@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
 import {
   DataTable,
   StatusBadge,
   type Column,
 } from "@/components/Tables";
+
 import { Button } from "@/components/Buttons";
+import { TextInput, SelectInput } from "@/components/Forms";
+
 import { getAll, remove } from "@/services/database";
 
 interface Teacher {
@@ -41,39 +45,66 @@ interface Subject {
   name: string;
 }
 
+type StatusFilter =
+  | "all"
+  | "active"
+  | "suspended"
+  | "disabled";
+
+type FormMasterFilter =
+  | "all"
+  | "form-master"
+  | "not-form-master";
+
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilter>("all");
+
+  const [formMasterFilter, setFormMasterFilter] =
+    useState<FormMasterFilter>("all");
 
   const load = async () => {
     setLoading(true);
 
     try {
-      const [teacherData, classData, subjectData] =
-        await Promise.all([
-          getAll("teachers"),
-          getAll("classes"),
-          getAll("subjects"),
-        ]);
+      const [
+        teacherData,
+        classData,
+        subjectData,
+      ] = await Promise.all([
+        getAll("teachers"),
+        getAll("classes"),
+        getAll("subjects"),
+      ]);
 
       setTeachers(teacherData as Teacher[]);
       setClasses(classData as ClassRoom[]);
       setSubjects(subjectData as Subject[]);
     } catch (error) {
-      console.error("Could not load teachers:", error);
+      console.error(
+        "Could not load teachers:",
+        error
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
-  const getTeacherSubjects = (teacher: Teacher) => {
+  const getTeacherSubjects = (
+    teacher: Teacher
+  ) => {
     if (
       teacher.subjectIds &&
       teacher.subjectIds.length > 0
@@ -82,7 +113,8 @@ export default function TeachersListPage() {
         .map(
           (subjectId) =>
             subjects.find(
-              (subject) => subject.id === subjectId
+              (subject) =>
+                subject.id === subjectId
             )?.name
         )
         .filter(Boolean) as string[];
@@ -109,7 +141,9 @@ export default function TeachersListPage() {
     return [];
   };
 
-  const getTeacherClasses = (teacher: Teacher) => {
+  const getTeacherClasses = (
+    teacher: Teacher
+  ) => {
     if (
       !teacher.classIds ||
       teacher.classIds.length === 0
@@ -128,7 +162,9 @@ export default function TeachersListPage() {
       .filter(Boolean) as string[];
   };
 
-  const getFormMasterClass = (teacher: Teacher) => {
+  const getFormMasterClass = (
+    teacher: Teacher
+  ) => {
     const formClassId =
       teacher.formClassId ||
       teacher.formMasterClassId ||
@@ -136,7 +172,8 @@ export default function TeachersListPage() {
 
     if (formClassId) {
       const classRoom = classes.find(
-        (item) => item.id === formClassId
+        (item) =>
+          item.id === formClassId
       );
 
       if (classRoom) {
@@ -151,7 +188,89 @@ export default function TeachersListPage() {
     return "";
   };
 
-  const handleDelete = async (teacher: Teacher) => {
+  const filteredTeachers = useMemo(() => {
+    const term = search
+      .trim()
+      .toLowerCase();
+
+    return teachers.filter((teacher) => {
+      const teacherName =
+        `${teacher.firstName} ${teacher.lastName}`
+          .toLowerCase();
+
+      const email =
+        teacher.email?.toLowerCase() || "";
+
+      const matchesSearch =
+        !term ||
+        teacherName.includes(term) ||
+        email.includes(term);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        teacher.status === statusFilter;
+
+      const isFormMaster = Boolean(
+        teacher.formClassId ||
+          teacher.formMasterClassId ||
+          teacher.formMasterClassName
+      );
+
+      const matchesFormMaster =
+        formMasterFilter === "all" ||
+        (formMasterFilter ===
+          "form-master" &&
+          isFormMaster) ||
+        (formMasterFilter ===
+          "not-form-master" &&
+          !isFormMaster);
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesFormMaster
+      );
+    });
+  }, [
+    teachers,
+    search,
+    statusFilter,
+    formMasterFilter,
+  ]);
+
+  const activeTeachers = teachers.filter(
+    (teacher) =>
+      teacher.status === "active"
+  ).length;
+
+  const suspendedTeachers = teachers.filter(
+    (teacher) =>
+      teacher.status === "suspended"
+  ).length;
+
+  const disabledTeachers = teachers.filter(
+    (teacher) =>
+      teacher.status === "disabled"
+  ).length;
+
+  const formMasters = teachers.filter(
+    (teacher) =>
+      Boolean(
+        teacher.formClassId ||
+          teacher.formMasterClassId ||
+          teacher.formMasterClassName
+      )
+  ).length;
+
+  const teachersWithLogin =
+    teachers.filter(
+      (teacher) =>
+        Boolean(teacher.authUid)
+    ).length;
+
+  const handleDelete = async (
+    teacher: Teacher
+  ) => {
     if (deletingId) {
       return;
     }
@@ -161,7 +280,7 @@ export default function TeachersListPage() {
 
     const confirmed = confirm(
       teacher.authUid
-        ? `Remove ${teacherName}?\n\nThis will permanently remove the teacher record and their portal login account. Their email can then be used again.\n\nThis action cannot be undone.`
+        ? `Remove ${teacherName}?\n\nThis will permanently remove the teacher record and their portal login account.\n\nThis action cannot be undone.`
         : `Remove ${teacherName}?\n\nThis teacher does not have a portal login account. Only the teacher record will be removed.\n\nThis action cannot be undone.`
     );
 
@@ -172,20 +291,14 @@ export default function TeachersListPage() {
     setDeletingId(teacher.id);
 
     try {
-      /*
-       * If the teacher has a portal login, remove the
-       * Firebase Authentication account first.
-       *
-       * The API also removes the linked users/{uid}
-       * profile and teacher record.
-       */
       if (teacher.authUid) {
         const response = await fetch(
           "/api/admin/delete-account",
           {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
+              "Content-Type":
+                "application/json",
             },
             body: JSON.stringify({
               uid: teacher.authUid,
@@ -195,7 +308,8 @@ export default function TeachersListPage() {
           }
         );
 
-        const result = await response.json();
+        const result =
+          await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -204,11 +318,10 @@ export default function TeachersListPage() {
           );
         }
       } else {
-        /*
-         * No login account exists, so just remove
-         * the teacher Firestore record.
-         */
-        await remove("teachers", teacher.id);
+        await remove(
+          "teachers",
+          teacher.id
+        );
       }
 
       await load();
@@ -238,13 +351,18 @@ export default function TeachersListPage() {
     {
       header: "Name",
       accessor: "firstName",
-      render: (teacher) =>
-        `${teacher.firstName} ${teacher.lastName}`,
-    },
+      render: (teacher) => (
+        <div>
+          <p className="font-medium text-gray-800">
+            {teacher.firstName}{" "}
+            {teacher.lastName}
+          </p>
 
-    {
-      header: "Email",
-      accessor: "email",
+          <p className="text-xs text-gray-400">
+            {teacher.email}
+          </p>
+        </div>
+      ),
     },
 
     {
@@ -254,7 +372,9 @@ export default function TeachersListPage() {
         const teacherSubjects =
           getTeacherSubjects(teacher);
 
-        if (teacherSubjects.length === 0) {
+        if (
+          teacherSubjects.length === 0
+        ) {
           return (
             <span className="text-gray-400">
               —
@@ -286,7 +406,9 @@ export default function TeachersListPage() {
         const teacherClasses =
           getTeacherClasses(teacher);
 
-        if (teacherClasses.length === 0) {
+        if (
+          teacherClasses.length === 0
+        ) {
           return (
             <span className="text-gray-400">
               —
@@ -334,7 +456,9 @@ export default function TeachersListPage() {
       header: "Status",
       accessor: "status",
       render: (teacher) => (
-        <StatusBadge status={teacher.status} />
+        <StatusBadge
+          status={teacher.status}
+        />
       ),
     },
 
@@ -343,12 +467,12 @@ export default function TeachersListPage() {
       accessor: "authUid",
       render: (teacher) =>
         teacher.authUid ? (
-          <span className="text-status-active text-sm">
+          <span className="text-status-active text-sm font-medium">
             Active
           </span>
         ) : (
           <span className="text-gray-400 text-sm">
-            —
+            Not Created
           </span>
         ),
     },
@@ -376,8 +500,12 @@ export default function TeachersListPage() {
 
           <button
             type="button"
-            disabled={deletingId === teacher.id}
-            onClick={() => handleDelete(teacher)}
+            disabled={
+              deletingId === teacher.id
+            }
+            onClick={() =>
+              handleDelete(teacher)
+            }
             className="text-status-disabled hover:underline text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {deletingId === teacher.id
@@ -390,7 +518,8 @@ export default function TeachersListPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* HEADER */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">
@@ -398,7 +527,8 @@ export default function TeachersListPage() {
           </h1>
 
           <p className="text-sm text-gray-500 mt-1">
-            Manage teachers, subjects, classes and Form Master assignments.
+            Manage teachers, subjects, classes,
+            Form Masters and portal accounts.
           </p>
         </div>
 
@@ -409,11 +539,12 @@ export default function TeachersListPage() {
         </Link>
       </div>
 
+      {/* SUMMARY */}
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
             <p className="text-xs text-gray-400">
-              Total Teachers
+              Total
             </p>
 
             <p className="text-2xl font-semibold text-gray-800 mt-1">
@@ -423,16 +554,31 @@ export default function TeachersListPage() {
 
           <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
             <p className="text-xs text-gray-400">
-              Active Teachers
+              Active
             </p>
 
-            <p className="text-2xl font-semibold text-gray-800 mt-1">
-              {
-                teachers.filter(
-                  (teacher) =>
-                    teacher.status === "active"
-                ).length
-              }
+            <p className="text-2xl font-semibold text-status-active mt-1">
+              {activeTeachers}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+            <p className="text-xs text-gray-400">
+              Suspended
+            </p>
+
+            <p className="text-2xl font-semibold text-yellow-600 mt-1">
+              {suspendedTeachers}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+            <p className="text-xs text-gray-400">
+              Disabled
+            </p>
+
+            <p className="text-2xl font-semibold text-status-disabled mt-1">
+              {disabledTeachers}
             </p>
           </div>
 
@@ -442,20 +588,125 @@ export default function TeachersListPage() {
             </p>
 
             <p className="text-2xl font-semibold text-gray-800 mt-1">
-              {
-                teachers.filter(
-                  (teacher) =>
-                    Boolean(
-                      teacher.formClassId ||
-                        teacher.formMasterClassId
-                    )
-                ).length
-              }
+              {formMasters}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+            <p className="text-xs text-gray-400">
+              Portal Login
+            </p>
+
+            <p className="text-2xl font-semibold text-gray-800 mt-1">
+              {teachersWithLogin}
             </p>
           </div>
         </div>
       )}
 
+      {/* FILTERS */}
+      <div className="rounded-card border border-gray-100 bg-white shadow-sm p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TextInput
+            label="Search Teachers"
+            placeholder="Search name or email..."
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+          />
+
+          <SelectInput
+            label="Status"
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target
+                  .value as StatusFilter
+              )
+            }
+            options={[
+              {
+                label: "All Statuses",
+                value: "all",
+              },
+              {
+                label: "Active",
+                value: "active",
+              },
+              {
+                label: "Suspended",
+                value: "suspended",
+              },
+              {
+                label: "Disabled",
+                value: "disabled",
+              },
+            ]}
+          />
+
+          <SelectInput
+            label="Form Master"
+            value={formMasterFilter}
+            onChange={(event) =>
+              setFormMasterFilter(
+                event.target
+                  .value as FormMasterFilter
+              )
+            }
+            options={[
+              {
+                label: "All Teachers",
+                value: "all",
+              },
+              {
+                label: "Form Masters Only",
+                value: "form-master",
+              },
+              {
+                label: "Non-Form Masters",
+                value: "not-form-master",
+              },
+            ]}
+          />
+        </div>
+
+        {(search ||
+          statusFilter !== "all" ||
+          formMasterFilter !== "all") && (
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              Showing{" "}
+              <strong>
+                {filteredTeachers.length}
+              </strong>{" "}
+              of{" "}
+              <strong>
+                {teachers.length}
+              </strong>{" "}
+              teachers.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+                setFormMasterFilter(
+                  "all"
+                );
+              }}
+              className="text-sm text-brand hover:underline"
+            >
+              Clear Filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* TABLE */}
       {loading ? (
         <p className="text-sm text-gray-400">
           Loading teachers...
@@ -464,8 +715,12 @@ export default function TeachersListPage() {
         <div className="overflow-x-auto">
           <DataTable
             columns={columns}
-            data={teachers}
-            emptyMessage="No teachers found."
+            data={filteredTeachers}
+            emptyMessage={
+              teachers.length === 0
+                ? "No teachers found."
+                : "No teachers match your filters."
+            }
           />
         </div>
       )}
