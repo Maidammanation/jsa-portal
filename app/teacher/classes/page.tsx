@@ -29,6 +29,32 @@ interface TeacherRecord {
   classIds?: string[];
   formClassId?: string | null;
   formMasterClassId?: string | null;
+  formMasterClassName?: string;
+}
+
+function normalize(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim().toLowerCase()
+    : "";
+}
+
+function matchesClass(
+  value: unknown,
+  classroom: ClassRoom
+): boolean {
+  const normalizedValue =
+    normalize(value);
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  return (
+    normalizedValue ===
+      normalize(classroom.id) ||
+    normalizedValue ===
+      normalize(classroom.name)
+  );
 }
 
 export default function TeacherClassesPage() {
@@ -56,45 +82,45 @@ export default function TeacherClassesPage() {
     useState("");
 
   /*
-   * Load teacher and classes.
+   * Load teacher record and all classes.
    */
   useEffect(() => {
     if (!profile?.uid) {
+      setLoading(false);
       return;
     }
 
     let mounted = true;
 
-    setLoading(true);
-    setError("");
+    async function loadTeacherData() {
+      try {
+        setLoading(true);
+        setError("");
 
-    Promise.all([
-      getTeacherByAuthUid(
-        profile.uid
-      ),
-      getClasses(),
-    ])
-      .then(
-        ([
+        const [
           teacherRecord,
           classList,
-        ]) => {
-          if (!mounted) {
-            return;
-          }
+        ] = await Promise.all([
+          getTeacherByAuthUid(
+            profile.uid
+          ),
+          getClasses(),
+        ]);
 
-          setTeacher(
-            teacherRecord as
-              | TeacherRecord
-              | null
-          );
-
-          setClasses(
-            classList as ClassRoom[]
-          );
+        if (!mounted) {
+          return;
         }
-      )
-      .catch((err) => {
+
+        setTeacher(
+          teacherRecord as
+            | TeacherRecord
+            | null
+        );
+
+        setClasses(
+          classList as ClassRoom[]
+        );
+      } catch (err) {
         if (!mounted) {
           return;
         }
@@ -104,12 +130,14 @@ export default function TeacherClassesPage() {
             ? err.message
             : "Could not load your classes."
         );
-      })
-      .finally(() => {
+      } finally {
         if (mounted) {
           setLoading(false);
         }
-      });
+      }
+    }
+
+    loadTeacherData();
 
     return () => {
       mounted = false;
@@ -117,234 +145,264 @@ export default function TeacherClassesPage() {
   }, [profile?.uid]);
 
   /*
-   * Build the complete list of classes
-   * available to this teacher.
+   * Resolve every possible teacher class assignment.
    *
-   * Supports:
-   * - classIds
+   * Supported formats:
+   * - classIds containing class document IDs
+   * - classIds containing class names
    * - formClassId
    * - formMasterClassId
+   * - formMasterClassName
+   *
+   * The result always contains the actual
+   * Firestore class document IDs.
    */
-  const myClassIds =
-    useMemo(() => {
-      const ids = new Set<string>();
+  const assignedClasses = useMemo(() => {
+    const identifiers = [
+      ...(teacher?.classIds || []),
 
-      for (
-        const id of
-          teacher?.classIds || []
-      ) {
-        if (
-          typeof id === "string" &&
-          id.trim()
-        ) {
-          ids.add(
-            id.trim()
+      teacher?.formClassId || "",
+
+      teacher?.formMasterClassId || "",
+
+      teacher?.formMasterClassName || "",
+    ].filter(
+      (
+        value
+      ): value is string =>
+        typeof value === "string" &&
+        value.trim().length > 0
+    );
+
+    const result =
+      new Map<string, ClassRoom>();
+
+    classes.forEach(
+      (classroom) => {
+        const matches =
+          identifiers.some(
+            (identifier) =>
+              matchesClass(
+                identifier,
+                classroom
+              )
+          );
+
+        if (matches) {
+          result.set(
+            classroom.id,
+            classroom
           );
         }
       }
+    );
 
-      const formClassId =
-        typeof teacher?.formClassId ===
-        "string"
-          ? teacher.formClassId.trim()
-          : "";
-
-      const formMasterClassId =
-        typeof teacher?.formMasterClassId ===
-        "string"
-          ? teacher.formMasterClassId.trim()
-          : "";
-
-      if (formClassId) {
-        ids.add(
-          formClassId
-        );
-      }
-
-      if (formMasterClassId) {
-        ids.add(
-          formMasterClassId
-        );
-      }
-
-      return Array.from(ids);
-    }, [teacher]);
+    return Array.from(
+      result.values()
+    );
+  }, [
+    classes,
+    teacher,
+  ]);
 
   /*
-   * Match teacher class IDs against
-   * the actual classes collection.
+   * These are always the REAL class document IDs.
    */
-  const myClasses =
-    useMemo(
-      () =>
-        classes.filter(
-          (cls) =>
-            myClassIds.includes(
-              cls.id
-            )
-        ),
-      [
-        classes,
-        myClassIds,
-      ]
-    );
+  const myClassIds = useMemo(
+    () =>
+      assignedClasses.map(
+        (classroom) =>
+          classroom.id
+      ),
+    [assignedClasses]
+  );
 
   /*
    * Selected class.
    */
   const selectedClass =
-    myClasses.find(
-      (cls) =>
-        cls.id === classId
+    assignedClasses.find(
+      (classroom) =>
+        classroom.id === classId
     ) || null;
 
   /*
-   * Check whether selected class
-   * is the teacher's Form Master class.
+   * Check whether selected class is
+   * the teacher's Form Master class.
    */
   const isFormMaster =
-    Boolean(
-      classId &&
-        (
-          teacher?.formClassId ===
-            classId ||
-          teacher?.formMasterClassId ===
-            classId
-        )
-    );
+    useMemo(() => {
+      if (!selectedClass) {
+        return false;
+      }
+
+      return [
+        teacher?.formClassId,
+
+        teacher?.formMasterClassId,
+
+        teacher?.formMasterClassName,
+      ].some(
+        (value) =>
+          matchesClass(
+            value,
+            selectedClass
+          )
+      );
+    }, [
+      selectedClass,
+      teacher,
+    ]);
 
   /*
-   * Load students for selected class.
-   *
-   * Uses the robust helper that checks:
-   * - class document ID
-   * - legacy class ID
-   * - class name
+   * Load students whenever the teacher
+   * selects a class.
    */
   useEffect(() => {
     if (!classId) {
       setStudents([]);
+      setLoadingStudents(false);
       return;
     }
 
+    /*
+     * Security/UI check:
+     * the selected class must belong to
+     * the teacher's resolved assignments.
+     */
     if (
       !myClassIds.includes(
         classId
       )
     ) {
       setStudents([]);
+      setLoadingStudents(false);
+
+      setError(
+        "You are not assigned to the selected class."
+      );
+
       return;
     }
 
     let cancelled = false;
 
-    setLoadingStudents(true);
-    setError("");
+    async function loadStudents() {
+      try {
+        setLoadingStudents(true);
+        setError("");
 
-    getTeacherStudentsByClass(
-      classId
-    )
-      .then((studentList) => {
+        const studentList =
+          await getTeacherStudentsByClass(
+            classId
+          );
+
         if (cancelled) {
           return;
         }
 
+        /*
+         * Convert the generic Firestore
+         * records into the Student shape
+         * expected by DataTable.
+         */
         const list =
           (
             studentList as unknown[]
-          ).map((item) => {
-            const raw =
-              item as Record<
-                string,
-                unknown
-              >;
+          ).map(
+            (item) => {
+              const raw =
+                item as Record<
+                  string,
+                  unknown
+                >;
 
-            return {
-              id: String(
-                raw.id || ""
-              ),
-
-              admissionNo:
-                String(
-                  raw.admissionNo ||
-                    ""
+              return {
+                id: String(
+                  raw.id || ""
                 ),
 
-              firstName:
-                String(
-                  raw.firstName ||
-                    ""
-                ),
+                admissionNo:
+                  String(
+                    raw.admissionNo ||
+                      ""
+                  ),
 
-              lastName:
-                String(
-                  raw.lastName ||
-                    ""
-                ),
+                firstName:
+                  String(
+                    raw.firstName ||
+                      ""
+                  ),
 
-              classId:
-                String(
-                  raw.classId ||
-                    classId
-                ),
+                lastName:
+                  String(
+                    raw.lastName ||
+                      ""
+                  ),
 
-              className:
-                raw.className
-                  ? String(
-                      raw.className
-                    )
-                  : undefined,
+                classId:
+                  String(
+                    raw.classId ||
+                      classId
+                  ),
 
-              gender:
-                raw.gender ===
-                "female"
-                  ? "female"
-                  : "male",
+                className:
+                  raw.className
+                    ? String(
+                        raw.className
+                      )
+                    : undefined,
 
-              dateOfBirth:
-                raw.dateOfBirth
-                  ? String(
-                      raw.dateOfBirth
-                    )
-                  : undefined,
+                gender:
+                  raw.gender ===
+                  "female"
+                    ? "female"
+                    : "male",
 
-              parentUid:
-                raw.parentUid
-                  ? String(
-                      raw.parentUid
-                    )
-                  : undefined,
+                dateOfBirth:
+                  raw.dateOfBirth
+                    ? String(
+                        raw.dateOfBirth
+                      )
+                    : undefined,
 
-              parentName:
-                raw.parentName
-                  ? String(
-                      raw.parentName
-                    )
-                  : undefined,
+                parentUid:
+                  raw.parentUid
+                    ? String(
+                        raw.parentUid
+                      )
+                    : undefined,
 
-              /*
-               * AccountStatus in the current
-               * project accepts "active".
-               */
-              status:
-                "active",
+                parentName:
+                  raw.parentName
+                    ? String(
+                        raw.parentName
+                      )
+                    : undefined,
 
-              photoUrl:
-                raw.photoUrl
-                  ? String(
-                      raw.photoUrl
-                    )
-                  : undefined,
+                /*
+                 * Keep the UI compatible with
+                 * the current Student type.
+                 */
+                status:
+                  "active",
 
-              attendsArabic:
-                raw.attendsArabic ===
-                true,
-            } as Student;
-          });
+                photoUrl:
+                  raw.photoUrl
+                    ? String(
+                        raw.photoUrl
+                      )
+                    : undefined,
+
+                attendsArabic:
+                  raw.attendsArabic ===
+                  true,
+              } as Student;
+            }
+          );
 
         setStudents(list);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) {
           return;
         }
@@ -356,14 +414,16 @@ export default function TeacherClassesPage() {
             ? err.message
             : "Could not load students."
         );
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setLoadingStudents(
             false
           );
         }
-      });
+      }
+    }
+
+    loadStudents();
 
     return () => {
       cancelled = true;
@@ -372,6 +432,37 @@ export default function TeacherClassesPage() {
     classId,
     myClassIds,
   ]);
+
+  /*
+   * Students table columns.
+   */
+  const columns: Column<Student>[] =
+    [
+      {
+        header:
+          "Admission No.",
+
+        accessor:
+          "admissionNo",
+      },
+
+      {
+        header: "Name",
+
+        accessor:
+          "firstName",
+
+        render: (student) =>
+          `${student.firstName} ${student.lastName}`,
+      },
+
+      {
+        header: "Gender",
+
+        accessor:
+          "gender",
+      },
+    ];
 
   /*
    * Loading state.
@@ -384,33 +475,6 @@ export default function TeacherClassesPage() {
     );
   }
 
-  /*
-   * Table columns.
-   */
-  const columns: Column<Student>[] =
-    [
-      {
-        header:
-          "Admission No.",
-        accessor:
-          "admissionNo",
-      },
-
-      {
-        header: "Name",
-        accessor:
-          "firstName",
-        render: (student) =>
-          `${student.firstName} ${student.lastName}`,
-      },
-
-      {
-        header: "Gender",
-        accessor:
-          "gender",
-      },
-    ];
-
   return (
     <div className="max-w-3xl space-y-4">
 
@@ -420,22 +484,23 @@ export default function TeacherClassesPage() {
           My Classes
         </h1>
 
-        <p className="text-sm text-gray-500 mt-1">
-          View students in your
-          assigned classes.
+        <p className="mt-1 text-sm text-gray-500">
+          View students in your assigned
+          classes.
         </p>
       </div>
 
       {/* Error */}
       {error && (
-        <p className="text-sm text-status-disabled bg-status-disabled/10 rounded-lg px-3 py-2">
+        <p className="rounded-lg bg-status-disabled/10 px-3 py-2 text-sm text-status-disabled">
           {error}
         </p>
       )}
 
-      {/* No classes */}
-      {myClasses.length === 0 ? (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+      {/* No assigned classes */}
+      {assignedClasses.length ===
+      0 ? (
+        <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
 
           <p className="text-sm text-status-disabled">
             No classes assigned yet.
@@ -450,36 +515,50 @@ export default function TeacherClassesPage() {
             <SelectInput
               label="Class"
               value={classId}
-              onChange={(e) =>
+              onChange={(event) => {
                 setClassId(
-                  e.target.value
-                )
-              }
+                  event.target.value
+                );
+
+                setStudents([]);
+
+                setError("");
+              }}
               options={[
                 {
                   label:
                     "Select a class",
+
                   value: "",
                 },
 
-                ...myClasses.map(
-                  (cls) => {
+                ...assignedClasses.map(
+                  (classroom) => {
                     const formMaster =
-                      teacher?.formClassId ===
-                        cls.id ||
-                      teacher?.formMasterClassId ===
-                        cls.id;
+                      [
+                        teacher?.formClassId,
+
+                        teacher?.formMasterClassId,
+
+                        teacher?.formMasterClassName,
+                      ].some(
+                        (value) =>
+                          matchesClass(
+                            value,
+                            classroom
+                          )
+                      );
 
                     return {
                       label:
-                        `${cls.name}${
+                        `${classroom.name}${
                           formMaster
                             ? " — Form Master"
                             : ""
                         }`,
 
                       value:
-                        cls.id,
+                        classroom.id,
                     };
                   }
                 ),
@@ -489,7 +568,7 @@ export default function TeacherClassesPage() {
 
           {/* Selected class information */}
           {classId && (
-            <div className="bg-brand/5 border border-brand/10 rounded-card px-4 py-3">
+            <div className="rounded-card border border-brand/10 bg-brand/5 px-4 py-3">
 
               <p className="text-sm text-brand-dark">
                 {isFormMaster
@@ -498,8 +577,9 @@ export default function TeacherClassesPage() {
               </p>
 
               {selectedClass && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="mt-1 text-xs text-gray-500">
                   Class:{" "}
+
                   <span className="font-medium">
                     {
                       selectedClass.name
@@ -514,7 +594,7 @@ export default function TeacherClassesPage() {
           {/* Loading students */}
           {classId &&
             loadingStudents && (
-              <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+              <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
 
                 <p className="text-sm text-gray-400">
                   Loading students...
@@ -532,10 +612,8 @@ export default function TeacherClassesPage() {
                 emptyMessage="No students found in this class."
               />
             )}
-
         </>
       )}
-
     </div>
   );
 }
