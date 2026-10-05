@@ -85,7 +85,10 @@ export default function TeacherClassesPage() {
    * Load teacher record and all classes.
    */
   useEffect(() => {
-    if (!profile?.uid) {
+    const authUid =
+      profile?.uid ?? "";
+
+    if (!authUid) {
       setLoading(false);
       return;
     }
@@ -102,7 +105,7 @@ export default function TeacherClassesPage() {
           classList,
         ] = await Promise.all([
           getTeacherByAuthUid(
-            profile.uid
+            authUid
           ),
           getClasses(),
         ]);
@@ -206,7 +209,8 @@ export default function TeacherClassesPage() {
   ]);
 
   /*
-   * These are always the REAL class document IDs.
+   * Always use the REAL Firestore
+   * class document IDs internally.
    */
   const myClassIds = useMemo(
     () =>
@@ -265,11 +269,6 @@ export default function TeacherClassesPage() {
       return;
     }
 
-    /*
-     * Security/UI check:
-     * the selected class must belong to
-     * the teacher's resolved assignments.
-     */
     if (
       !myClassIds.includes(
         classId
@@ -302,9 +301,9 @@ export default function TeacherClassesPage() {
         }
 
         /*
-         * Convert the generic Firestore
-         * records into the Student shape
-         * expected by DataTable.
+         * Convert generic Firestore records
+         * into the Student shape expected
+         * by the table.
          */
         const list =
           (
@@ -380,10 +379,6 @@ export default function TeacherClassesPage() {
                       )
                     : undefined,
 
-                /*
-                 * Keep the UI compatible with
-                 * the current Student type.
-                 */
                 status:
                   "active",
 
