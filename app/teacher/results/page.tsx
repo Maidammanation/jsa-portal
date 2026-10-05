@@ -30,7 +30,6 @@ import type {
   ClassRoom,
   ResultEntry,
   SchoolLevel,
-  Student,
   Subject,
 } from "@/lib/types";
 
@@ -42,6 +41,21 @@ interface TeacherRecord {
   formMasterClassId?: string | null;
   formMasterClassName?: string;
   canUploadAllResults?: boolean;
+}
+
+interface TeacherStudent {
+  id: string;
+  admissionNo: string;
+  firstName: string;
+  lastName: string;
+  classId: string;
+  className?: string;
+  gender: "male" | "female";
+  dateOfBirth?: string;
+  parentUid?: string;
+  parentName?: string;
+  photoUrl?: string;
+  attendsArabic?: boolean;
 }
 
 type ScoreRow = {
@@ -136,7 +150,7 @@ export default function TeacherResultsPage() {
     useState("");
 
   const [students, setStudents] =
-    useState<Student[]>([]);
+    useState<TeacherStudent[]>([]);
 
   const [scores, setScores] =
     useState<SubjectScores>({});
@@ -611,117 +625,91 @@ export default function TeacherResultsPage() {
         }
 
         /*
-         * Convert generic Firestore
-         * records into Student[].
+         * Keep the result-entry page independent
+         * from the Student account-status type.
          *
-         * IMPORTANT:
-         * AccountStatus in this project does
-         * not use "inactive" as a valid value.
-         * We therefore preserve only the valid
-         * status values used by the Student type.
+         * The result page only needs student
+         * identity/class information. We do not
+         * need to manufacture a fake "active"
+         * status for old Firestore records.
          */
-        const list: Student[] =
+        const list: TeacherStudent[] =
           studentList.map(
-            (student) => {
-              const rawStatus =
-                String(
-                  student.status ??
-                    "active"
-                );
+            (student) => ({
+              id: String(
+                student.id ?? ""
+              ),
 
-              /*
-               * AccountStatus currently
-               * accepts the project's valid
-               * account state. For old student
-               * records containing "inactive",
-               * treat them as active for the
-               * purpose of this teacher result
-               * type conversion.
-               */
-              const safeStatus =
-                rawStatus === "active"
-                  ? "active"
-                  : "active";
+              admissionNo: String(
+                student.admissionNo ??
+                  ""
+              ),
 
-              return {
-                id: String(
-                  student.id ?? ""
-                ),
+              firstName: String(
+                student.firstName ??
+                  ""
+              ),
 
-                admissionNo: String(
-                  student.admissionNo ??
-                    ""
-                ),
+              lastName: String(
+                student.lastName ??
+                  ""
+              ),
 
-                firstName: String(
-                  student.firstName ??
-                    ""
-                ),
+              classId: String(
+                student.classId ??
+                  classId
+              ),
 
-                lastName: String(
-                  student.lastName ??
-                    ""
-                ),
+              className:
+                student.className !=
+                null
+                  ? String(
+                      student.className
+                    )
+                  : undefined,
 
-                classId: String(
-                  student.classId ??
-                    classId
-                ),
+              gender:
+                student.gender ===
+                "female"
+                  ? "female"
+                  : "male",
 
-                className:
-                  student.className !=
-                  null
-                    ? String(
-                        student.className
-                      )
-                    : undefined,
+              dateOfBirth:
+                student.dateOfBirth !=
+                null
+                  ? String(
+                      student.dateOfBirth
+                    )
+                  : undefined,
 
-                gender:
-                  student.gender ===
-                  "female"
-                    ? "female"
-                    : "male",
+              parentUid:
+                student.parentUid !=
+                null
+                  ? String(
+                      student.parentUid
+                    )
+                  : undefined,
 
-                dateOfBirth:
-                  student.dateOfBirth !=
-                  null
-                    ? String(
-                        student.dateOfBirth
-                      )
-                    : undefined,
+              parentName:
+                student.parentName !=
+                null
+                  ? String(
+                      student.parentName
+                    )
+                  : undefined,
 
-                parentUid:
-                  student.parentUid !=
-                  null
-                    ? String(
-                        student.parentUid
-                      )
-                    : undefined,
+              photoUrl:
+                student.photoUrl !=
+                null
+                  ? String(
+                      student.photoUrl
+                    )
+                  : undefined,
 
-                parentName:
-                  student.parentName !=
-                  null
-                    ? String(
-                        student.parentName
-                      )
-                    : undefined,
-
-                status:
-                  safeStatus,
-
-                photoUrl:
-                  student.photoUrl !=
-                  null
-                    ? String(
-                        student.photoUrl
-                      )
-                    : undefined,
-
-                attendsArabic:
-                  student.attendsArabic ===
-                  true,
-              };
-            }
+              attendsArabic:
+                student.attendsArabic ===
+                true,
+            })
           );
 
         setStudents(list);
