@@ -3,1119 +3,559 @@
 import { useEffect, useMemo, useState } from "react";
 import { SelectInput, TextInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
-import { useAuth } from "@/context/AuthContext";
 import {
   getClasses,
-  getStudents,
-  getFeeStructure,
-  setClassFee,
-  getAllPayments,
-  recordPayment,
+  getStudentsByClass,
+  getAttendanceSession,
 } from "@/services/database";
 import type {
+  AttendanceStatus,
   ClassRoom,
   Student,
 } from "@/lib/types";
 
-type PaymentRecord = {
-  id: string;
-  studentId: string;
-  amount: number;
-  date?: string;
-  reference?: string;
-  recordedBy?: string;
-  term?: string;
-  session?: string;
+const STATUS_OPTIONS: {
+  label: string;
+  value: AttendanceStatus;
+}[] = [
+  {
+    label: "Present",
+    value: "present",
+  },
+  {
+    label: "Absent",
+    value: "absent",
+  },
+  {
+    label: "Late",
+    value: "late",
+  },
+];
+
+const statusStyle: Record<
+  AttendanceStatus,
+  string
+> = {
+  present:
+    "bg-status-active/10 text-status-active border-status-active/30",
+  absent:
+    "bg-status-disabled/10 text-status-disabled border-status-disabled/30",
+  late:
+    "bg-status-suspended/10 text-status-suspended border-status-suspended/30",
 };
 
-type FeeStructure = {
-  id?: string;
-  classId: string;
-  amount: number;
-  term: string;
-  session: string;
-};
-
-type StudentFeeRow = {
-  student: Student;
-  fee: number;
-  paid: number;
-  balance: number;
-  status: "paid" | "partial" | "unpaid" | "no-fee";
-};
-
-const formatNaira = (amount: number) =>
-  `₦${amount.toLocaleString("en-NG")}`;
-
-const CURRENT_TERM = "First Term";
-const CURRENT_SESSION = "2025/2026";
-
-export default function FeesPage() {
-  const { profile } = useAuth();
-
+export default function AttendancePage() {
   const [classes, setClasses] = useState<ClassRoom[]>(
     []
+  );
+
+  const [classId, setClassId] = useState("");
+
+  const [date, setDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
   );
 
   const [students, setStudents] = useState<Student[]>(
     []
   );
 
-  const [payments, setPayments] = useState<
-    PaymentRecord[]
-  >([]);
-
-  const [feeStructures, setFeeStructures] = useState<
-    FeeStructure[]
-  >([]);
-
-  const [selectedClass, setSelectedClass] =
-    useState("");
-
-  const [search, setSearch] = useState("");
-
-  const [statusFilter, setStatusFilter] =
-    useState("all");
-
-  const [loading, setLoading] = useState(true);
-
-  const [savingClassId, setSavingClassId] =
-    useState<string | null>(null);
-
-  const [feeInputs, setFeeInputs] = useState<
-    Record<string, string>
+  const [marks, setMarks] = useState<
+    Record<string, AttendanceStatus>
   >({});
 
-  const [paymentStudentId, setPaymentStudentId] =
-    useState("");
+  const [loadingClasses, setLoadingClasses] =
+    useState(true);
 
-  const [paymentAmount, setPaymentAmount] =
-    useState("");
-
-  const [paymentReference, setPaymentReference] =
-    useState("");
-
-  const [savingPayment, setSavingPayment] =
+  const [loadingStudents, setLoadingStudents] =
     useState(false);
+
+  const [saving, setSaving] = useState(false);
 
   const [message, setMessage] = useState("");
 
   const [error, setError] = useState("");
 
-  /*
-   * Load classes, students, fees and payments
-   */
-  const loadData = async () => {
-    setLoading(true);
+  /* Load classes */
+  useEffect(() => {
+    setLoadingClasses(true);
     setError("");
 
-    try {
-      const [
-        classData,
-        studentData,
-        paymentData,
-      ] = await Promise.all([
-        getClasses(),
-        getStudents(),
-        getAllPayments(),
-      ]);
-
-      const loadedClasses =
-        classData as ClassRoom[];
-
-      const loadedStudents =
-        studentData as Student[];
-
-      setClasses(loadedClasses);
-      setStudents(loadedStudents);
-
-      setPayments(paymentData as PaymentRecord[]);
-
-      const structures: FeeStructure[] = [];
-
-      for (const classRoom of loadedClasses) {
-        try {
-          const fee = await getFeeStructure(
-            CURRENT_TERM,
-            CURRENT_SESSION,
-            classRoom.id
-          );
-
-          if (fee) {
-            structures.push(
-              fee as FeeStructure
-            );
-          }
-        } catch {
-          // Ignore classes without fee structures.
-        }
-      }
-
-      setFeeStructures(structures);
-
-      const initialInputs: Record<
-        string,
-        string
-      > = {};
-
-      structures.forEach((fee) => {
-        initialInputs[fee.classId] =
-          String(fee.amount);
+    getClasses()
+      .then((data) => {
+        setClasses(data as ClassRoom[]);
+      })
+      .catch(() => {
+        setClasses([]);
+        setError("Could not load classes.");
+      })
+      .finally(() => {
+        setLoadingClasses(false);
       });
-
-      setFeeInputs(initialInputs);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load fees."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
   }, []);
 
-  /*
-   * Find fee for class
-   */
-  const getClassFee = (classId: string) => {
-    const structure = feeStructures.find(
-      (fee) => fee.classId === classId
-    );
+  /* Load students and existing attendance */
+  useEffect(() => {
+    if (!classId) {
+      setStudents([]);
+      setMarks({});
+      setMessage("");
+      setError("");
+      return;
+    }
 
-    return structure?.amount || 0;
-  };
+    setLoadingStudents(true);
+    setMessage("");
+    setError("");
 
-  /*
-   * Calculate total paid for student
-   */
-  const getStudentPaid = (
-    studentId: string
-  ) => {
-    return payments
-      .filter(
-        (payment) =>
-          payment.studentId === studentId
-      )
-      .reduce(
-        (total, payment) =>
-          total + Number(payment.amount || 0),
-        0
-      );
-  };
+    Promise.all([
+      getStudentsByClass(classId),
+      getAttendanceSession(classId, date),
+    ])
+      .then(([studentData, attendanceData]) => {
+        const studentList =
+          studentData as Student[];
 
-  /*
-   * Student fee rows
-   */
-  const studentRows = useMemo(() => {
-    const rows: StudentFeeRow[] =
-      students.map((student) => {
-        const fee = getClassFee(
-          student.classId
-        );
+        setStudents(studentList);
 
-        const paid = getStudentPaid(
-          student.id
-        );
+        const nextMarks: Record<
+          string,
+          AttendanceStatus
+        > = {};
 
-        const balance = Math.max(
-          fee - paid,
-          0
-        );
+        const existingSession =
+          attendanceData as {
+            records?: {
+              studentId: string;
+              status: AttendanceStatus;
+            }[];
+          } | null;
 
-        let status:
-          | "paid"
-          | "partial"
-          | "unpaid"
-          | "no-fee" = "no-fee";
+        studentList.forEach((student) => {
+          const existingRecord =
+            existingSession?.records?.find(
+              (record) =>
+                record.studentId === student.id
+            );
 
-        if (fee > 0 && paid >= fee) {
-          status = "paid";
-        } else if (fee > 0 && paid > 0) {
-          status = "partial";
-        } else if (fee > 0) {
-          status = "unpaid";
+          nextMarks[student.id] =
+            existingRecord?.status || "present";
+        });
+
+        setMarks(nextMarks);
+
+        if (existingSession) {
+          setMessage(
+            "Attendance already exists for this date. You can edit it and submit again."
+          );
         }
-
-        return {
-          student,
-          fee,
-          paid,
-          balance,
-          status,
-        };
+      })
+      .catch(() => {
+        setStudents([]);
+        setMarks({});
+        setError(
+          "Could not load attendance data."
+        );
+      })
+      .finally(() => {
+        setLoadingStudents(false);
       });
+  }, [classId, date]);
 
-    return rows;
-  }, [
-    students,
-    payments,
-    feeStructures,
-  ]);
+  /* Attendance statistics */
+  const counts = useMemo(() => {
+    let present = 0;
+    let absent = 0;
+    let late = 0;
 
-  /*
-   * Filter students
-   */
-  const filteredRows = useMemo(() => {
-    const query = search
-      .trim()
-      .toLowerCase();
+    students.forEach((student) => {
+      const status =
+        marks[student.id] || "present";
 
-    return studentRows.filter((row) => {
-      const matchesClass =
-        !selectedClass ||
-        row.student.classId === selectedClass;
-
-      const matchesSearch =
-        !query ||
-        `${row.student.firstName} ${row.student.lastName}`
-          .toLowerCase()
-          .includes(query) ||
-        row.student.admissionNo
-          .toLowerCase()
-          .includes(query);
-
-      const matchesStatus =
-        statusFilter === "all" ||
-        row.status === statusFilter;
-
-      return (
-        matchesClass &&
-        matchesSearch &&
-        matchesStatus
-      );
-    });
-  }, [
-    studentRows,
-    selectedClass,
-    search,
-    statusFilter,
-  ]);
-
-  /*
-   * Overall statistics
-   */
-  const stats = useMemo(() => {
-    let totalDue = 0;
-    let totalPaid = 0;
-
-    let paidCount = 0;
-    let partialCount = 0;
-    let unpaidCount = 0;
-    let noFeeCount = 0;
-
-    studentRows.forEach((row) => {
-      totalDue += row.fee;
-      totalPaid += row.paid;
-
-      if (row.status === "paid") {
-        paidCount += 1;
-      }
-
-      if (row.status === "partial") {
-        partialCount += 1;
-      }
-
-      if (row.status === "unpaid") {
-        unpaidCount += 1;
-      }
-
-      if (row.status === "no-fee") {
-        noFeeCount += 1;
+      if (status === "present") {
+        present += 1;
+      } else if (status === "absent") {
+        absent += 1;
+      } else if (status === "late") {
+        late += 1;
       }
     });
 
     return {
-      students: students.length,
-      totalDue,
-      totalPaid,
-      outstanding: Math.max(
-        totalDue - totalPaid,
-        0
-      ),
-      paidCount,
-      partialCount,
-      unpaidCount,
-      noFeeCount,
+      total: students.length,
+      present,
+      absent,
+      late,
     };
-  }, [studentRows, students.length]);
+  }, [students, marks]);
 
-  /*
-   * Save class fee
-   */
-  const handleSaveClassFee = async (
-    classId: string
+  /* Set one student's status */
+  const setMark = (
+    studentId: string,
+    status: AttendanceStatus
   ) => {
-    const rawValue = feeInputs[classId];
+    setMarks((previous) => ({
+      ...previous,
+      [studentId]: status,
+    }));
 
-    const amount = Number(rawValue);
+    setMessage("");
+    setError("");
+  };
 
-    if (!Number.isFinite(amount) || amount < 0) {
+  /* Mark everyone */
+  const markAll = (
+    status: AttendanceStatus
+  ) => {
+    const nextMarks: Record<
+      string,
+      AttendanceStatus
+    > = {};
+
+    students.forEach((student) => {
+      nextMarks[student.id] = status;
+    });
+
+    setMarks(nextMarks);
+    setMessage("");
+    setError("");
+  };
+
+  /* Submit attendance */
+  const handleSubmit = async () => {
+    if (!classId) {
+      setError("Please select a class.");
+      return;
+    }
+
+    if (!date) {
+      setError("Please select a date.");
+      return;
+    }
+
+    if (students.length === 0) {
       setError(
-        "Please enter a valid fee amount."
+        "There are no students in this class."
       );
       return;
     }
 
-    setSavingClassId(classId);
+    setSaving(true);
     setMessage("");
     setError("");
 
     try {
-      await setClassFee(
-        classId,
-        CURRENT_TERM,
-        CURRENT_SESSION,
-        amount
+      const records = students.map(
+        (student) => ({
+          studentId: student.id,
+          status:
+            marks[student.id] || "present",
+        })
       );
+
+      const response = await fetch(
+        "/api/admin/submit-attendance",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            classId,
+            date,
+            records,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Could not submit attendance."
+        );
+      }
 
       setMessage(
-        "Class fee saved successfully."
+        data.message ||
+          "Attendance submitted successfully."
       );
-
-      await loadData();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Could not save class fee."
+          : "Could not submit attendance."
       );
     } finally {
-      setSavingClassId(null);
-    }
-  };
-
-  /*
-   * Record payment
-   */
-  const handleRecordPayment = async () => {
-    if (!paymentStudentId) {
-      setError(
-        "Please select a student."
-      );
-      return;
-    }
-
-    const amount = Number(paymentAmount);
-
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0
-    ) {
-      setError(
-        "Please enter a valid payment amount."
-      );
-      return;
-    }
-
-    const selectedStudent = students.find(
-      (student) =>
-        student.id === paymentStudentId
-    );
-
-    if (!selectedStudent) {
-      setError(
-        "Selected student was not found."
-      );
-      return;
-    }
-
-    const fee = getClassFee(
-      selectedStudent.classId
-    );
-
-    const alreadyPaid = getStudentPaid(
-      selectedStudent.id
-    );
-
-    const balance = Math.max(
-      fee - alreadyPaid,
-      0
-    );
-
-    if (fee > 0 && amount > balance) {
-      setError(
-        `Payment cannot exceed the outstanding balance of ${formatNaira(
-          balance
-        )}.`
-      );
-      return;
-    }
-
-    setSavingPayment(true);
-    setMessage("");
-    setError("");
-
-    try {
-      await recordPayment({
-        studentId: paymentStudentId,
-        amount,
-        reference:
-          paymentReference.trim() ||
-          undefined,
-        term: CURRENT_TERM,
-        session: CURRENT_SESSION,
-        recordedBy:
-          profile?.uid || "",
-      });
-
-      setPaymentAmount("");
-      setPaymentReference("");
-
-      setMessage(
-        "Payment recorded successfully."
-      );
-
-      await loadData();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not record payment."
-      );
-    } finally {
-      setSavingPayment(false);
-    }
-  };
-
-  /*
-   * Recent payments
-   */
-  const recentPayments = useMemo(() => {
-    return [...payments]
-      .sort((a, b) => {
-        const dateA = a.date
-          ? new Date(a.date).getTime()
-          : 0;
-
-        const dateB = b.date
-          ? new Date(b.date).getTime()
-          : 0;
-
-        return dateB - dateA;
-      })
-      .slice(0, 10);
-  }, [payments]);
-
-  const getStudentName = (
-    studentId: string
-  ) => {
-    const student = students.find(
-      (item) => item.id === studentId
-    );
-
-    if (!student) {
-      return "Unknown student";
-    }
-
-    return `${student.firstName} ${student.lastName}`;
-  };
-
-  const getClassName = (
-    classId: string
-  ) => {
-    const classRoom = classes.find(
-      (item) => item.id === classId
-    );
-
-    return classRoom?.name || "Unknown class";
-  };
-
-  const getStatusLabel = (
-    status: StudentFeeRow["status"]
-  ) => {
-    switch (status) {
-      case "paid":
-        return "Paid";
-
-      case "partial":
-        return "Partial";
-
-      case "unpaid":
-        return "Unpaid";
-
-      default:
-        return "No Fee";
-    }
-  };
-
-  const getStatusClass = (
-    status: StudentFeeRow["status"]
-  ) => {
-    switch (status) {
-      case "paid":
-        return "bg-status-active/10 text-status-active border-status-active/20";
-
-      case "partial":
-        return "bg-status-suspended/10 text-status-suspended border-status-suspended/20";
-
-      case "unpaid":
-        return "bg-status-disabled/10 text-status-disabled border-status-disabled/20";
-
-      default:
-        return "bg-gray-100 text-gray-500 border-gray-200";
+      setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-7xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
-          Fees Management
+          Attendance
         </h1>
 
         <p className="text-sm text-gray-500 mt-1">
-          Manage school fees, student payments
-          and outstanding balances.
-        </p>
-
-        <p className="text-xs text-gray-400 mt-1">
-          {CURRENT_TERM} •{" "}
-          {CURRENT_SESSION}
+          Record daily student attendance.
         </p>
       </div>
 
-      {/* Messages */}
+      {/* Class and date */}
+      <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SelectInput
+            label="Class"
+            value={classId}
+            onChange={(event) =>
+              setClassId(event.target.value)
+            }
+            options={[
+              {
+                label: loadingClasses
+                  ? "Loading classes..."
+                  : "Select a class",
+                value: "",
+              },
+              ...classes.map((classRoom) => ({
+                label: classRoom.name,
+                value: classRoom.id,
+              })),
+            ]}
+          />
+
+          <TextInput
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(event) =>
+              setDate(event.target.value)
+            }
+          />
+        </div>
+      </div>
+
+      {/* Success */}
       {message && (
         <div className="rounded-lg border border-status-active/20 bg-status-active/5 px-4 py-3 text-sm text-status-active">
           {message}
         </div>
       )}
 
+      {/* Error */}
       {error && (
         <div className="rounded-lg border border-status-disabled/20 bg-status-disabled/5 px-4 py-3 text-sm text-status-disabled">
           {error}
         </div>
       )}
 
-      {/* Statistics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">
-            Students
-          </p>
-
-          <p className="text-2xl font-semibold text-gray-800 mt-1">
-            {stats.students}
+      {/* Loading */}
+      {loadingStudents && (
+        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+          <p className="text-sm text-gray-400">
+            Loading students...
           </p>
         </div>
+      )}
 
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">
-            Total Due
-          </p>
+      {/* Students */}
+      {!loadingStudents &&
+        students.length > 0 && (
+          <>
+            {/* Statistics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wide">
+                  Total
+                </p>
 
-          <p className="text-xl font-semibold text-gray-800 mt-1">
-            {formatNaira(stats.totalDue)}
-          </p>
-        </div>
+                <p className="text-2xl font-semibold text-gray-800 mt-1">
+                  {counts.total}
+                </p>
+              </div>
 
-        <div className="bg-white rounded-card border border-status-active/20 shadow-sm p-4">
-          <p className="text-xs text-status-active uppercase tracking-wide">
-            Total Paid
-          </p>
+              <div className="bg-white rounded-card border border-status-active/20 shadow-sm p-4">
+                <p className="text-xs text-status-active uppercase tracking-wide">
+                  Present
+                </p>
 
-          <p className="text-xl font-semibold text-status-active mt-1">
-            {formatNaira(stats.totalPaid)}
-          </p>
-        </div>
+                <p className="text-2xl font-semibold text-status-active mt-1">
+                  {counts.present}
+                </p>
+              </div>
 
-        <div className="bg-white rounded-card border border-status-disabled/20 shadow-sm p-4">
-          <p className="text-xs text-status-disabled uppercase tracking-wide">
-            Outstanding
-          </p>
+              <div className="bg-white rounded-card border border-status-disabled/20 shadow-sm p-4">
+                <p className="text-xs text-status-disabled uppercase tracking-wide">
+                  Absent
+                </p>
 
-          <p className="text-xl font-semibold text-status-disabled mt-1">
-            {formatNaira(
-              stats.outstanding
-            )}
-          </p>
-        </div>
-      </div>
+                <p className="text-2xl font-semibold text-status-disabled mt-1">
+                  {counts.absent}
+                </p>
+              </div>
 
-      {/* Fee status summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400">
-            Fully Paid
-          </p>
+              <div className="bg-white rounded-card border border-status-suspended/20 shadow-sm p-4">
+                <p className="text-xs text-status-suspended uppercase tracking-wide">
+                  Late
+                </p>
 
-          <p className="text-lg font-semibold text-status-active mt-1">
-            {stats.paidCount}
-          </p>
-        </div>
+                <p className="text-2xl font-semibold text-status-suspended mt-1">
+                  {counts.late}
+                </p>
+              </div>
+            </div>
 
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400">
-            Partial
-          </p>
-
-          <p className="text-lg font-semibold text-status-suspended mt-1">
-            {stats.partialCount}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400">
-            Unpaid
-          </p>
-
-          <p className="text-lg font-semibold text-status-disabled mt-1">
-            {stats.unpaidCount}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-400">
-            No Fee Set
-          </p>
-
-          <p className="text-lg font-semibold text-gray-500 mt-1">
-            {stats.noFeeCount}
-          </p>
-        </div>
-      </div>
-
-      {/* Class fee structure */}
-      <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">
-            Class Fee Structure
-          </h2>
-
-          <p className="text-xs text-gray-400 mt-1">
-            Set the fee amount for each class.
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="p-6">
-            <p className="text-sm text-gray-400">
-              Loading fee structures...
-            </p>
-          </div>
-        ) : classes.length === 0 ? (
-          <div className="p-6">
-            <p className="text-sm text-gray-400">
-              No classes found.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {classes.map((classRoom) => (
-              <div
-                key={classRoom.id}
-                className="px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-              >
+            {/* Attendance list */}
+            <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">
-                    {classRoom.name}
+                  <p className="text-sm font-semibold text-gray-700">
+                    {students.length} student
+                    {students.length === 1
+                      ? ""
+                      : "s"}
                   </p>
 
                   <p className="text-xs text-gray-400 mt-1">
-                    Current fee:{" "}
-                    {formatNaira(
-                      getClassFee(
-                        classRoom.id
-                      )
-                    )}
+                    {date}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="w-40">
-                    <TextInput
-                      label=""
-                      type="number"
-                      min="0"
-                      value={
-                        feeInputs[
-                          classRoom.id
-                        ] || ""
-                      }
-                      onChange={(e) =>
-                        setFeeInputs(
-                          (previous) => ({
-                            ...previous,
-                            [classRoom.id]:
-                              e.target.value,
-                          })
-                        )
-                      }
-                      placeholder="Fee amount"
-                    />
-                  </div>
-
-                  <Button
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
                     onClick={() =>
-                      handleSaveClassFee(
-                        classRoom.id
-                      )
+                      markAll("present")
                     }
-                    disabled={
-                      savingClassId ===
-                      classRoom.id
-                    }
+                    className="text-xs font-medium text-status-active hover:underline"
                   >
-                    {savingClassId ===
-                    classRoom.id
-                      ? "Saving..."
-                      : "Save"}
-                  </Button>
+                    Mark all present
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      markAll("absent")
+                    }
+                    className="text-xs font-medium text-status-disabled hover:underline"
+                  >
+                    Mark all absent
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      markAll("late")
+                    }
+                    className="text-xs font-medium text-status-suspended hover:underline"
+                  >
+                    Mark all late
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Record payment */}
-      <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">
-            Record Student Payment
-          </h2>
+              <div className="divide-y divide-gray-100">
+                {students.map(
+                  (student, index) => {
+                    const currentStatus =
+                      marks[student.id] ||
+                      "present";
 
-          <p className="text-xs text-gray-400 mt-1">
-            Record a payment made by a student.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <SelectInput
-            label="Student"
-            value={paymentStudentId}
-            onChange={(e) =>
-              setPaymentStudentId(
-                e.target.value
-              )
-            }
-            options={[
-              {
-                label: "Select student",
-                value: "",
-              },
-              ...students.map((student) => ({
-                label: `${student.firstName} ${student.lastName} — ${student.admissionNo}`,
-                value: student.id,
-              })),
-            ]}
-          />
-
-          <TextInput
-            label="Amount"
-            type="number"
-            min="0"
-            value={paymentAmount}
-            onChange={(e) =>
-              setPaymentAmount(
-                e.target.value
-              )
-            }
-            placeholder="Enter amount"
-          />
-
-          <TextInput
-            label="Reference"
-            value={paymentReference}
-            onChange={(e) =>
-              setPaymentReference(
-                e.target.value
-              )
-            }
-            placeholder="Optional reference"
-          />
-
-          <div className="flex items-end">
-            <Button
-              onClick={handleRecordPayment}
-              disabled={savingPayment}
-            >
-              {savingPayment
-                ? "Recording..."
-                : "Record Payment"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Student fee overview */}
-      <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-700">
-                Student Fee Overview
-              </h2>
-
-              <p className="text-xs text-gray-400 mt-1">
-                View each student's fee status
-                and balance.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  Search
-                </label>
-
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
-                  placeholder="Name or admission no."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  Class
-                </label>
-
-                <select
-                  value={selectedClass}
-                  onChange={(e) =>
-                    setSelectedClass(
-                      e.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand bg-white"
-                >
-                  <option value="">
-                    All classes
-                  </option>
-
-                  {classes.map((classRoom) => (
-                    <option
-                      key={classRoom.id}
-                      value={classRoom.id}
-                    >
-                      {classRoom.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  Status
-                </label>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) =>
-                    setStatusFilter(
-                      e.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand bg-white"
-                >
-                  <option value="all">
-                    All statuses
-                  </option>
-
-                  <option value="paid">
-                    Paid
-                  </option>
-
-                  <option value="partial">
-                    Partial
-                  </option>
-
-                  <option value="unpaid">
-                    Unpaid
-                  </option>
-
-                  <option value="no-fee">
-                    No Fee
-                  </option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="p-6">
-            <p className="text-sm text-gray-400">
-              Loading students...
-            </p>
-          </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="p-6">
-            <p className="text-sm text-gray-400">
-              No students match the selected
-              filters.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px]">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-                    Student
-                  </th>
-
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-                    Class
-                  </th>
-
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-                    Fee
-                  </th>
-
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-                    Paid
-                  </th>
-
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-                    Balance
-                  </th>
-
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-gray-100">
-                {filteredRows.map((row) => (
-                  <tr
-                    key={row.student.id}
-                    className="hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-gray-700">
-                        {row.student.firstName}{" "}
-                        {row.student.lastName}
-                      </p>
-
-                      <p className="text-xs text-gray-400 mt-1">
-                        {
-                          row.student
-                            .admissionNo
-                        }
-                      </p>
-                    </td>
-
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {getClassName(
-                        row.student.classId
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3 text-sm text-gray-600 text-right">
-                      {formatNaira(row.fee)}
-                    </td>
-
-                    <td className="px-4 py-3 text-sm text-status-active text-right">
-                      {formatNaira(row.paid)}
-                    </td>
-
-                    <td className="px-4 py-3 text-sm font-medium text-gray-700 text-right">
-                      {formatNaira(
-                        row.balance
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-medium ${getStatusClass(
-                          row.status
-                        )}`}
+                    return (
+                      <div
+                        key={student.id}
+                        className="px-4 py-4"
                       >
-                        {getStatusLabel(
-                          row.status
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-brand/10 text-brand-dark flex items-center justify-center text-xs font-semibold shrink-0">
+                              {index + 1}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-700 truncate">
+                                {student.firstName}{" "}
+                                {student.lastName}
+                              </p>
+
+                              <p className="text-xs text-gray-400 mt-1">
+                                {student.admissionNo}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {STATUS_OPTIONS.map(
+                              (option) => {
+                                const selected =
+                                  currentStatus ===
+                                  option.value;
+
+                                return (
+                                  <button
+                                    key={
+                                      option.value
+                                    }
+                                    type="button"
+                                    onClick={() =>
+                                      setMark(
+                                        student.id,
+                                        option.value
+                                      )
+                                    }
+                                    className={`text-xs px-3 py-2 rounded-full border transition-colors ${
+                                      selected
+                                        ? statusStyle[
+                                            option
+                                              .value
+                                          ]
+                                        : "border-gray-200 text-gray-400 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    {
+                                      option.label
+                                    }
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+
+              {/* Submit */}
+              <div className="px-4 py-4 border-t border-gray-100 flex justify-end">
+                <Button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                >
+                  {saving
+                    ? "Submitting..."
+                    : "Submit Attendance"}
+                </Button>
+              </div>
+            </div>
+          </>
         )}
-      </div>
 
-      {/* Recent payments */}
-      <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">
-            Recent Payments
-          </h2>
-
-          <p className="text-xs text-gray-400 mt-1">
-            Latest recorded student payments.
-          </p>
-        </div>
-
-        {recentPayments.length === 0 ? (
-          <div className="p-6">
+      {/* Empty state */}
+      {!loadingStudents &&
+        classId &&
+        students.length === 0 &&
+        !error && (
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
             <p className="text-sm text-gray-400">
-              No payments recorded yet.
+              No students found in this class.
             </p>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {recentPayments.map((payment) => (
-              <div
-                key={payment.id}
-                className="px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-700">
-                    {getStudentName(
-                      payment.studentId
-                    )}
-                  </p>
-
-                  <p className="text-xs text-gray-400 mt-1">
-                    {payment.date
-                      ? new Date(
-                          payment.date
-                        ).toLocaleDateString(
-                          "en-NG"
-                        )
-                      : "Date not available"}
-
-                    {payment.reference
-                      ? ` • Ref: ${payment.reference}`
-                      : ""}
-                  </p>
-                </div>
-
-                <div className="text-left sm:text-right">
-                  <p className="text-sm font-semibold text-status-active">
-                    {formatNaira(
-                      Number(
-                        payment.amount || 0
-                      )
-                    )}
-                  </p>
-
-                  <p className="text-xs text-gray-400 mt-1">
-                    {payment.term ||
-                      CURRENT_TERM}{" "}
-                    •{" "}
-                    {payment.session ||
-                      CURRENT_SESSION}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
-      </div>
     </div>
   );
 }
