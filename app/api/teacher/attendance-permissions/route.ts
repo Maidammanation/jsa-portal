@@ -10,20 +10,24 @@ import {
 
 export const runtime = "nodejs";
 
-const SESSION_COOKIE_NAME =
-  "jsa_session";
+const SESSION_COOKIE_NAME = "jsa_session";
 
 type TeacherData = {
   authUid?: string;
   classIds?: unknown;
   formClassId?: string | null;
   formMasterClassId?: string | null;
+  formMasterClassName?: string | null;
   status?: string;
 };
 
-function asStringArray(
-  value: unknown
-): string[] {
+type ClassData = {
+  id: string;
+  name?: string;
+  level?: string;
+};
+
+function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -37,12 +41,93 @@ function asStringArray(
     .map((item) => item.trim());
 }
 
+function normalize(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim().toLowerCase()
+    : "";
+}
+
+/*
+ * JSS1–JSS3 and SS1–SS3 are Secondary classes.
+ *
+ * We deliberately identify the actual class rather than
+ * trusting a teacher's stored class ID alone.
+ */
+function isSecondaryClass(
+  classroom: ClassData
+): boolean {
+  const level = normalize(
+    classroom.level
+  );
+
+  const name = normalize(
+    classroom.name
+  );
+
+  const levelIsSecondary =
+    level === "jss" ||
+    level === "ss" ||
+    level.includes("jss") ||
+    level.includes("secondary");
+
+  const nameIsSecondary =
+    /^(jss|ss)\s*[1-3]$/.test(
+      name.replace(/-/g, " ")
+    );
+
+  return (
+    levelIsSecondary ||
+    nameIsSecondary
+  );
+}
+
+/*
+ * Resolve an assignment stored either as:
+ *
+ * - Firestore class document ID
+ * - class name
+ */
+function resolveClass(
+  identifier: string,
+  classes: ClassData[]
+): ClassData | null {
+  const value = normalize(identifier);
+
+  if (!value) {
+    return null;
+  }
+
+  return (
+    classes.find(
+      (classroom) =>
+        normalize(classroom.id) ===
+        value
+    ) ||
+    classes.find(
+      (classroom) =>
+        normalize(classroom.name) ===
+        value
+    ) ||
+    null
+  );
+}
+
+function emptyPermissions() {
+  return {
+    canMarkAttendance: false,
+    attendanceClassIds: [],
+    formMasterClassId: "",
+    isFormMaster: false,
+    singleTeacherClassIds: [],
+  };
+}
+
 export async function GET(
   request: NextRequest
 ) {
   try {
     /*
-     * Secure session verification.
+     * 1. Verify secure session.
      */
     const sessionCookie =
       request.cookies.get(
@@ -52,8 +137,7 @@ export async function GET(
     if (!sessionCookie) {
       return NextResponse.json(
         {
-          error:
-            "Not authenticated.",
+          error: "Not authenticated.",
         },
         { status: 401 }
       );
@@ -66,7 +150,7 @@ export async function GET(
       );
 
     /*
-     * Verify user account.
+     * 2. Verify user account.
      */
     const userDoc =
       await adminDb()
@@ -86,38 +170,48 @@ export async function GET(
     const userData =
       userDoc.data() || {};
 
-    if (userData.role !== "teacher") {
-      return NextResponse.json({
-        canMarkAttendance: false,
-        attendanceClassIds: [],
-        formMasterClassId: "",
-        isFormMaster: false,
-        singleTeacherClassIds: [],
-      });
+    if (
+      userData.role !== "teacher"
+    ) {
+      return NextResponse.json(
+        emptyPermissions()
+      );
     }
 
     if (
-      userData.status ===
-        "suspended" ||
-      userData.status ===
-        "disabled"
+      userData.status !== "active"
     ) {
-      return NextResponse.json({
-        canMarkAttendance: false,
-        attendanceClassIds: [],
-        formMasterClassId: "",
-        isFormMaster: false,
-        singleTeacherClassIds: [],
-      });
+      return NextResponse.json(
+        emptyPermissions()
+      );
     }
 
     /*
-     * Load teachers.
+     * 3. Load all classes and teachers.
      */
-    const teachersSnapshot =
-      await adminDb()
+    const [
+      classesSnapshot,
+      teachersSnapshot,
+    ] = await Promise.all([
+      adminDb()
+        .collection("classes")
+        .get(),
+
+      adminDb()
         .collection("teachers")
-        .get();
+        .get(),
+    ]);
+
+    const classes: ClassData[] =
+      classesSnapshot.docs.map(
+        (doc) => ({
+          id: doc.id,
+          ...(doc.data() as {
+            name?: string;
+            level?: string;
+          }),
+        })
+      );
 
     const teachers = teachersSnapshot.docs.map(
       (doc) => ({
@@ -128,7 +222,7 @@ export async function GET(
     );
 
     /*
-     * Find current teacher.
+     * 4. Find current teacher.
      */
     const currentTeacher =
       teachers.find(
@@ -138,64 +232,71 @@ export async function GET(
       );
 
     if (!currentTeacher) {
-      return NextResponse.json({
-        canMarkAttendance: false,
-        attendanceClassIds: [],
-        formMasterClassId: "",
-        isFormMaster: false,
-        singleTeacherClassIds: [],
-      });
+      return NextResponse.json(
+        emptyPermissions()
+      );
     }
 
     /*
-     * Teacher's normal assigned classes.
+     * 5. Resolve this teacher's normal
+     * class assignments.
      */
-    const currentClassIds =
+    const normalAssignments =
       asStringArray(
         currentTeacher.data.classIds
       );
 
+    const resolvedNormalClasses =
+      normalAssignments
+        .map((identifier) =>
+          resolveClass(
+            identifier,
+            classes
+          )
+        )
+        .filter(
+          (
+            classroom
+          ): classroom is ClassData =>
+            Boolean(classroom)
+        );
+
     /*
-     * Form Master assignment.
+     * 6. Resolve Form Master assignment.
      *
-     * We support BOTH fields because older
-     * teacher records may use either one.
+     * Support both old and new fields.
      */
-    const formMasterClassId =
+    const formMasterIdentifier =
       typeof currentTeacher.data
         .formClassId === "string" &&
       currentTeacher.data.formClassId.trim()
-        ? currentTeacher.data.formClassId.trim()
+        ? currentTeacher.data.formClassId
         : typeof currentTeacher.data
             .formMasterClassId ===
             "string" &&
           currentTeacher.data.formMasterClassId.trim()
-        ? currentTeacher.data.formMasterClassId.trim()
+        ? currentTeacher.data.formMasterClassId
+        : typeof currentTeacher.data
+            .formMasterClassName ===
+            "string"
+        ? currentTeacher.data.formMasterClassName
         : "";
 
+    const formMasterClass =
+      resolveClass(
+        formMasterIdentifier,
+        classes
+      );
+
+    const formMasterClassId =
+      formMasterClass?.id || "";
+
     /*
-     * Effective classes:
+     * 7. Resolve every teacher's normal
+     * assigned class to a real class ID.
      *
-     * classIds
-     * +
-     * formClassId
-     * +
-     * formMasterClassId
-     */
-    const effectiveClassIds =
-      new Set<string>(
-        currentClassIds
-      );
-
-    if (formMasterClassId) {
-      effectiveClassIds.add(
-        formMasterClassId
-      );
-    }
-
-    /*
-     * Count teachers assigned to each
-     * normal class.
+     * This also supports older records where
+     * classIds contains class names.
      */
     const teacherCountByClass: Record<
       string,
@@ -203,85 +304,163 @@ export async function GET(
     > = {};
 
     for (const teacher of teachers) {
-      const classIds =
+      const identifiers =
         asStringArray(
           teacher.data.classIds
         );
 
-      for (const classId of classIds) {
-        teacherCountByClass[classId] =
+      const uniqueClassIds =
+        new Set<string>();
+
+      for (const identifier of identifiers) {
+        const classroom =
+          resolveClass(
+            identifier,
+            classes
+          );
+
+        if (classroom) {
+          uniqueClassIds.add(
+            classroom.id
+          );
+        }
+      }
+
+      for (const resolvedClassId of uniqueClassIds) {
+        teacherCountByClass[
+          resolvedClassId
+        ] =
           (teacherCountByClass[
-            classId
+            resolvedClassId
           ] || 0) + 1;
       }
     }
 
     /*
-     * Attendance classes:
+     * 8. Determine attendance permission.
      *
-     * 1. Form Master class
-     * 2. Single-teacher classes
+     * HARD RULE:
+     *
+     * JSS1–SS3:
+     * ONLY Form Master.
+     *
+     * Nursery/Primary:
+     * Form Master OR sole teacher.
      */
     const attendanceClassIds =
-      Array.from(
-        effectiveClassIds
-      ).filter((classId) => {
-        const isFormMaster =
-          classId ===
-          formMasterClassId;
+      new Set<string>();
 
-        const isOnlyTeacher =
-          teacherCountByClass[
-            classId
-          ] === 1;
+    const singleTeacherClassIds: string[] =
+      [];
 
-        return (
-          isFormMaster ||
-          isOnlyTeacher
+    for (const classroom of resolvedNormalClasses) {
+      const secondary =
+        isSecondaryClass(
+          classroom
         );
-      });
+
+      const isFormMaster =
+        classroom.id ===
+        formMasterClassId;
+
+      const isOnlyTeacher =
+        teacherCountByClass[
+          classroom.id
+        ] === 1;
+
+      if (secondary) {
+        /*
+         * JSS1–SS3 / SS1–SS3:
+         * ONLY Form Master.
+         */
+        if (isFormMaster) {
+          attendanceClassIds.add(
+            classroom.id
+          );
+        }
+      } else {
+        /*
+         * Nursery/Primary:
+         * Preserve existing behaviour.
+         */
+        if (isFormMaster) {
+          attendanceClassIds.add(
+            classroom.id
+          );
+        }
+
+        if (isOnlyTeacher) {
+          attendanceClassIds.add(
+            classroom.id
+          );
+
+          singleTeacherClassIds.push(
+            classroom.id
+          );
+        }
+      }
+    }
 
     /*
-     * Make absolutely sure the Form Master
-     * class is included.
+     * A Form Master class must always be
+     * included, even if it was not inside
+     * classIds.
      */
-    if (
-      formMasterClassId &&
-      !attendanceClassIds.includes(
-        formMasterClassId
-      )
-    ) {
-      attendanceClassIds.push(
-        formMasterClassId
+    if (formMasterClass) {
+      attendanceClassIds.add(
+        formMasterClass.id
       );
     }
 
     /*
-     * Resolve whether this teacher is
-     * actually a Form Master.
+     * For secondary classes, remove every
+     * secondary class except the Form Master
+     * class.
      */
-    const isFormMaster =
-      Boolean(
-        formMasterClassId
+    for (const classroom of classes) {
+      if (
+        isSecondaryClass(
+          classroom
+        ) &&
+        classroom.id !==
+          formMasterClassId
+      ) {
+        attendanceClassIds.delete(
+          classroom.id
+        );
+      }
+    }
+
+    const finalAttendanceClassIds =
+      Array.from(
+        attendanceClassIds
       );
 
     return NextResponse.json({
       canMarkAttendance:
-        attendanceClassIds.length >
+        finalAttendanceClassIds.length >
         0,
 
-      attendanceClassIds,
+      attendanceClassIds:
+        finalAttendanceClassIds,
 
       formMasterClassId,
 
-      isFormMaster,
+      isFormMaster:
+        Boolean(formMasterClassId),
 
       singleTeacherClassIds:
-        currentClassIds.filter(
+        singleTeacherClassIds.filter(
           (classId) =>
-            teacherCountByClass[
-              classId
-            ] === 1
+            !isSecondaryClass(
+              classes.find(
+                (item) =>
+                  item.id ===
+                  classId
+              ) || {
+                id: classId,
+              }
+            )
         ),
     });
   } catch (error) {
