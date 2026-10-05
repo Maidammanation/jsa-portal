@@ -3,9 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ============================================================
-    // AUTH HELPERS
-    // ============================================================
+    /*
+     * =========================================================
+     * AUTHENTICATION HELPERS
+     * =========================================================
+     */
 
     function signedIn() {
       return request.auth != null;
@@ -21,16 +23,18 @@ service cloud.firestore {
     function myUser() {
       return get(
         /databases/$(database)/documents/users/$(request.auth.uid)
-      );
+      ).data;
     }
 
     function myRole() {
-      return myUser().data.role;
+      return userExists()
+        ? myUser().role
+        : null;
     }
 
     function accountIsActive() {
       return userExists()
-        && myUser().data.status == "active";
+        && myUser().status == "active";
     }
 
     function isSuperAdmin() {
@@ -44,7 +48,8 @@ service cloud.firestore {
     }
 
     function isAdminOrSuperAdmin() {
-      return isSuperAdmin() || isAdmin();
+      return isAdmin()
+        || isSuperAdmin();
     }
 
     function isTeacher() {
@@ -63,9 +68,20 @@ service cloud.firestore {
     }
 
 
-    // ============================================================
-    // RESULT STATUS HELPERS
-    // ============================================================
+    /*
+     * =========================================================
+     * RESULT STATUS
+     * =========================================================
+     *
+     * OPEN:
+     * Teachers can submit results through the secure API.
+     *
+     * LOCKED:
+     * Results are finalized. Teacher editing is blocked.
+     *
+     * PUBLISHED:
+     * Students and parents can view their results.
+     */
 
     function currentResultStatus() {
       return get(
@@ -89,429 +105,592 @@ service cloud.firestore {
     }
 
 
-    // ============================================================
-    // USERS
-    // ============================================================
+    /*
+     * =========================================================
+     * USERS
+     * =========================================================
+     */
 
-    match /users/{uid} {
+    match /users/{userId} {
 
-      allow read: if accountIsActive()
-        && (
-          request.auth.uid == uid
-          || isAdminOrSuperAdmin()
-        );
+      /*
+       * A user can read their own account.
+       * Admin/Super Admin can read all users.
+       */
+      allow read: if
+        (
+          signedIn()
+          && request.auth.uid == userId
+        )
+        || isAdminOrSuperAdmin();
 
-      allow create: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can create users.
+       */
+      allow create: if
+        isAdminOrSuperAdmin();
 
-      allow update: if isAdminOrSuperAdmin()
-        || (
-          accountIsActive()
-          && request.auth.uid == uid
+      /*
+       * Admin/Super Admin can update users.
+       *
+       * Normal users may update their own profile,
+       * but cannot change their role or account status.
+       */
+      allow update: if
+        isAdminOrSuperAdmin()
+        ||
+        (
+          signedIn()
+          && request.auth.uid == userId
+          && accountIsActive()
           && request.resource.data.role == resource.data.role
           && request.resource.data.status == resource.data.status
         );
 
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Super Admin can delete users.
+       */
+      allow delete: if
+        isSuperAdmin();
     }
 
 
-    // ============================================================
-    // STUDENTS
-    // ============================================================
+    /*
+     * =========================================================
+     * STUDENTS
+     * =========================================================
+     */
 
     match /students/{studentId} {
 
-      allow read: if isAdminOrSuperAdmin()
+      /*
+       * Admin/Super Admin:
+       * full access.
+       *
+       * Teacher:
+       * can read students.
+       *
+       * Student:
+       * can read their own record.
+       *
+       * Parent:
+       * can read their child.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
         || isTeacher()
-        || (
+        ||
+        (
           isStudent()
-          && resource.data.authUid == request.auth.uid
+          && myUser().studentId == studentId
         )
-        || (
+        ||
+        (
           isParent()
           && resource.data.parentUid == request.auth.uid
         );
 
-      allow create: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can create students.
+       */
+      allow create: if
+        isAdminOrSuperAdmin();
 
-      allow update: if isAdminOrSuperAdmin()
-        || (
+      /*
+       * Admin/Super Admin can update students.
+       *
+       * Students can update their own record,
+       * but cannot change their class.
+       */
+      allow update: if
+        isAdminOrSuperAdmin()
+        ||
+        (
           isStudent()
-          && resource.data.authUid == request.auth.uid
-          && request.resource.data.authUid == resource.data.authUid
+          && myUser().studentId == studentId
           && request.resource.data.classId == resource.data.classId
-          && request.resource.data.admissionNo == resource.data.admissionNo
-          && request.resource.data.parentUid == resource.data.parentUid
         );
 
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can delete students.
+       */
+      allow delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // CLASSES
-    // ============================================================
+    /*
+     * =========================================================
+     * CLASSES
+     * =========================================================
+     */
 
     match /classes/{classId} {
 
-      allow read: if isAdminOrSuperAdmin()
-        || isTeacher()
-        || isStudent()
-        || isParent();
+      /*
+       * All active users can read classes.
+       */
+      allow read: if
+        accountIsActive();
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can manage classes.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // SUBJECTS
-    // ============================================================
+    /*
+     * =========================================================
+     * SUBJECTS
+     * =========================================================
+     */
 
     match /subjects/{subjectId} {
 
-      allow read: if isAdminOrSuperAdmin()
-        || isTeacher()
-        || isStudent()
-        || isParent();
+      /*
+       * All active users can read subjects.
+       */
+      allow read: if
+        accountIsActive();
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can manage subjects.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // TEACHERS
-    // ============================================================
+    /*
+     * =========================================================
+     * TEACHERS
+     * =========================================================
+     */
 
     match /teachers/{teacherId} {
 
-      allow read: if isAdminOrSuperAdmin()
+      /*
+       * Admin/Super Admin and teachers can read
+       * teacher records.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
         || isTeacher();
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can manage teachers.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // PARENTS
-    // ============================================================
+    /*
+     * =========================================================
+     * PARENTS
+     * =========================================================
+     */
 
     match /parents/{parentId} {
 
-      allow read: if isAdminOrSuperAdmin()
-        || (
+      /*
+       * Admin/Super Admin can read all parents.
+       *
+       * Parent can read their own parent record.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
+        ||
+        (
           isParent()
-          && (
+          &&
+          (
             resource.data.authUid == request.auth.uid
-            || resource.data.uid == request.auth.uid
+            ||
+            resource.data.uid == request.auth.uid
           )
         );
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin()
-        || (
-          isParent()
-          && (
-            resource.data.authUid == request.auth.uid
-            || resource.data.uid == request.auth.uid
-          )
-        );
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can manage parents.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // RESULTS
-    // ============================================================
+    /*
+     * =========================================================
+     * RESULTS
+     * =========================================================
+     *
+     * IMPORTANT SECURITY DESIGN:
+     *
+     * Teachers DO NOT write results directly to Firestore.
+     *
+     * Teacher result submission must go through:
+     *
+     * /api/teacher/submit-result
+     *
+     * The secure server endpoint verifies:
+     *
+     * 1. Firebase session
+     * 2. Active teacher account
+     * 3. Teacher assignment
+     * 4. Selected class
+     * 5. Selected subject
+     * 6. Form Master permissions
+     * 7. Subject level
+     * 8. Student/class relationship
+     * 9. Result status
+     * 10. CA/Exam scoring limits
+     * 11. Grade and remark
+     *
+     * Admin SDK writes bypass Firestore rules.
+     */
 
     match /results/{resultId} {
 
-      // ----------------------------------------------------------
-      // ADMIN
-      // ----------------------------------------------------------
+      /*
+       * =======================================================
+       * RESULT READ ACCESS
+       * =======================================================
+       */
 
-      allow read: if isAdminOrSuperAdmin();
-
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
-
-
-      // ----------------------------------------------------------
-      // TEACHERS
-      // ----------------------------------------------------------
-
-      allow read: if isTeacher();
-
-      allow create: if isTeacher()
-        && resultsAreOpen();
-
-      allow update: if isTeacher()
-        && resultsAreOpen();
-
-      allow delete: if isTeacher()
-        && resultsAreOpen();
-
-
-      // ----------------------------------------------------------
-      // STUDENTS
-      // ----------------------------------------------------------
-
-      allow read: if isStudent()
-        && resultsArePublished()
-        && exists(
-          /databases/$(database)/documents/students/$(resource.data.studentId)
-        )
-        && get(
-          /databases/$(database)/documents/students/$(resource.data.studentId)
-        ).data.authUid == request.auth.uid;
-
-      allow create: if false;
-
-      allow update: if false;
-
-      allow delete: if false;
-
-
-      // ----------------------------------------------------------
-      // PARENTS
-      // ----------------------------------------------------------
-
-      allow read: if isParent()
-        && resultsArePublished()
-        && exists(
-          /databases/$(database)/documents/students/$(resource.data.studentId)
-        )
-        && get(
-          /databases/$(database)/documents/students/$(resource.data.studentId)
-        ).data.parentUid == request.auth.uid;
-
-      allow create: if false;
-
-      allow update: if false;
-
-      allow delete: if false;
-    }
-
-
-    // ============================================================
-    // ATTENDANCE
-    // ============================================================
-    //
-    // IMPORTANT SECURITY DESIGN:
-    //
-    // Teachers are NOT allowed to directly create/update/delete
-    // attendance documents from the browser.
-    //
-    // Teacher attendance must go through:
-    //
-    // /api/teacher/submit-attendance
-    //
-    // The server API verifies:
-    //
-    // JSS1 -> SS3:
-    // ONLY THE FORM MASTER
-    //
-    // Nursery/Primary:
-    // Existing authorized teacher workflow
-    //
-    // Admin/Super Admin:
-    // Full control
-    //
-    // This prevents a teacher from bypassing the Form Master
-    // restriction by manually calling Firestore from the browser.
-    // ============================================================
-
-    match /attendance/{attendanceId} {
-
-      // ----------------------------------------------------------
-      // READ
-      // ----------------------------------------------------------
-      //
-      // Existing read access is preserved.
-      // ----------------------------------------------------------
-
-      allow read: if isAdminOrSuperAdmin()
+      /*
+       * Admin/Super Admin:
+       * always allowed.
+       *
+       * Teacher:
+       * can read results.
+       *
+       * Student:
+       * can only read their own results AFTER publication.
+       *
+       * Parent:
+       * can only read their child's results AFTER publication.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
         || isTeacher()
-        || isStudent()
-        || isParent();
-
-
-      // ----------------------------------------------------------
-      // CREATE
-      // ----------------------------------------------------------
-      //
-      // ONLY Admin/Super Admin can directly create attendance
-      // in Firestore.
-      //
-      // Teachers MUST use the secure server API.
-      // ----------------------------------------------------------
-
-      allow create: if isAdminOrSuperAdmin();
-
-
-      // ----------------------------------------------------------
-      // UPDATE
-      // ----------------------------------------------------------
-      //
-      // ONLY Admin/Super Admin can directly update attendance
-      // in Firestore.
-      //
-      // Teachers MUST use the secure server API.
-      // ----------------------------------------------------------
-
-      allow update: if isAdminOrSuperAdmin();
-
-
-      // ----------------------------------------------------------
-      // DELETE
-      // ----------------------------------------------------------
-
-      allow delete: if isAdminOrSuperAdmin();
-    }
-
-
-    // ============================================================
-    // FEE STRUCTURE
-    // ============================================================
-
-    match /feeStructure/{feeId} {
-
-      allow read: if isAdminOrSuperAdmin()
-        || isTeacher()
-        || isParent()
-        || isStudent();
-
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
-    }
-
-
-    // ============================================================
-    // FEE PAYMENTS
-    // ============================================================
-
-    match /feePayments/{paymentId} {
-
-      allow read: if isAdminOrSuperAdmin()
-        || isTeacher()
-        || (
+        ||
+        (
           isStudent()
-          && exists(
-            /databases/$(database)/documents/students/$(resource.data.studentId)
-          )
-          && get(
-            /databases/$(database)/documents/students/$(resource.data.studentId)
-          ).data.authUid == request.auth.uid
+          && resultsArePublished()
+          && resource.data.studentId == myUser().studentId
         )
-        || (
+        ||
+        (
           isParent()
+          && resultsArePublished()
           && exists(
             /databases/$(database)/documents/students/$(resource.data.studentId)
           )
-          && get(
+          &&
+          get(
             /databases/$(database)/documents/students/$(resource.data.studentId)
           ).data.parentUid == request.auth.uid
         );
 
-      allow create: if isAdminOrSuperAdmin();
 
-      allow update: if isAdminOrSuperAdmin();
+      /*
+       * =======================================================
+       * RESULT WRITE ACCESS
+       * =======================================================
+       */
 
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * ONLY Admin/Super Admin may write directly
+       * to the results collection.
+       *
+       * Teachers must use:
+       *
+       * /api/teacher/submit-result
+       *
+       * This prevents a teacher from bypassing:
+       *
+       * - class assignment
+       * - subject assignment
+       * - Form Master permissions
+       * - result lock
+       * - result publication
+       * - scoring validation
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // PROMOTION HISTORY
-    // ============================================================
+    /*
+     * =========================================================
+     * ATTENDANCE
+     * =========================================================
+     *
+     * IMPORTANT:
+     *
+     * Teachers DO NOT write attendance directly.
+     *
+     * Teacher attendance submission must go through:
+     *
+     * /api/teacher/submit-attendance
+     *
+     * That server endpoint enforces:
+     *
+     * JSS1 - JSS3:
+     * ONLY Form Master can take attendance.
+     *
+     * SS1 - SS3:
+     * ONLY Form Master can take attendance.
+     *
+     * Nursery/Primary:
+     * Existing assigned-teacher/Form-Master logic applies.
+     *
+     * Admin/Super Admin:
+     * Full attendance control.
+     */
+
+    match /attendance/{attendanceId} {
+
+      /*
+       * Active users can read attendance.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
+        || isTeacher()
+        || isStudent()
+        || isParent();
+
+      /*
+       * Teachers cannot directly create attendance.
+       */
+      allow create: if
+        isAdminOrSuperAdmin();
+
+      /*
+       * Teachers cannot directly update attendance.
+       */
+      allow update: if
+        isAdminOrSuperAdmin();
+
+      /*
+       * Teachers cannot directly delete attendance.
+       */
+      allow delete: if
+        isAdminOrSuperAdmin();
+    }
+
+
+    /*
+     * =========================================================
+     * FEE STRUCTURE
+     * =========================================================
+     */
+
+    match /feeStructure/{feeId} {
+
+      /*
+       * All active users can read fee structure.
+       */
+      allow read: if
+        accountIsActive();
+
+      /*
+       * Only Admin/Super Admin can manage fee structure.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
+    }
+
+
+    /*
+     * =========================================================
+     * FEE PAYMENTS
+     * =========================================================
+     */
+
+    match /feePayments/{paymentId} {
+
+      /*
+       * Admin/Super Admin and teachers can read payments.
+       *
+       * Students can read their own payments.
+       *
+       * Parents can read their child's payments.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
+        || isTeacher()
+        ||
+        (
+          isStudent()
+          && resource.data.studentId ==
+            myUser().studentId
+        )
+        ||
+        (
+          isParent()
+          &&
+          exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          &&
+          get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.parentUid ==
+            request.auth.uid
+        );
+
+      /*
+       * Only Admin/Super Admin can manage payments.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
+    }
+
+
+    /*
+     * =========================================================
+     * PROMOTION HISTORY
+     * =========================================================
+     */
 
     match /promotionHistory/{historyId} {
 
-      allow read: if isAdminOrSuperAdmin()
+      /*
+       * Admin/Super Admin and teachers can read
+       * promotion history.
+       */
+      allow read: if
+        isAdminOrSuperAdmin()
         || isTeacher();
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can create,
+       * update or delete promotion history.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // ACTIVITY LOG
-    // ============================================================
+    /*
+     * =========================================================
+     * ACTIVITY LOG
+     * =========================================================
+     */
 
     match /activityLog/{activityId} {
 
-      allow read: if isAdminOrSuperAdmin();
+      /*
+       * Admin/Super Admin can read activity logs.
+       */
+      allow read: if
+        isAdminOrSuperAdmin();
 
-      allow create: if isAdminOrSuperAdmin()
+      /*
+       * Admin/Super Admin and teachers can create logs.
+       */
+      allow create: if
+        isAdminOrSuperAdmin()
         || isTeacher();
 
-      allow update: if false;
+      /*
+       * Only Admin/Super Admin can update logs.
+       */
+      allow update: if
+        isAdminOrSuperAdmin();
 
-      allow delete: if isSuperAdmin();
+      /*
+       * Only Super Admin can delete logs.
+       */
+      allow delete: if
+        isSuperAdmin();
     }
 
 
-    // ============================================================
-    // SCHOOL SETTINGS
-    // ============================================================
+    /*
+     * =========================================================
+     * SCHOOL SETTINGS
+     * =========================================================
+     */
 
     match /schoolSettings/{settingId} {
 
-      allow read: if accountIsActive();
+      /*
+       * All active users can read school settings.
+       */
+      allow read: if
+        accountIsActive();
 
-      allow create: if isAdminOrSuperAdmin();
+      /*
+       * Admin/Super Admin can create/update settings.
+       */
+      allow create,
+      update: if
+        isAdminOrSuperAdmin();
 
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isSuperAdmin();
+      /*
+       * Only Super Admin can delete settings.
+       */
+      allow delete: if
+        isSuperAdmin();
     }
 
 
-    // ============================================================
-    // ANNOUNCEMENTS
-    // ============================================================
+    /*
+     * =========================================================
+     * ANNOUNCEMENTS
+     * =========================================================
+     */
 
     match /announcements/{announcementId} {
 
-      allow read: if accountIsActive();
+      /*
+       * All active users can read announcements.
+       */
+      allow read: if
+        accountIsActive();
 
-      allow create: if isAdminOrSuperAdmin();
-
-      allow update: if isAdminOrSuperAdmin();
-
-      allow delete: if isAdminOrSuperAdmin();
+      /*
+       * Only Admin/Super Admin can manage announcements.
+       */
+      allow create,
+      update,
+      delete: if
+        isAdminOrSuperAdmin();
     }
 
 
-    // ============================================================
-    // DEFAULT DENY
-    // ============================================================
+    /*
+     * =========================================================
+     * DEFAULT DENY
+     * =========================================================
+     *
+     * Anything not explicitly allowed above is denied.
+     */
 
     match /{document=**} {
-      allow read, write: if false;
+
+      allow read,
+      write: if false;
     }
   }
 }
