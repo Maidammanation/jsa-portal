@@ -1605,3 +1605,512 @@ export default function AdminResultsPage() {
                       )
                     }
                     placeholder="Search student name or admission
+                <p className="font-bold">
+                  Arabic Section
+                </p>
+
+                <p
+                  className={`mt-1 text-xs ${
+                    activeSection === "arabic"
+                      ? "text-white/75"
+                      : "text-gray-400"
+                  }`}
+                >
+                  CA 40 + Exam 60
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* SUBJECTS */}
+
+          <div className="p-5">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">
+                  3. Select Subjects
+                </h3>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  Select one or more subjects.
+                </p>
+              </div>
+
+              {activeSection === "arabic" && (
+                <span className="w-fit rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
+                  Arabic students only
+                </span>
+              )}
+            </div>
+
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3">
+              {activeSection === "arabic" ? (
+                arabicSubjects.length === 0 ? (
+                  <div className="rounded-lg bg-gray-50 p-4">
+                    <p className="text-sm font-medium text-gray-600">
+                      No Arabic subjects configured.
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Configure Arabic subjects from Classes & Subjects.
+                    </p>
+                  </div>
+                ) : (
+                  arabicSubjects.map((subject) => (
+                    <label
+                      key={subject.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSubjectIds.includes(subject.id)}
+                        onChange={() =>
+                          toggleSubject(subject.id)
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+
+                      <span className="flex-1 text-sm text-gray-700">
+                        {subject.name}
+                      </span>
+
+                      <span className="rounded-full bg-purple-50 px-2 py-1 text-[9px] font-bold text-purple-600">
+                        40 / 60
+                      </span>
+                    </label>
+                  ))
+                )
+              ) : mainSubjects.length === 0 ? (
+                <div className="rounded-lg bg-red-50 p-4">
+                  <p className="text-sm font-medium text-red-700">
+                    No main subjects configured for this class level.
+                  </p>
+
+                  <p className="mt-1 text-xs text-red-500">
+                    Configure the curriculum from Classes & Subjects.
+                  </p>
+                </div>
+              ) : (
+                mainSubjects.map((subject) => (
+                  <label
+                    key={subject.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSubjectIds.includes(subject.id)}
+                      onChange={() =>
+                        toggleSubject(subject.id)
+                      }
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+
+                    <span className="flex-1 text-sm text-gray-700">
+                      {subject.name}
+                    </span>
+
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[9px] font-bold text-gray-500">
+                      20 / 20 / 60
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* RESULTS */}
+
+      {selectedSubjects.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-100 p-4">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">
+                  4. Enter Results
+                </h2>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  Select a subject below.
+                </p>
+              </div>
+
+              <span className="text-xs text-gray-400">
+                {selectedSubjectIds.length} subject
+                {selectedSubjectIds.length === 1 ? "" : "s"} selected
+              </span>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {displayedSelectedSubjects.map((subject) => (
+                <button
+                  key={subject.id}
+                  type="button"
+                  onClick={() =>
+                    setActiveSubjectId(subject.id)
+                  }
+                  className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+                    activeSubjectId === subject.id
+                      ? "bg-brand text-white shadow-sm"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {subject.name}
+                </button>
+              ))}
+            </div>
+
+            {displayedSelectedSubjects.length === 0 && (
+              <p className="mt-3 text-sm text-gray-400">
+                No subjects selected in this section.
+              </p>
+            )}
+          </div>
+
+          {loadingStudents ? (
+            <div className="p-6">
+              <div className="rounded-xl bg-gray-50 p-5">
+                <p className="text-sm text-gray-500">
+                  Loading students and existing results...
+                </p>
+              </div>
+            </div>
+          ) : activeSection === "arabic" &&
+            arabicStudents.length === 0 ? (
+            <div className="p-5">
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
+                <p className="font-semibold text-yellow-800">
+                  No Arabic students found.
+                </p>
+
+                <p className="mt-1 text-sm text-yellow-700">
+                  No students in this class are currently marked as
+                  attending Arabic.
+                </p>
+
+                <p className="mt-2 text-xs text-yellow-600">
+                  Edit the relevant student profile and enable the
+                  Arabic Section option.
+                </p>
+              </div>
+            </div>
+          ) : displayedStudents.length === 0 ? (
+            <div className="p-5">
+              <p className="text-sm text-gray-400">
+                No students found in this class.
+              </p>
+            </div>
+          ) : activeSubject ? (
+            <>
+              <div className="border-b border-gray-100 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {activeSubject.name}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {isArabic
+                        ? "Arabic Section • CA 40 + Exam 60"
+                        : "Main Subject • CA1 20 + CA2 20 + Exam 60"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-gray-50 px-3 py-2 text-center">
+                      <p className="text-lg font-bold text-gray-800">
+                        {resultSummary.total}
+                      </p>
+
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400">
+                        Students
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-green-50 px-3 py-2 text-center">
+                      <p className="text-lg font-bold text-green-700">
+                        {resultSummary.completed}
+                      </p>
+
+                      <p className="text-[9px] uppercase tracking-wider text-green-500">
+                        Entered
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-yellow-50 px-3 py-2 text-center">
+                      <p className="text-lg font-bold text-yellow-700">
+                        {resultSummary.pending}
+                      </p>
+
+                      <p className="text-[9px] uppercase tracking-wider text-yellow-500">
+                        Pending
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <input
+                    type="search"
+                    value={studentSearch}
+                    onChange={(event) =>
+                      setStudentSearch(event.target.value)
+                    }
+                    placeholder="Search student name or admission number..."
+                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                  />
+
+                  {studentSearch && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Showing {displayedStudents.length} matching
+                      student{displayedStudents.length === 1 ? "" : "s"}.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1100px] text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wider text-gray-500">
+                      <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3">
+                        Student
+                      </th>
+
+                      <th className="px-4 py-3">
+                        {isArabic ? "CA (40)" : "CA1 (20)"}
+                      </th>
+
+                      {!isArabic && (
+                        <th className="px-4 py-3">
+                          CA2 (20)
+                        </th>
+                      )}
+
+                      <th className="px-4 py-3">
+                        Exam (60)
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Total
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Grade
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Remark
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-gray-100">
+                    {displayedStudents.map((student) => {
+                      const row =
+                        activeScores[student.id] ||
+                        emptyScore();
+
+                      const ca1 = Math.min(
+                        isArabic ? 40 : 20,
+                        Math.max(
+                          0,
+                          Number(row.ca1) || 0
+                        )
+                      );
+
+                      const ca2 = isArabic
+                        ? 0
+                        : Math.min(
+                            20,
+                            Math.max(
+                              0,
+                              Number(row.ca2) || 0
+                            )
+                          );
+
+                      const exam = Math.min(
+                        60,
+                        Math.max(
+                          0,
+                          Number(row.exam) || 0
+                        )
+                      );
+
+                      const total = computeTotal(
+                        ca1,
+                        ca2,
+                        exam
+                      );
+
+                      const grade =
+                        computeGrade(total);
+
+                      const remark =
+                        computeRemark(grade);
+
+                      const deleteKey =
+                        `${student.id}-${activeSubjectId}`;
+
+                      return (
+                        <tr
+                          key={student.id}
+                          className="hover:bg-gray-50/70"
+                        >
+                          <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3">
+                            <div className="font-medium text-gray-800">
+                              {student.firstName}{" "}
+                              {student.lastName}
+                            </div>
+
+                            <div className="mt-0.5 text-[10px] text-gray-400">
+                              {student.admissionNo}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              min={0}
+                              max={isArabic ? 40 : 20}
+                              step="1"
+                              value={row.ca1}
+                              onChange={(event) =>
+                                setScore(
+                                  student.id,
+                                  "ca1",
+                                  event.target.value
+                                )
+                              }
+                              className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                            />
+                          </td>
+
+                          {!isArabic && (
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                step="1"
+                                value={row.ca2}
+                                onChange={(event) =>
+                                  setScore(
+                                    student.id,
+                                    "ca2",
+                                    event.target.value
+                                  )
+                                }
+                                className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                              />
+                            </td>
+                          )}
+
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              min={0}
+                              max={60}
+                              step="1"
+                              value={row.exam}
+                              onChange={(event) =>
+                                setScore(
+                                  student.id,
+                                  "exam",
+                                  event.target.value
+                                )
+                              }
+                              className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                            />
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className="inline-flex min-w-12 items-center justify-center rounded-lg bg-brand/5 px-3 py-2 font-bold text-brand">
+                              {total}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className="inline-flex min-w-10 items-center justify-center rounded-lg bg-gray-100 px-3 py-2 font-bold text-gray-700">
+                              {grade}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className="whitespace-nowrap text-xs font-medium text-gray-600">
+                              {remark}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              disabled={
+                                deletingResultKey ===
+                                deleteKey
+                              }
+                              onClick={() =>
+                                handleDeleteResult(
+                                  student.id
+                                )
+                              }
+                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingResultKey ===
+                              deleteKey
+                                ? "Deleting..."
+                                : "Delete"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="sticky bottom-0 z-20 border-t border-gray-100 bg-white/95 p-4 backdrop-blur">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Ready to save results
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Results are automatically calculated out of 100
+                      with grade and remark.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                    className="w-full sm:w-auto"
+                  >
+                    {saving
+                      ? "Saving Results..."
+                      : "Save All Results"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-6">
+              <div className="rounded-xl bg-gray-50 p-5">
+                <p className="text-sm font-medium text-gray-600">
+                  Select a subject to enter results.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
