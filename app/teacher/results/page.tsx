@@ -10,7 +10,6 @@ import {
   getClasses,
   getSubjects,
   getResultsFor,
-  saveResult,
 } from "@/services/database";
 
 import {
@@ -170,9 +169,19 @@ export default function TeacherResultsPage() {
   const [error, setError] =
     useState("");
 
+  /*
+   * Results can only be edited when
+   * the Result Control Centre is OPEN.
+   */
   const resultsLocked =
     resultStatus === "locked" ||
     resultStatus === "published";
+
+  /*
+   * =========================================================
+   * LOAD TEACHER DATA
+   * =========================================================
+   */
 
   useEffect(() => {
     const authUid: string =
@@ -235,6 +244,13 @@ export default function TeacherResultsPage() {
     };
   }, [profile?.uid]);
 
+
+  /*
+   * =========================================================
+   * FORM MASTER INFORMATION
+   * =========================================================
+   */
+
   const formMasterClassId =
     teacher?.formClassId ||
     teacher?.formMasterClassId ||
@@ -250,6 +266,13 @@ export default function TeacherResultsPage() {
     Boolean(
       teacher?.canUploadAllResults
     );
+
+
+  /*
+   * =========================================================
+   * ASSIGNED CLASSES
+   * =========================================================
+   */
 
   const assignedClasses = useMemo(() => {
     const ids = new Set(
@@ -269,6 +292,13 @@ export default function TeacherResultsPage() {
     teacher,
     formMasterClassId,
   ]);
+
+
+  /*
+   * =========================================================
+   * RESOLVE FORM MASTER CLASS
+   * =========================================================
+   */
 
   const formMasterClass = useMemo(() => {
     if (formMasterClassId) {
@@ -328,6 +358,13 @@ export default function TeacherResultsPage() {
     formMasterClass?.id ||
     "";
 
+
+  /*
+   * =========================================================
+   * MY CLASSES
+   * =========================================================
+   */
+
   const myClasses = useMemo(() => {
     const map =
       new Map<string, ClassRoom>();
@@ -359,6 +396,13 @@ export default function TeacherResultsPage() {
     formMasterClass,
   ]);
 
+
+  /*
+   * =========================================================
+   * TEACHER SUBJECTS
+   * =========================================================
+   */
+
   const mySubjects = useMemo(() => {
     return subjects.filter(
       (subject) =>
@@ -367,6 +411,13 @@ export default function TeacherResultsPage() {
         )
     );
   }, [subjects, teacher]);
+
+
+  /*
+   * =========================================================
+   * SELECTED CLASS
+   * =========================================================
+   */
 
   const selectedClassIsFormMasterClass =
     Boolean(
@@ -393,6 +444,13 @@ export default function TeacherResultsPage() {
       selectedClass.name
     );
   }, [selectedClass]);
+
+
+  /*
+   * =========================================================
+   * SUBJECTS AVAILABLE FOR CLASS
+   * =========================================================
+   */
 
   function getSubjectsForClass(
     selectedClassId: string
@@ -426,6 +484,10 @@ export default function TeacherResultsPage() {
 
     return subjects.filter(
       (subject) => {
+        /*
+         * Music is excluded from
+         * result entry.
+         */
         if (
           subject.name
             .trim()
@@ -435,6 +497,10 @@ export default function TeacherResultsPage() {
           return false;
         }
 
+        /*
+         * If a subject has explicit
+         * levels, respect them.
+         */
         if (
           Array.isArray(
             subject.levels
@@ -451,12 +517,23 @@ export default function TeacherResultsPage() {
     );
   }
 
+
+  /*
+   * =========================================================
+   * AVAILABLE SUBJECTS
+   * =========================================================
+   */
+
   const availableSubjects =
     useMemo(() => {
       if (!classId) {
         return [];
       }
 
+      /*
+       * Form Master gets all subjects
+       * configured for the selected class.
+       */
       if (
         selectedClassIsFormMasterClass
       ) {
@@ -465,6 +542,10 @@ export default function TeacherResultsPage() {
         );
       }
 
+      /*
+       * Normal teacher only gets
+       * assigned subjects.
+       */
       return mySubjects.filter(
         (subject) => {
           if (
@@ -503,12 +584,26 @@ export default function TeacherResultsPage() {
       classes,
     ]);
 
+
+  /*
+   * =========================================================
+   * RESULT ACCESS
+   * =========================================================
+   */
+
   const hasResultAccess =
     myClasses.length > 0 &&
     (
       mySubjects.length > 0 ||
       isFormMaster
     );
+
+
+  /*
+   * =========================================================
+   * VALIDATE SELECTED SUBJECT
+   * =========================================================
+   */
 
   useEffect(() => {
     if (!classId) {
@@ -540,6 +635,13 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
+
+  /*
+   * =========================================================
+   * CLASS CHANGE
+   * =========================================================
+   */
+
   function handleClassChange(
     value: string
   ) {
@@ -551,6 +653,13 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
+
+  /*
+   * =========================================================
+   * SUBJECT CHANGE
+   * =========================================================
+   */
+
   function handleSubjectChange(
     value: string
   ) {
@@ -560,6 +669,13 @@ export default function TeacherResultsPage() {
     setMessage("");
     setError("");
   }
+
+
+  /*
+   * =========================================================
+   * LOAD STUDENTS + EXISTING RESULTS
+   * =========================================================
+   */
 
   useEffect(() => {
     if (!classId || !subjectId) {
@@ -625,13 +741,9 @@ export default function TeacherResultsPage() {
         }
 
         /*
-         * Keep the result-entry page independent
-         * from the Student account-status type.
-         *
-         * The result page only needs student
-         * identity/class information. We do not
-         * need to manufacture a fake "active"
-         * status for old Firestore records.
+         * Keep the result-entry page
+         * independent from the Student
+         * account-status type.
          */
         const list: TeacherStudent[] =
           studentList.map(
@@ -794,6 +906,13 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
+
+  /*
+   * =========================================================
+   * SCORE INPUT
+   * =========================================================
+   */
+
   function setScore(
     studentId: string,
     field: keyof ScoreRow,
@@ -815,6 +934,9 @@ export default function TeacherResultsPage() {
         selectedSubject
       );
 
+    /*
+     * Arabic has no CA2.
+     */
     if (
       arabic &&
       field === "ca2"
@@ -877,6 +999,25 @@ export default function TeacherResultsPage() {
     );
   }
 
+
+  /*
+   * =========================================================
+   * SAVE ALL RESULTS
+   * =========================================================
+   *
+   * IMPORTANT:
+   *
+   * Results are NO LONGER saved directly
+   * with saveResult().
+   *
+   * They are sent to:
+   *
+   * /api/teacher/submit-result
+   *
+   * The server performs the final
+   * authorization and validation.
+   */
+
   async function handleSaveAll() {
     if (resultsLocked) {
       setError(
@@ -905,6 +1046,12 @@ export default function TeacherResultsPage() {
       return;
     }
 
+    /*
+     * Frontend permission check.
+     *
+     * The API performs the authoritative
+     * permission check again.
+     */
     const classAllowed =
       myClasses.some(
         (classRoom) =>
@@ -943,11 +1090,6 @@ export default function TeacherResultsPage() {
       setMessage("");
       setError("");
 
-      const actor =
-        profile?.name ||
-        profile?.email ||
-        "teacher";
-
       const selectedSubject =
         subjects.find(
           (subject) =>
@@ -960,7 +1102,14 @@ export default function TeacherResultsPage() {
           selectedSubject
         );
 
-      await Promise.all(
+      /*
+       * Build the complete result
+       * payload.
+       *
+       * The server will recalculate
+       * and validate the values again.
+       */
+      const entries =
         students.map(
           (student) => {
             const row =
@@ -1030,40 +1179,156 @@ export default function TeacherResultsPage() {
                 grade
               );
 
-            return saveResult(
-              {
-                studentId:
-                  student.id,
+            return {
+              studentId:
+                student.id,
 
-                subjectId,
+              subjectId,
 
-                classId,
+              classId,
 
-                term,
+              term,
 
-                session,
+              session,
 
-                ca1,
+              ca1,
 
-                ca2,
+              ca2,
 
-                exam,
+              exam,
 
-                total,
+              total,
 
-                grade,
+              grade,
 
-                remark,
-              },
-              actor
-            );
+              remark,
+            };
           }
-        )
-      );
+        );
+
+      /*
+       * Secure server submission.
+       */
+      const response =
+        await fetch(
+          "/api/teacher/submit-result",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            credentials: "include",
+
+            body: JSON.stringify({
+              classId,
+              subjectId,
+              term,
+              session,
+              entries,
+            }),
+          }
+        );
+
+      let responseData:
+        {
+          message?: string;
+          error?: string;
+        } = {};
+
+      try {
+        responseData =
+          await response.json();
+      } catch {
+        responseData = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.error ||
+            "Could not save results."
+        );
+      }
+
+      /*
+       * Refresh the results from Firestore
+       * after successful server submission.
+       */
+      try {
+        const refreshedResults =
+          await getResultsFor(
+            classId,
+            subjectId,
+            term,
+            session
+          );
+
+        const refreshedScores:
+          SubjectScores = {};
+
+        students.forEach(
+          (student) => {
+            const previous =
+              (
+                refreshedResults as ResultEntry[]
+              ).find(
+                (result) =>
+                  result.studentId ===
+                  student.id
+              );
+
+            refreshedScores[
+              student.id
+            ] = {
+              ca1:
+                previous?.ca1 !==
+                  undefined &&
+                previous?.ca1 !== null
+                  ? String(
+                      previous.ca1
+                    )
+                  : "",
+
+              ca2:
+                previous?.ca2 !==
+                  undefined &&
+                previous?.ca2 !== null
+                  ? String(
+                      previous.ca2
+                    )
+                  : "",
+
+              exam:
+                previous?.exam !==
+                  undefined &&
+                previous?.exam !== null
+                  ? String(
+                      previous.exam
+                    )
+                  : "",
+            };
+          }
+        );
+
+        setScores(
+          refreshedScores
+        );
+      } catch {
+        /*
+         * Saving already succeeded.
+         * Refresh failure should not turn
+         * a successful save into an error.
+         */
+      }
 
       setMessage(
-        isFormMaster &&
-        selectedClassIsFormMasterClass
+        responseData.message ||
+          (
+            isFormMaster &&
+            selectedClassIsFormMasterClass
+          )
           ? "Results saved successfully by Form Master."
           : "Results saved successfully."
       );
@@ -1078,6 +1343,13 @@ export default function TeacherResultsPage() {
     }
   }
 
+
+  /*
+   * =========================================================
+   * SELECTED SUBJECT
+   * =========================================================
+   */
+
   const selectedSubject =
     subjects.find(
       (subject) =>
@@ -1090,6 +1362,13 @@ export default function TeacherResultsPage() {
       selectedSubject
     );
 
+
+  /*
+   * =========================================================
+   * LOADING STATE
+   * =========================================================
+   */
+
   if (loading) {
     return (
       <div className="py-8">
@@ -1099,6 +1378,13 @@ export default function TeacherResultsPage() {
       </div>
     );
   }
+
+
+  /*
+   * =========================================================
+   * TEACHER NOT FOUND
+   * =========================================================
+   */
 
   if (!teacher) {
     return (
@@ -1121,8 +1407,17 @@ export default function TeacherResultsPage() {
     );
   }
 
+
+  /*
+   * =========================================================
+   * PAGE
+   * =========================================================
+   */
+
   return (
     <div className="max-w-6xl space-y-5">
+
+      {/* PAGE HEADER */}
 
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
@@ -1144,6 +1439,9 @@ export default function TeacherResultsPage() {
           </div>
         )}
       </div>
+
+
+      {/* RESULT STATUS */}
 
       <div
         className={
@@ -1177,6 +1475,9 @@ export default function TeacherResultsPage() {
         </p>
       </div>
 
+
+      {/* FORM MASTER NOTICE */}
+
       {isFormMaster && (
         <div className="rounded-lg border border-brand/10 bg-brand/5 px-4 py-3">
           <p className="text-sm font-medium text-gray-700">
@@ -1192,17 +1493,26 @@ export default function TeacherResultsPage() {
         </div>
       )}
 
+
+      {/* ERROR */}
+
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
+
+      {/* SUCCESS */}
+
       {message && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           {message}
         </div>
       )}
+
+
+      {/* NO ACCESS */}
 
       {!hasResultAccess ? (
         <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
@@ -1214,7 +1524,10 @@ export default function TeacherResultsPage() {
         </div>
       ) : (
         <>
+          {/* CLASS / SUBJECT SELECTORS */}
+
           <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
               <SelectInput
@@ -1273,8 +1586,12 @@ export default function TeacherResultsPage() {
 
             </div>
 
+
+            {/* FORM MASTER CLASS NOTICE */}
+
             {selectedClassIsFormMasterClass && (
               <div className="mt-4 rounded-lg border border-brand/10 bg-brand/5 px-4 py-3">
+
                 <p className="text-xs font-medium text-brand">
                   Form Master Mode
                 </p>
@@ -1287,33 +1604,53 @@ export default function TeacherResultsPage() {
                   are available for result
                   entry.
                 </p>
+
               </div>
             )}
+
+
+            {/* NORMAL TEACHER NOTICE */}
 
             {!selectedClassIsFormMasterClass &&
               classId && (
                 <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3">
+
                   <p className="text-xs text-gray-500">
                     You can upload results only
                     for subjects assigned to you
                     and applicable to the selected
                     class.
                   </p>
+
                 </div>
               )}
+
           </div>
+
+
+          {/* LOADING */}
 
           {loadingResults ? (
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
+
               <p className="text-sm text-gray-500">
                 Loading students and existing
                 results...
               </p>
+
             </div>
+
+
+          /* STUDENT TABLE */
+
           ) : students.length > 0 ? (
+
             <div className="overflow-hidden rounded-card border border-gray-100 bg-white shadow-sm">
 
+              {/* TABLE HEADER */}
+
               <div className="border-b border-gray-100 px-4 py-4">
+
                 <h2 className="font-semibold text-gray-800">
                   {selectedSubject?.name ||
                     "Selected Subject"}
@@ -1328,12 +1665,18 @@ export default function TeacherResultsPage() {
                     CA1: 20 | CA2: 20 | Exam: 60 | Total: 100
                   </p>
                 )}
+
               </div>
 
+
+              {/* TABLE */}
+
               <div className="overflow-x-auto">
+
                 <table className="w-full text-sm">
 
                   <thead>
+
                     <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
 
                       <th className="px-4 py-3">
@@ -1369,12 +1712,15 @@ export default function TeacherResultsPage() {
                       </th>
 
                     </tr>
+
                   </thead>
+
 
                   <tbody className="divide-y divide-gray-100">
 
                     {students.map(
                       (student) => {
+
                         const row =
                           scores[
                             student.id
@@ -1448,15 +1794,22 @@ export default function TeacherResultsPage() {
                           >
 
                             <td className="whitespace-nowrap px-4 py-2 text-gray-700">
+
                               {
                                 student.firstName
                               }{" "}
+
                               {
                                 student.lastName
                               }
+
                             </td>
 
+
+                            {/* CA1 / ARABIC CA */}
+
                             <td className="px-4 py-2">
+
                               <input
                                 type="number"
                                 min={0}
@@ -1484,10 +1837,15 @@ export default function TeacherResultsPage() {
                                 }
                                 className="w-20 rounded border border-gray-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                               />
+
                             </td>
+
+
+                            {/* CA2 */}
 
                             {!selectedSubjectIsArabic && (
                               <td className="px-4 py-2">
+
                                 <input
                                   type="number"
                                   min={0}
@@ -1511,10 +1869,15 @@ export default function TeacherResultsPage() {
                                   }
                                   className="w-20 rounded border border-gray-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                                 />
+
                               </td>
                             )}
 
+
+                            {/* EXAM */}
+
                             <td className="px-4 py-2">
+
                               <input
                                 type="number"
                                 min={0}
@@ -1538,15 +1901,25 @@ export default function TeacherResultsPage() {
                                 }
                                 className="w-20 rounded border border-gray-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                               />
+
                             </td>
+
+
+                            {/* TOTAL */}
 
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {total}
                             </td>
 
+
+                            {/* GRADE */}
+
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {grade}
                             </td>
+
+
+                            {/* REMARK */}
 
                             <td className="px-4 py-2 text-gray-600">
                               {computeRemark(
@@ -1560,8 +1933,13 @@ export default function TeacherResultsPage() {
                     )}
 
                   </tbody>
+
                 </table>
+
               </div>
+
+
+              {/* SAVE BUTTON */}
 
               <div className="flex justify-end border-t border-gray-100 px-4 py-4">
 
@@ -1588,24 +1966,38 @@ export default function TeacherResultsPage() {
               </div>
 
             </div>
+
+
+          /* NO STUDENTS */
+
           ) : classId &&
             subjectId ? (
+
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
+
               <p className="text-sm text-gray-400">
                 No students found in this
                 class.
               </p>
+
             </div>
+
           ) : (
+
             <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
+
               <p className="text-sm text-gray-400">
                 Select a class and subject to
                 begin entering results.
               </p>
+
             </div>
+
           )}
+
         </>
       )}
+
     </div>
   );
 }
