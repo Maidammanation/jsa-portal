@@ -242,10 +242,6 @@ service cloud.firestore {
       // ----------------------------------------------------------
       // ADMIN
       // ----------------------------------------------------------
-      //
-      // Admin/Super Admin retain full control regardless of
-      // whether results are OPEN, LOCKED or PUBLISHED.
-      // ----------------------------------------------------------
 
       allow read: if isAdminOrSuperAdmin();
 
@@ -258,10 +254,6 @@ service cloud.firestore {
 
       // ----------------------------------------------------------
       // TEACHERS
-      // ----------------------------------------------------------
-      //
-      // Teachers can only work while results are OPEN.
-      // Once locked or published, Firestore itself blocks them.
       // ----------------------------------------------------------
 
       allow read: if isTeacher();
@@ -279,9 +271,6 @@ service cloud.firestore {
       // ----------------------------------------------------------
       // STUDENTS
       // ----------------------------------------------------------
-      //
-      // Students can see results ONLY after publication.
-      // ----------------------------------------------------------
 
       allow read: if isStudent()
         && resultsArePublished()
@@ -290,20 +279,17 @@ service cloud.firestore {
         )
         && get(
           /databases/$(database)/documents/students/$(resource.data.studentId)
-        ).data.authUid == request.auth.uid
-        ;
+        ).data.authUid == request.auth.uid;
 
-      // Students cannot create/update/delete results.
       allow create: if false;
+
       allow update: if false;
+
       allow delete: if false;
 
 
       // ----------------------------------------------------------
       // PARENTS
-      // ----------------------------------------------------------
-      //
-      // Parents can see children's results ONLY after publication.
       // ----------------------------------------------------------
 
       allow read: if isParent()
@@ -313,12 +299,12 @@ service cloud.firestore {
         )
         && get(
           /databases/$(database)/documents/students/$(resource.data.studentId)
-        ).data.parentUid == request.auth.uid
-        ;
+        ).data.parentUid == request.auth.uid;
 
-      // Parents cannot create/update/delete results.
       allow create: if false;
+
       allow update: if false;
+
       allow delete: if false;
     }
 
@@ -326,19 +312,75 @@ service cloud.firestore {
     // ============================================================
     // ATTENDANCE
     // ============================================================
+    //
+    // IMPORTANT SECURITY DESIGN:
+    //
+    // Teachers are NOT allowed to directly create/update/delete
+    // attendance documents from the browser.
+    //
+    // Teacher attendance must go through:
+    //
+    // /api/teacher/submit-attendance
+    //
+    // The server API verifies:
+    //
+    // JSS1 -> SS3:
+    // ONLY THE FORM MASTER
+    //
+    // Nursery/Primary:
+    // Existing authorized teacher workflow
+    //
+    // Admin/Super Admin:
+    // Full control
+    //
+    // This prevents a teacher from bypassing the Form Master
+    // restriction by manually calling Firestore from the browser.
+    // ============================================================
 
     match /attendance/{attendanceId} {
+
+      // ----------------------------------------------------------
+      // READ
+      // ----------------------------------------------------------
+      //
+      // Existing read access is preserved.
+      // ----------------------------------------------------------
 
       allow read: if isAdminOrSuperAdmin()
         || isTeacher()
         || isStudent()
         || isParent();
 
-      allow create: if isAdminOrSuperAdmin()
-        || isTeacher();
 
-      allow update: if isAdminOrSuperAdmin()
-        || isTeacher();
+      // ----------------------------------------------------------
+      // CREATE
+      // ----------------------------------------------------------
+      //
+      // ONLY Admin/Super Admin can directly create attendance
+      // in Firestore.
+      //
+      // Teachers MUST use the secure server API.
+      // ----------------------------------------------------------
+
+      allow create: if isAdminOrSuperAdmin();
+
+
+      // ----------------------------------------------------------
+      // UPDATE
+      // ----------------------------------------------------------
+      //
+      // ONLY Admin/Super Admin can directly update attendance
+      // in Firestore.
+      //
+      // Teachers MUST use the secure server API.
+      // ----------------------------------------------------------
+
+      allow update: if isAdminOrSuperAdmin();
+
+
+      // ----------------------------------------------------------
+      // DELETE
+      // ----------------------------------------------------------
 
       allow delete: if isAdminOrSuperAdmin();
     }
@@ -438,15 +480,12 @@ service cloud.firestore {
 
     match /schoolSettings/{settingId} {
 
-      // All active users may read the current academic settings.
       allow read: if accountIsActive();
 
-      // Only administrators can create/update settings.
       allow create: if isAdminOrSuperAdmin();
 
       allow update: if isAdminOrSuperAdmin();
 
-      // Only Super Admin can delete settings.
       allow delete: if isSuperAdmin();
     }
 
