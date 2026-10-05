@@ -71,9 +71,7 @@ const emptyScore = (): ScoreRow => ({
   exam: "",
 });
 
-function isArabicSubject(
-  subject?: Subject
-): boolean {
+function isArabicSubject(subject?: Subject): boolean {
   return (
     subject?.section === "arabic" ||
     subject?.scoringType === "arabic-40-60"
@@ -84,8 +82,7 @@ function getClassLevel(
   level?: string,
   name?: string
 ): SchoolLevel | "" {
-  const value =
-    `${level || ""} ${name || ""}`.toLowerCase();
+  const value = `${level || ""} ${name || ""}`.toLowerCase();
 
   if (
     value.includes("pre nursery") ||
@@ -170,9 +167,11 @@ export default function TeacherResultsPage() {
     useState("");
 
   /*
-   * Results can only be edited when
-   * the Result Control Centre is OPEN.
+   * =========================================================
+   * RESULT LOCK STATUS
+   * =========================================================
    */
+
   const resultsLocked =
     resultStatus === "locked" ||
     resultStatus === "published";
@@ -184,8 +183,7 @@ export default function TeacherResultsPage() {
    */
 
   useEffect(() => {
-    const authUid: string =
-      profile?.uid ?? "";
+    const authUid: string = profile?.uid ?? "";
 
     if (!authUid) {
       setLoading(false);
@@ -209,7 +207,9 @@ export default function TeacherResultsPage() {
           getSubjects(),
         ]);
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setTeacher(
           teacherRecord as TeacherRecord | null
@@ -223,7 +223,9 @@ export default function TeacherResultsPage() {
           subjectList as Subject[]
         );
       } catch (err) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setError(
           err instanceof Error
@@ -243,7 +245,6 @@ export default function TeacherResultsPage() {
       mounted = false;
     };
   }, [profile?.uid]);
-
 
   /*
    * =========================================================
@@ -266,7 +267,6 @@ export default function TeacherResultsPage() {
     Boolean(
       teacher?.canUploadAllResults
     );
-
 
   /*
    * =========================================================
@@ -292,7 +292,6 @@ export default function TeacherResultsPage() {
     teacher,
     formMasterClassId,
   ]);
-
 
   /*
    * =========================================================
@@ -355,9 +354,7 @@ export default function TeacherResultsPage() {
   ]);
 
   const resolvedFormMasterClassId =
-    formMasterClass?.id ||
-    "";
-
+    formMasterClass?.id || "";
 
   /*
    * =========================================================
@@ -378,13 +375,11 @@ export default function TeacherResultsPage() {
       }
     );
 
-    if (isFormMaster) {
-      if (formMasterClass) {
-        map.set(
-          formMasterClass.id,
-          formMasterClass
-        );
-      }
+    if (isFormMaster && formMasterClass) {
+      map.set(
+        formMasterClass.id,
+        formMasterClass
+      );
     }
 
     return Array.from(
@@ -395,7 +390,6 @@ export default function TeacherResultsPage() {
     isFormMaster,
     formMasterClass,
   ]);
-
 
   /*
    * =========================================================
@@ -411,7 +405,6 @@ export default function TeacherResultsPage() {
         )
     );
   }, [subjects, teacher]);
-
 
   /*
    * =========================================================
@@ -445,16 +438,15 @@ export default function TeacherResultsPage() {
     );
   }, [selectedClass]);
 
-
   /*
    * =========================================================
    * SUBJECTS AVAILABLE FOR CLASS
    * =========================================================
    */
 
-  function getSubjectsForClass(
+  const getSubjectsForClass = (
     selectedClassId: string
-  ) {
+  ): Subject[] => {
     const classroom =
       classes.find(
         (classRoom) =>
@@ -472,16 +464,6 @@ export default function TeacherResultsPage() {
         classroom.name
       );
 
-    if (!level) {
-      return subjects.filter(
-        (subject) =>
-          subject.name
-            .trim()
-            .toLowerCase() !==
-          "music"
-      );
-    }
-
     return subjects.filter(
       (subject) => {
         /*
@@ -498,8 +480,15 @@ export default function TeacherResultsPage() {
         }
 
         /*
-         * If a subject has explicit
-         * levels, respect them.
+         * If class level cannot be detected,
+         * allow configured non-Music subjects.
+         */
+        if (!level) {
+          return true;
+        }
+
+        /*
+         * Respect explicit subject levels.
          */
         if (
           Array.isArray(
@@ -515,8 +504,7 @@ export default function TeacherResultsPage() {
         return true;
       }
     );
-  }
-
+  };
 
   /*
    * =========================================================
@@ -532,7 +520,7 @@ export default function TeacherResultsPage() {
 
       /*
        * Form Master gets all subjects
-       * configured for the selected class.
+       * configured for the Form Master class.
        */
       if (
         selectedClassIsFormMasterClass
@@ -543,8 +531,8 @@ export default function TeacherResultsPage() {
       }
 
       /*
-       * Normal teacher only gets
-       * assigned subjects.
+       * Normal teacher gets only assigned
+       * subjects applicable to this class.
        */
       return mySubjects.filter(
         (subject) => {
@@ -584,7 +572,6 @@ export default function TeacherResultsPage() {
       classes,
     ]);
 
-
   /*
    * =========================================================
    * RESULT ACCESS
@@ -597,7 +584,6 @@ export default function TeacherResultsPage() {
       mySubjects.length > 0 ||
       isFormMaster
     );
-
 
   /*
    * =========================================================
@@ -635,7 +621,6 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
-
   /*
    * =========================================================
    * CLASS CHANGE
@@ -653,7 +638,6 @@ export default function TeacherResultsPage() {
     setError("");
   }
 
-
   /*
    * =========================================================
    * SUBJECT CHANGE
@@ -669,7 +653,6 @@ export default function TeacherResultsPage() {
     setMessage("");
     setError("");
   }
-
 
   /*
    * =========================================================
@@ -727,7 +710,6 @@ export default function TeacherResultsPage() {
           getTeacherStudentsByClass(
             classId
           ),
-
           getResultsFor(
             classId,
             subjectId,
@@ -740,11 +722,6 @@ export default function TeacherResultsPage() {
           return;
         }
 
-        /*
-         * Keep the result-entry page
-         * independent from the Student
-         * account-status type.
-         */
         const list: TeacherStudent[] =
           studentList.map(
             (student) => ({
@@ -829,8 +806,8 @@ export default function TeacherResultsPage() {
         const results =
           existingResults as ResultEntry[];
 
-        const initial: SubjectScores =
-          {};
+        const initial:
+          SubjectScores = {};
 
         list.forEach(
           (student) => {
@@ -906,7 +883,6 @@ export default function TeacherResultsPage() {
     availableSubjects,
   ]);
 
-
   /*
    * =========================================================
    * SCORE INPUT
@@ -935,7 +911,8 @@ export default function TeacherResultsPage() {
       );
 
     /*
-     * Arabic has no CA2.
+     * Arabic subjects use CA 40 + Exam 60.
+     * There is no CA2.
      */
     if (
       arabic &&
@@ -999,22 +976,17 @@ export default function TeacherResultsPage() {
     );
   }
 
-
   /*
    * =========================================================
    * SAVE ALL RESULTS
    * =========================================================
    *
-   * IMPORTANT:
-   *
-   * Results are NO LONGER saved directly
-   * with saveResult().
-   *
-   * They are sent to:
+   * Results are submitted through the
+   * secure server API:
    *
    * /api/teacher/submit-result
    *
-   * The server performs the final
+   * The server performs the authoritative
    * authorization and validation.
    */
 
@@ -1103,11 +1075,10 @@ export default function TeacherResultsPage() {
         );
 
       /*
-       * Build the complete result
-       * payload.
+       * Build the result payload.
        *
-       * The server will recalculate
-       * and validate the values again.
+       * The server recalculates and validates
+       * the final values before writing them.
        */
       const entries =
         students.map(
@@ -1182,32 +1153,22 @@ export default function TeacherResultsPage() {
             return {
               studentId:
                 student.id,
-
               subjectId,
-
               classId,
-
               term,
-
               session,
-
               ca1,
-
               ca2,
-
               exam,
-
               total,
-
               grade,
-
               remark,
             };
           }
         );
 
       /*
-       * Secure server submission.
+       * SECURE SERVER SUBMISSION
        */
       const response =
         await fetch(
@@ -1232,11 +1193,10 @@ export default function TeacherResultsPage() {
           }
         );
 
-      let responseData:
-        {
-          message?: string;
-          error?: string;
-        } = {};
+      let responseData: {
+        message?: string;
+        error?: string;
+      } = {};
 
       try {
         responseData =
@@ -1253,8 +1213,8 @@ export default function TeacherResultsPage() {
       }
 
       /*
-       * Refresh the results from Firestore
-       * after successful server submission.
+       * Refresh results after successful
+       * server submission.
        */
       try {
         const refreshedResults =
@@ -1268,12 +1228,13 @@ export default function TeacherResultsPage() {
         const refreshedScores:
           SubjectScores = {};
 
+        const typedResults =
+          refreshedResults as ResultEntry[];
+
         students.forEach(
           (student) => {
             const previous =
-              (
-                refreshedResults as ResultEntry[]
-              ).find(
+              typedResults.find(
                 (result) =>
                   result.studentId ===
                   student.id
@@ -1317,20 +1278,27 @@ export default function TeacherResultsPage() {
         );
       } catch {
         /*
-         * Saving already succeeded.
-         * Refresh failure should not turn
-         * a successful save into an error.
+         * The save itself already succeeded.
+         * A refresh failure must not report
+         * the successful save as failed.
          */
       }
 
+      /*
+       * IMPORTANT:
+       *
+       * Parentheses are intentional here.
+       * This fixes the previous ternary
+       * operator-precedence bug.
+       */
       setMessage(
         responseData.message ||
           (
             isFormMaster &&
             selectedClassIsFormMasterClass
           )
-          ? "Results saved successfully by Form Master."
-          : "Results saved successfully."
+            ? "Results saved successfully by Form Master."
+            : "Results saved successfully."
       );
     } catch (err) {
       setError(
@@ -1342,7 +1310,6 @@ export default function TeacherResultsPage() {
       setSaving(false);
     }
   }
-
 
   /*
    * =========================================================
@@ -1362,7 +1329,6 @@ export default function TeacherResultsPage() {
       selectedSubject
     );
 
-
   /*
    * =========================================================
    * LOADING STATE
@@ -1378,7 +1344,6 @@ export default function TeacherResultsPage() {
       </div>
     );
   }
-
 
   /*
    * =========================================================
@@ -1406,7 +1371,6 @@ export default function TeacherResultsPage() {
       </div>
     );
   }
-
 
   /*
    * =========================================================
@@ -1439,7 +1403,6 @@ export default function TeacherResultsPage() {
           </div>
         )}
       </div>
-
 
       {/* RESULT STATUS */}
 
@@ -1475,7 +1438,6 @@ export default function TeacherResultsPage() {
         </p>
       </div>
 
-
       {/* FORM MASTER NOTICE */}
 
       {isFormMaster && (
@@ -1493,7 +1455,6 @@ export default function TeacherResultsPage() {
         </div>
       )}
 
-
       {/* ERROR */}
 
       {error && (
@@ -1502,7 +1463,6 @@ export default function TeacherResultsPage() {
         </div>
       )}
 
-
       {/* SUCCESS */}
 
       {message && (
@@ -1510,7 +1470,6 @@ export default function TeacherResultsPage() {
           {message}
         </div>
       )}
-
 
       {/* NO ACCESS */}
 
@@ -1586,7 +1545,6 @@ export default function TeacherResultsPage() {
 
             </div>
 
-
             {/* FORM MASTER CLASS NOTICE */}
 
             {selectedClassIsFormMasterClass && (
@@ -1608,7 +1566,6 @@ export default function TeacherResultsPage() {
               </div>
             )}
 
-
             {/* NORMAL TEACHER NOTICE */}
 
             {!selectedClassIsFormMasterClass &&
@@ -1627,7 +1584,6 @@ export default function TeacherResultsPage() {
 
           </div>
 
-
           {/* LOADING */}
 
           {loadingResults ? (
@@ -1639,7 +1595,6 @@ export default function TeacherResultsPage() {
               </p>
 
             </div>
-
 
           /* STUDENT TABLE */
 
@@ -1667,7 +1622,6 @@ export default function TeacherResultsPage() {
                 )}
 
               </div>
-
 
               {/* TABLE */}
 
@@ -1714,7 +1668,6 @@ export default function TeacherResultsPage() {
                     </tr>
 
                   </thead>
-
 
                   <tbody className="divide-y divide-gray-100">
 
@@ -1786,6 +1739,11 @@ export default function TeacherResultsPage() {
                             total
                           );
 
+                        const remark =
+                          computeRemark(
+                            grade
+                          );
+
                         return (
                           <tr
                             key={
@@ -1804,7 +1762,6 @@ export default function TeacherResultsPage() {
                               }
 
                             </td>
-
 
                             {/* CA1 / ARABIC CA */}
 
@@ -1840,7 +1797,6 @@ export default function TeacherResultsPage() {
 
                             </td>
 
-
                             {/* CA2 */}
 
                             {!selectedSubjectIsArabic && (
@@ -1873,7 +1829,6 @@ export default function TeacherResultsPage() {
                               </td>
                             )}
 
-
                             {/* EXAM */}
 
                             <td className="px-4 py-2">
@@ -1904,13 +1859,11 @@ export default function TeacherResultsPage() {
 
                             </td>
 
-
                             {/* TOTAL */}
 
                             <td className="px-4 py-2 font-medium text-gray-700">
                               {total}
                             </td>
-
 
                             {/* GRADE */}
 
@@ -1918,13 +1871,10 @@ export default function TeacherResultsPage() {
                               {grade}
                             </td>
 
-
                             {/* REMARK */}
 
                             <td className="px-4 py-2 text-gray-600">
-                              {computeRemark(
-                                grade
-                              )}
+                              {remark}
                             </td>
 
                           </tr>
@@ -1937,7 +1887,6 @@ export default function TeacherResultsPage() {
                 </table>
 
               </div>
-
 
               {/* SAVE BUTTON */}
 
@@ -1966,7 +1915,6 @@ export default function TeacherResultsPage() {
               </div>
 
             </div>
-
 
           /* NO STUDENTS */
 
