@@ -1,272 +1,464 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SelectInput, TextInput } from "@/components/Forms";
 import { Button } from "@/components/Buttons";
 import {
-  getClasses,
-  getStudentsByClass,
-  getAttendanceSession,
+getClasses,
+getStudentsByClass,
+getAttendanceSession,
 } from "@/services/database";
 import type { AttendanceStatus, ClassRoom, Student } from "@/lib/types";
 
-const STATUS_OPTIONS: { label: string; value: AttendanceStatus }[] = [
-  { label: "Present", value: "present" },
-  { label: "Absent", value: "absent" },
-  { label: "Late", value: "late" },
+const STATUS_OPTIONS: {
+label: string;
+value: AttendanceStatus;
+}[] = [
+{ label: "Present", value: "present" },
+{ label: "Absent", value: "absent" },
+{ label: "Late", value: "late" },
 ];
 
 const statusStyle: Record<AttendanceStatus, string> = {
-  present: "bg-status-active/10 text-status-active border-status-active/30",
-  absent: "bg-status-disabled/10 text-status-disabled border-status-disabled/30",
-  late: "bg-status-suspended/10 text-status-suspended border-status-suspended/30",
+present:
+"bg-status-active/10 text-status-active border-status-active/30",
+absent:
+"bg-status-disabled/10 text-status-disabled border-status-disabled/30",
+late:
+"bg-status-suspended/10 text-status-suspended border-status-suspended/30",
 };
 
 export default function AttendancePage() {
-  const [classes, setClasses] = useState<ClassRoom[]>([]);
-  const [classId, setClassId] = useState("");
-  const [date, setDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
-  const [students, setStudents] = useState<Student[]>([]);
-  const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+const [classes, setClasses] = useState<ClassRoom[]>([]);
+const [classId, setClassId] = useState("");
+const [date, setDate] = useState(() =>
+new Date().toISOString().slice(0, 10)
+);
 
-  useEffect(() => {
-    getClasses()
-      .then((data) => setClasses(data as ClassRoom[]))
-      .catch(() => setClasses([]));
-  }, []);
+const [students, setStudents] = useState<Student[]>([]);
+const [marks, setMarks] = useState<
+Record<string, AttendanceStatus>
 
-  useEffect(() => {
-    if (!classId) {
-      setStudents([]);
-      setMarks({});
-      return;
-    }
+«({});»
 
-    setLoadingStudents(true);
-    setMessage("");
+const [loadingClasses, setLoadingClasses] = useState(true);
+const [loadingStudents, setLoadingStudents] = useState(false);
+const [saving, setSaving] = useState(false);
 
-    Promise.all([
-      getStudentsByClass(classId),
-      getAttendanceSession(classId, date),
-    ])
-      .then(([studentList, existingSession]) => {
-        const list = studentList as Student[];
-        setStudents(list);
+const [message, setMessage] = useState("");
+const [error, setError] = useState("");
 
-        const initialMarks: Record<string, AttendanceStatus> = {};
+useEffect(() => {
+setLoadingClasses(true);
 
-        const existing = existingSession as {
-          records?: {
-            studentId: string;
-            status: AttendanceStatus;
-          }[];
-        } | null;
+getClasses()
+  .then((data) => {
+    setClasses(data as ClassRoom[]);
+  })
+  .catch(() => {
+    setClasses([]);
+    setError("Could not load classes.");
+  })
+  .finally(() => {
+    setLoadingClasses(false);
+  });
 
-        list.forEach((student) => {
-          const prior = existing?.records?.find(
-            (record) => record.studentId === student.id
-          );
+}, []);
 
-          initialMarks[student.id] =
-            prior?.status || "present";
-        });
+useEffect(() => {
+if (!classId) {
+setStudents([]);
+setMarks({});
+setMessage("");
+setError("");
+return;
+}
 
-        setMarks(initialMarks);
+setLoadingStudents(true);
+setMessage("");
+setError("");
 
-        if (existing) {
-          setMessage(
-            "Attendance already recorded for this date — editing will overwrite it."
-          );
-        }
-      })
-      .catch(() => {
-        setStudents([]);
-        setMarks({});
-        setMessage("Could not load attendance data.");
-      })
-      .finally(() => setLoadingStudents(false));
-  }, [classId, date]);
+Promise.all([
+  getStudentsByClass(classId),
+  getAttendanceSession(classId, date),
+])
+  .then(([studentList, existingSession]) => {
+    const list = studentList as Student[];
 
-  const setMark = (
-    studentId: string,
-    status: AttendanceStatus
-  ) => {
-    setMarks((prev) => ({
-      ...prev,
-      [studentId]: status,
-    }));
-  };
+    setStudents(list);
 
-  const markAll = (status: AttendanceStatus) => {
-    const next: Record<string, AttendanceStatus> = {};
+    const initialMarks: Record<
+      string,
+      AttendanceStatus
+    > = {};
 
-    students.forEach((student) => {
-      next[student.id] = status;
+    const existing = existingSession as {
+      records?: {
+        studentId: string;
+        status: AttendanceStatus;
+      }[];
+    } | null;
+
+    list.forEach((student) => {
+      const prior = existing?.records?.find(
+        (record) =>
+          record.studentId === student.id
+      );
+
+      initialMarks[student.id] =
+        prior?.status || "present";
     });
 
-    setMarks(next);
-  };
+    setMarks(initialMarks);
 
-  const handleSubmit = async () => {
-    if (!classId || students.length === 0) {
-      return;
+    if (existing) {
+      setMessage(
+        "Attendance already exists for this date. You can edit it and submit again."
+      );
     }
+  })
+  .catch(() => {
+    setStudents([]);
+    setMarks({});
+    setError("Could not load attendance data.");
+  })
+  .finally(() => {
+    setLoadingStudents(false);
+  });
 
-    setSaving(true);
-    setMessage("");
+}, [classId, date]);
 
-    try {
-      const records = students.map((student) => ({
-        studentId: student.id,
-        status: marks[student.id] || "present",
-      }));
+const counts = useMemo(() => {
+let present = 0;
+let absent = 0;
+let late = 0;
 
-      const response = await fetch(
-        "/api/admin/submit-attendance",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            classId,
-            date,
-            records,
-          }),
+students.forEach((student) => {
+  const status = marks[student.id] || "present";
+
+  if (status === "present") present += 1;
+  if (status === "absent") absent += 1;
+  if (status === "late") late += 1;
+});
+
+return {
+  present,
+  absent,
+  late,
+  total: students.length,
+};
+
+}, [students, marks]);
+
+const setMark = (
+studentId: string,
+status: AttendanceStatus
+) => {
+setMarks((previous) => ({
+...previous,
+[studentId]: status,
+}));
+
+setMessage("");
+setError("");
+
+};
+
+const markAll = (status: AttendanceStatus) => {
+const next: Record<string, AttendanceStatus> = {};
+
+students.forEach((student) => {
+  next[student.id] = status;
+});
+
+setMarks(next);
+setMessage("");
+setError("");
+
+};
+
+const handleSubmit = async () => {
+if (!classId) {
+setError("Please select a class.");
+return;
+}
+
+if (!date) {
+  setError("Please select a date.");
+  return;
+}
+
+if (students.length === 0) {
+  setError("There are no students in this class.");
+  return;
+}
+
+setSaving(true);
+setMessage("");
+setError("");
+
+try {
+  const records = students.map((student) => ({
+    studentId: student.id,
+    status: marks[student.id] || "present",
+  }));
+
+  const response = await fetch(
+    "/api/admin/submit-attendance",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        classId,
+        date,
+        records,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || "Could not submit attendance."
+    );
+  }
+
+  setMessage(
+    data.message ||
+      "Attendance submitted successfully."
+  );
+} catch (err) {
+  setError(
+    err instanceof Error
+      ? err.message
+      : "Could not submit attendance."
+  );
+} finally {
+  setSaving(false);
+}
+
+};
+
+return (
+<div className="max-w-5xl space-y-6">
+<div>
+<h1 className="text-xl font-semibold text-gray-800">
+Attendance
+</h1>
+<p className="text-sm text-gray-500">
+Record daily student attendance.
+</p>
+</div>
+
+  {/* Selection */}
+  <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <SelectInput
+        label="Class"
+        value={classId}
+        onChange={(e) =>
+          setClassId(e.target.value)
         }
-      );
+        options={[
+          {
+            label: loadingClasses
+              ? "Loading classes..."
+              : "Select a class",
+            value: "",
+          },
+          ...classes.map((c) => ({
+            label: c.name,
+            value: c.id,
+          })),
+        ]}
+      />
 
-      const data = await response.json();
+      <TextInput
+        label="Date"
+        type="date"
+        value={date}
+        onChange={(e) =>
+          setDate(e.target.value)
+        }
+      />
+    </div>
+  </div>
 
-      if (!response.ok) {
-        throw new Error(
-          data.error || "Could not submit attendance."
-        );
-      }
+  {/* Messages */}
+  {message && (
+    <div className="rounded-lg border border-status-active/20 bg-status-active/5 px-4 py-3 text-sm text-status-active">
+      {message}
+    </div>
+  )}
 
-      setMessage(
-        data.message ||
-          "Attendance submitted successfully."
-      );
-    } catch (err) {
-      setMessage(
-        err instanceof Error
-          ? err.message
-          : "Could not submit attendance."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+  {error && (
+    <div className="rounded-lg border border-status-disabled/20 bg-status-disabled/5 px-4 py-3 text-sm text-status-disabled">
+      {error}
+    </div>
+  )}
 
-  return (
-    <div className="max-w-3xl space-y-4">
-      <h1 className="text-xl font-semibold text-gray-800">
-        Take Attendance
-      </h1>
+  {/* Loading */}
+  {loadingStudents && (
+    <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+      <p className="text-sm text-gray-400">
+        Loading students...
+      </p>
+    </div>
+  )}
 
-      <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-        <SelectInput
-          label="Class"
-          value={classId}
-          onChange={(e) => setClassId(e.target.value)}
-          options={[
-            {
-              label: "Select a class",
-              value: "",
-            },
-            ...classes.map((c) => ({
-              label: c.name,
-              value: c.id,
-            })),
-          ]}
-        />
-
-        <TextInput
-          label="Date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-      </div>
-
-      {message && (
-        <p className="text-sm text-brand-dark bg-brand/5 rounded-lg px-3 py-2">
-          {message}
-        </p>
-      )}
-
-      {loadingStudents ? (
-        <p className="text-sm text-gray-400">
-          Loading students...
-        </p>
-      ) : students.length > 0 ? (
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-600">
-              {students.length} student(s)
+  {/* Students */}
+  {!loadingStudents &&
+    students.length > 0 && (
+      <>
+        {/* Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wide">
+              Total
             </p>
+            <p className="text-2xl font-semibold text-gray-800 mt-1">
+              {counts.total}
+            </p>
+          </div>
 
-            <div className="flex gap-2">
+          <div className="bg-white rounded-card border border-status-active/20 shadow-sm p-4">
+            <p className="text-xs text-status-active uppercase tracking-wide">
+              Present
+            </p>
+            <p className="text-2xl font-semibold text-status-active mt-1">
+              {counts.present}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-card border border-status-disabled/20 shadow-sm p-4">
+            <p className="text-xs text-status-disabled uppercase tracking-wide">
+              Absent
+            </p>
+            <p className="text-2xl font-semibold text-status-disabled mt-1">
+              {counts.absent}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-card border border-status-suspended/20 shadow-sm p-4">
+            <p className="text-xs text-status-suspended uppercase tracking-wide">
+              Late
+            </p>
+            <p className="text-2xl font-semibold text-status-suspended mt-1">
+              {counts.late}
+            </p>
+          </div>
+        </div>
+
+        {/* Attendance list */}
+        <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">
+                {students.length} student
+                {students.length === 1 ? "" : "s"}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {date}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => markAll("present")}
-                className="text-xs text-status-active hover:underline"
+                type="button"
+                onClick={() =>
+                  markAll("present")
+                }
+                className="text-xs font-medium text-status-active hover:underline"
               >
                 Mark all present
               </button>
 
               <button
-                onClick={() => markAll("absent")}
-                className="text-xs text-status-disabled hover:underline"
+                type="button"
+                onClick={() =>
+                  markAll("absent")
+                }
+                className="text-xs font-medium text-status-disabled hover:underline"
               >
                 Mark all absent
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  markAll("late")
+                }
+                className="text-xs font-medium text-status-suspended hover:underline"
+              >
+                Mark all late
               </button>
             </div>
           </div>
 
-          <ul className="divide-y divide-gray-100">
-            {students.map((student) => (
-              <li
-                key={student.id}
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <span className="text-sm text-gray-700">
-                  {student.firstName} {student.lastName}{" "}
-                  <span className="text-gray-400">
-                    ({student.admissionNo})
-                  </span>
-                </span>
+          <div className="divide-y divide-gray-100">
+            {students.map((student, index) => {
+              const current =
+                marks[student.id] || "present";
 
-                <div className="flex gap-2">
-                  {STATUS_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() =>
-                        setMark(
-                          student.id,
-                          option.value
+              return (
+                <div
+                  key={student.id}
+                  className="px-4 py-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-brand/10 text-brand-dark flex items-center justify-center text-xs font-semibold shrink-0">
+                        {index + 1}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate">
+                          {student.firstName}{" "}
+                          {student.lastName}
+                        </p>
+
+                        <p className="text-xs text-gray-400">
+                          {student.admissionNo}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {STATUS_OPTIONS.map(
+                        (option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              setMark(
+                                student.id,
+                                option.value
+                              )
+                            }
+                            className={`text-xs px-3 py-2 rounded-full border transition-colors ${
+                              current ===
+                              option.value
+                                ? statusStyle[
+                                    option.value
+                                  ]
+                                : "border-gray-200 text-gray-400 hover:border-gray-300"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
                         )
-                      }
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                        marks[student.id] === option.value
-                          ? statusStyle[option.value]
-                          : "border-gray-200 text-gray-400 hover:border-gray-300"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
 
-          <div className="px-4 py-3 border-t border-gray-100">
+          <div className="px-4 py-4 border-t border-gray-100 flex justify-end">
             <Button
               onClick={handleSubmit}
               disabled={saving}
@@ -277,11 +469,20 @@ export default function AttendancePage() {
             </Button>
           </div>
         </div>
-      ) : classId ? (
+      </>
+    )}
+
+  {!loadingStudents &&
+    classId &&
+    students.length === 0 &&
+    !error && (
+      <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
         <p className="text-sm text-gray-400">
           No students found in this class.
         </p>
-      ) : null}
-    </div>
-  );
+      </div>
+    )}
+</div>
+
+);
 }
