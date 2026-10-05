@@ -12,6 +12,7 @@ import {
 import {
   getClasses,
   getSubjects,
+  getAll,
   create,
   update,
   remove,
@@ -1180,22 +1181,125 @@ export default function ClassesPage() {
   }
 
   /* =======================================================
-     DELETE CLASS
+     SAFE DELETE CLASS
   ======================================================= */
 
   async function deleteClass(
     id: string
   ) {
-    const confirmed =
-      window.confirm(
-        "Remove this class?"
+    const classItem =
+      classes.find(
+        (item) =>
+          item.id === id
       );
 
-    if (!confirmed) {
+    if (!classItem) {
+      window.alert(
+        "This class could not be found."
+      );
+
       return;
     }
 
     try {
+      /*
+       * CHECK STUDENTS
+       *
+       * A class containing students must
+       * never be deleted accidentally.
+       */
+      const students =
+        await getAll(
+          "students"
+        );
+
+      const classStudents =
+        students.filter(
+          (student: any) =>
+            student.classId === id ||
+            (
+              student.className &&
+              normalize(
+                student.className
+              ) ===
+                normalize(
+                  classItem.name
+                )
+            )
+        );
+
+      if (
+        classStudents.length > 0
+      ) {
+        window.alert(
+          `Cannot remove "${classItem.name}".\n\n` +
+            `There are ${classStudents.length} student(s) currently assigned to this class.\n\n` +
+            `Move the students to another class first, then try again.`
+        );
+
+        return;
+      }
+
+      /*
+       * CHECK TEACHERS
+       *
+       * Teachers may have this class as:
+       * - teaching class
+       * - Form Master class
+       */
+      const teachers =
+        await getAll(
+          "teachers"
+        );
+
+      const assignedTeachers =
+        teachers.filter(
+          (teacher: any) => {
+            const teachesClass =
+              Array.isArray(
+                teacher.classIds
+              ) &&
+              teacher.classIds.includes(
+                id
+              );
+
+            const isFormMaster =
+              teacher.formClassId === id ||
+              teacher.formMasterClassId === id;
+
+            return (
+              teachesClass ||
+              isFormMaster
+            );
+          }
+        );
+
+      if (
+        assignedTeachers.length > 0
+      ) {
+        window.alert(
+          `Cannot remove "${classItem.name}".\n\n` +
+            `${assignedTeachers.length} teacher(s) are currently assigned to this class.\n\n` +
+            `Remove the teacher/class assignment first, then try again.`
+        );
+
+        return;
+      }
+
+      /*
+       * FINAL CONFIRMATION
+       */
+      const confirmed =
+        window.confirm(
+          `Remove "${classItem.name}"?\n\n` +
+            `This class has no students or teacher assignments.\n\n` +
+            `This action cannot be undone.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
       await remove(
         "classes",
         id
@@ -1204,7 +1308,7 @@ export default function ClassesPage() {
       await loadClasses();
 
       window.alert(
-        "Class removed successfully."
+        `"${classItem.name}" removed successfully.`
       );
     } catch (error) {
       console.error(
@@ -1212,29 +1316,122 @@ export default function ClassesPage() {
         error
       );
 
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to verify whether this class can be removed.";
+
       window.alert(
-        "Unable to remove class."
+        `Unable to remove this class.\n\n${message}`
       );
     }
   }
 
   /* =======================================================
-     DELETE SUBJECT
+     SAFE DELETE SUBJECT
   ======================================================= */
 
   async function deleteSubject(
     id: string
   ) {
-    const confirmed =
-      window.confirm(
-        "Remove this subject?"
+    const subject =
+      subjects.find(
+        (item) =>
+          item.id === id
       );
 
-    if (!confirmed) {
+    if (!subject) {
+      window.alert(
+        "This subject could not be found."
+      );
+
       return;
     }
 
     try {
+      /*
+       * CHECK RESULTS
+       *
+       * Results contain subjectId.
+       * A subject with existing academic
+       * records must never be deleted.
+       */
+      const results =
+        await getAll(
+          "results"
+        );
+
+      const subjectResults =
+        results.filter(
+          (result: any) =>
+            result.subjectId === id
+        );
+
+      if (
+        subjectResults.length > 0
+      ) {
+        window.alert(
+          `Cannot remove "${subject.name}".\n\n` +
+            `${subjectResults.length} result record(s) are already linked to this subject.\n\n` +
+            `Deleting the subject would break existing student academic records.`
+        );
+
+        return;
+      }
+
+      /*
+       * CHECK TEACHERS
+       *
+       * Teachers may have this subject
+       * assigned through subjectIds.
+       */
+      const teachers =
+        await getAll(
+          "teachers"
+        );
+
+      const assignedTeachers =
+        teachers.filter(
+          (teacher: any) => {
+            const subjectIds =
+              Array.isArray(
+                teacher.subjectIds
+              )
+                ? teacher.subjectIds
+                : [];
+
+            return subjectIds.includes(
+              id
+            );
+          }
+        );
+
+      if (
+        assignedTeachers.length > 0
+      ) {
+        window.alert(
+          `Cannot remove "${subject.name}".\n\n` +
+            `${assignedTeachers.length} teacher(s) are currently assigned to this subject.\n\n` +
+            `Remove the subject assignment from the teachers first.`
+        );
+
+        return;
+      }
+
+      /*
+       * FINAL CONFIRMATION
+       */
+      const confirmed =
+        window.confirm(
+          `Remove "${subject.name}"?\n\n` +
+            `This subject has no existing results or teacher assignments.\n\n` +
+            `This action cannot be undone.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
       await remove(
         "subjects",
         id
@@ -1243,7 +1440,7 @@ export default function ClassesPage() {
       await loadSubjects();
 
       window.alert(
-        "Subject removed successfully."
+        `"${subject.name}" removed successfully.`
       );
     } catch (error) {
       console.error(
@@ -1251,8 +1448,13 @@ export default function ClassesPage() {
         error
       );
 
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to verify whether this subject can be removed.";
+
       window.alert(
-        "Unable to remove subject."
+        `Unable to remove this subject.\n\n${message}`
       );
     }
   }
