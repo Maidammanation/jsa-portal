@@ -18,7 +18,14 @@ type TeacherData = {
   classIds?: unknown;
   formClassId?: string | null;
   formMasterClassId?: string | null;
+  formMasterClassName?: string | null;
   status?: string;
+};
+
+type ClassData = {
+  id: string;
+  name?: string;
+  level?: string;
 };
 
 type AttendanceRecord = {
@@ -45,6 +52,22 @@ function asStringArray(
     .map((item) => item.trim());
 }
 
+function normalize(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim().toLowerCase()
+    : "";
+}
+
+function cleanString(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
 function isAttendanceStatus(
   value: unknown
 ): value is
@@ -58,12 +81,66 @@ function isAttendanceStatus(
   );
 }
 
-function cleanString(
-  value: unknown
-): string {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
+/*
+ * JSS1–JSS3 and SS1–SS3.
+ */
+function isSecondaryClass(
+  classroom: ClassData
+): boolean {
+  const level = normalize(
+    classroom.level
+  );
+
+  const name = normalize(
+    classroom.name
+  ).replace(/-/g, " ");
+
+  const levelIsSecondary =
+    level === "jss" ||
+    level === "ss" ||
+    level.includes("jss") ||
+    level.includes("secondary");
+
+  const nameIsSecondary =
+    /^(jss|ss)\s*[1-3]$/.test(
+      name
+    );
+
+  return (
+    levelIsSecondary ||
+    nameIsSecondary
+  );
+}
+
+/*
+ * Resolve either:
+ * - class document ID
+ * - class name
+ */
+function resolveClass(
+  identifier: string,
+  classes: ClassData[]
+): ClassData | null {
+  const value =
+    normalize(identifier);
+
+  if (!value) {
+    return null;
+  }
+
+  return (
+    classes.find(
+      (classroom) =>
+        normalize(classroom.id) ===
+        value
+    ) ||
+    classes.find(
+      (classroom) =>
+        normalize(classroom.name) ===
+        value
+    ) ||
+    null
+  );
 }
 
 export async function POST(
@@ -71,7 +148,7 @@ export async function POST(
 ) {
   try {
     /*
-     * 1. Verify session.
+     * 1. Verify secure session.
      */
     const sessionCookie =
       request.cookies.get(
@@ -115,7 +192,9 @@ export async function POST(
     const userData =
       userDoc.data() || {};
 
-    if (userData.role !== "teacher") {
+    if (
+      userData.role !== "teacher"
+    ) {
       return NextResponse.json(
         {
           error:
@@ -126,10 +205,7 @@ export async function POST(
     }
 
     if (
-      userData.status ===
-        "suspended" ||
-      userData.status ===
-        "disabled"
+      userData.status !== "active"
     ) {
       return NextResponse.json(
         {
@@ -146,16 +222,20 @@ export async function POST(
     const body =
       await request.json();
 
-    const classId =
-      cleanString(body.classId);
+    const requestedClassId =
+      cleanString(
+        body.classId
+      );
 
     const date =
-      cleanString(body.date);
+      cleanString(
+        body.date
+      );
 
     const records =
       body.records;
 
-    if (!classId) {
+    if (!requestedClassId) {
       return NextResponse.json(
         {
           error:
@@ -186,7 +266,7 @@ export async function POST(
     }
 
     /*
-     * 4. Validate records.
+     * 4. Validate attendance records.
      */
     const normalizedRecords: AttendanceRecord[] =
       [];
@@ -248,7 +328,8 @@ export async function POST(
     }
 
     if (
-      normalizedRecords.length === 0
+      normalizedRecords.length ===
+      0
     ) {
       return NextResponse.json(
         {
@@ -285,12 +366,31 @@ export async function POST(
     }
 
     /*
-     * 5. Load teachers.
+     * 5. Load classes and teachers.
      */
-    const teachersSnapshot =
-      await adminDb()
+    const [
+      classesSnapshot,
+      teachersSnapshot,
+    ] = await Promise.all([
+      adminDb()
+        .collection("classes")
+        .get(),
+
+      adminDb()
         .collection("teachers")
-        .get();
+        .get(),
+    ]);
+
+    const classes: ClassData[] =
+      classesSnapshot.docs.map(
+        (doc) => ({
+          id: doc.id,
+          ...(doc.data() as {
+            name?: string;
+            level?: string;
+          }),
+        })
+      );
 
     const teachers = teachersSnapshot.docs.map(
       (doc) => ({
@@ -301,7 +401,34 @@ export async function POST(
     );
 
     /*
-     * Find current teacher.
+     * 6. Resolve selected class.
+     */
+    const selectedClass =
+      resolveClass(
+        requestedClassId,
+        classes
+      );
+
+    if (!selectedClass) {
+      return NextResponse.json(
+        {
+          error:
+            "The selected class could not be found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const classId =
+      selectedClass.id;
+
+    const className =
+      cleanString(
+        selectedClass.name
+      );
+
+    /*
+     * 7. Find current teacher.
      */
     const currentTeacher =
       teachers.find(
@@ -321,177 +448,188 @@ export async function POST(
     }
 
     /*
-     * 6. Determine effective teacher classes.
+     * 8. Resolve teacher's Form Master
+     * class.
      */
-    const currentClassIds =
-      asStringArray(
-        currentTeacher.data.classIds
-      );
-
-    const formMasterClassId =
+    const formMasterIdentifier =
       typeof currentTeacher.data
         .formClassId === "string" &&
       currentTeacher.data.formClassId.trim()
-        ? currentTeacher.data.formClassId.trim()
+        ? currentTeacher.data.formClassId
         : typeof currentTeacher.data
             .formMasterClassId ===
             "string" &&
           currentTeacher.data.formMasterClassId.trim()
-        ? currentTeacher.data.formMasterClassId.trim()
+        ? currentTeacher.data.formMasterClassId
+        : typeof currentTeacher.data
+            .formMasterClassName ===
+            "string"
+        ? currentTeacher.data.formMasterClassName
         : "";
 
-    const effectiveClassIds =
-      new Set<string>(
-        currentClassIds
+    const formMasterClass =
+      resolveClass(
+        formMasterIdentifier,
+        classes
       );
 
-    if (formMasterClassId) {
-      effectiveClassIds.add(
-        formMasterClassId
-      );
-    }
-
-    /*
-     * Teacher must have the class.
-     */
-    if (
-      !effectiveClassIds.has(
-        classId
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "You are not assigned to this class.",
-        },
-        { status: 403 }
-      );
-    }
-
-    /*
-     * 7. Count teachers assigned to
-     * normal classIds.
-     */
-    const teacherCountByClass: Record<
-      string,
-      number
-    > = {};
-
-    for (const teacher of teachers) {
-      const classIds =
-        asStringArray(
-          teacher.data.classIds
-        );
-
-      for (const assignedClassId of classIds) {
-        teacherCountByClass[
-          assignedClassId
-        ] =
-          (teacherCountByClass[
-            assignedClassId
-          ] || 0) + 1;
-      }
-    }
-
-    /*
-     * 8. Form Master permission.
-     */
     const isFormMaster =
       Boolean(
-        formMasterClassId
-      ) &&
-      classId ===
-        formMasterClassId;
+        formMasterClass &&
+        formMasterClass.id ===
+          classId
+      );
 
     /*
-     * 9. Single-teacher permission.
+     * 9. Determine whether selected
+     * class is JSS1–SS3 or SS1–SS3.
      */
-    const isOnlyTeacher =
-      teacherCountByClass[
-        classId
-      ] === 1;
+    const secondaryClass =
+      isSecondaryClass(
+        selectedClass
+      );
 
     /*
-     * Must be Form Master OR sole teacher.
+     * ==========================================================
+     * HARD ATTENDANCE RULE
+     * ==========================================================
+     *
+     * JSS1–SS3:
+     * ONLY Form Master.
+     *
+     * This check happens BEFORE any
+     * attendance is written.
+     * ==========================================================
      */
     if (
-      !isFormMaster &&
-      !isOnlyTeacher
+      secondaryClass &&
+      !isFormMaster
     ) {
       return NextResponse.json(
         {
           error:
-            "You are not authorized to take attendance for this class.",
+            "Only the Form Master can take attendance for JSS1 to SS3 classes.",
         },
         { status: 403 }
       );
     }
 
     /*
-     * 10. Resolve class name.
+     * 10. For Nursery/Primary, preserve
+     * the existing single-teacher rule.
      */
-    let className = "";
+    if (!secondaryClass) {
+      const teacherCountByClass: Record<
+        string,
+        number
+      > = {};
 
-    try {
-      const classDoc =
-        await adminDb()
-          .collection("classes")
-          .doc(classId)
-          .get();
-
-      if (classDoc.exists) {
-        className =
-          cleanString(
-            classDoc.data()?.name
+      for (const teacher of teachers) {
+        const identifiers =
+          asStringArray(
+            teacher.data.classIds
           );
-      }
-    } catch (error) {
-      console.warn(
-        "Could not resolve class name:",
-        error
-      );
-    }
 
-    /*
-     * If class ID itself was actually a
-     * class name, try resolving by name.
-     */
-    if (!className) {
-      try {
-        const classByName =
-          await adminDb()
-            .collection("classes")
-            .where(
-              "name",
-              "==",
-              classId
-            )
-            .limit(1)
-            .get();
+        const uniqueClassIds =
+          new Set<string>();
 
-        if (
-          !classByName.empty
-        ) {
-          className =
-            cleanString(
-              classByName.docs[0].data()
-                .name
+        for (const identifier of identifiers) {
+          const resolved =
+            resolveClass(
+              identifier,
+              classes
             );
+
+          if (resolved) {
+            uniqueClassIds.add(
+              resolved.id
+            );
+          }
         }
-      } catch (error) {
-        console.warn(
-          "Could not resolve class by name:",
-          error
+
+        for (const resolvedClassId of uniqueClassIds) {
+          teacherCountByClass[
+            resolvedClassId
+          ] =
+            (teacherCountByClass[
+              resolvedClassId
+            ] || 0) + 1;
+        }
+      }
+
+      const normalAssignments =
+        asStringArray(
+          currentTeacher.data.classIds
+        );
+
+      const assignedClassIds =
+        new Set<string>();
+
+      for (const identifier of normalAssignments) {
+        const resolved =
+          resolveClass(
+            identifier,
+            classes
+          );
+
+        if (resolved) {
+          assignedClassIds.add(
+            resolved.id
+          );
+        }
+      }
+
+      if (
+        !assignedClassIds.has(
+          classId
+        ) &&
+        !isFormMaster
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "You are not assigned to this class.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const isOnlyTeacher =
+        teacherCountByClass[
+          classId
+        ] === 1;
+
+      if (
+        !isFormMaster &&
+        !isOnlyTeacher
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "You are not authorized to take attendance for this class.",
+          },
+          { status: 403 }
+        );
+      }
+    } else {
+      /*
+       * Secondary teachers must also be
+       * the Form Master.
+       */
+      if (!isFormMaster) {
+        return NextResponse.json(
+          {
+            error:
+              "Only the Form Master can take attendance for JSS1 to SS3 classes.",
+          },
+          { status: 403 }
         );
       }
     }
 
     /*
-     * 11. Load submitted students individually.
-     *
-     * We deliberately do NOT depend on one
-     * Firestore query here because older student
-     * records may use either classId or className.
+     * 11. Validate every submitted student
+     * belongs to the selected class.
      */
     for (const studentId of uniqueStudentIds) {
       const studentDoc =
@@ -526,16 +664,10 @@ export async function POST(
       const belongsToClass =
         studentClassId ===
           classId ||
-        Boolean(
-          className &&
-            studentClassId ===
-              className
-        ) ||
-        Boolean(
-          className &&
-            studentClassName ===
-              className
-        );
+        studentClassId ===
+          className ||
+        studentClassName ===
+          className;
 
       if (!belongsToClass) {
         return NextResponse.json(
@@ -615,7 +747,7 @@ export async function POST(
           "Attendance submitted",
         actor: takenBy,
         details:
-          `${normalizedRecords.length} student(s) — ${date}`,
+          `${className || classId} — ${normalizedRecords.length} student(s) — ${date}`,
         createdAt:
           new Date(),
       });
