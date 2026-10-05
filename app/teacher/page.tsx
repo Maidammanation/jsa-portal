@@ -2,13 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+
 import {
   getTeacherByAuthUid,
   getClasses,
   getSubjects,
 } from "@/services/database";
+
 import { useAuth } from "@/lib/useAuth";
-import type { ClassRoom, Subject } from "@/lib/types";
+
+import type {
+  ClassRoom,
+  Subject,
+} from "@/lib/types";
 
 interface TeacherRecord {
   id: string;
@@ -20,26 +26,66 @@ interface TeacherRecord {
   subjectIds?: string[];
 
   formClassId?: string | null;
-
-  // Supported for compatibility with the admin teacher form.
   formMasterClassId?: string | null;
   formMasterClassName?: string;
+}
+
+function normalize(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim().toLowerCase()
+    : "";
+}
+
+function isSecondaryClass(
+  classroom: ClassRoom
+): boolean {
+  const level =
+    normalize(classroom.level);
+
+  const name =
+    normalize(classroom.name)
+      .replace(/-/g, " ");
+
+  return (
+    level === "jss" ||
+    level === "ss" ||
+    level.includes("jss") ||
+    level.includes("secondary") ||
+    /^(jss|ss)\s*[1-3]$/.test(
+      name
+    )
+  );
 }
 
 export default function TeacherDashboardPage() {
   const { profile } = useAuth();
 
   const [teacher, setTeacher] =
-    useState<TeacherRecord | null>(null);
+    useState<TeacherRecord | null>(
+      null
+    );
 
-  const [classes, setClasses] = useState<ClassRoom[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] =
+    useState<ClassRoom[]>([]);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [subjects, setSubjects] =
+    useState<Subject[]>([]);
+
+  const [attendanceClassIds, setAttendanceClassIds] =
+    useState<string[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    if (!profile?.uid) return;
+    if (!profile?.uid) {
+      return;
+    }
 
     let mounted = true;
 
@@ -47,22 +93,71 @@ export default function TeacherDashboardPage() {
     setError("");
 
     Promise.all([
-      getTeacherByAuthUid(profile.uid),
+      getTeacherByAuthUid(
+        profile.uid
+      ),
+
       getClasses(),
+
       getSubjects(),
+
+      fetch(
+        "/api/teacher/attendance-permissions",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      ),
     ])
-      .then(([teacherRecord, classList, subjectList]) => {
-        if (!mounted) return;
+      .then(
+        async ([
+          teacherRecord,
+          classList,
+          subjectList,
+          attendanceResponse,
+        ]) => {
+          if (!mounted) {
+            return;
+          }
 
-        setTeacher(
-          teacherRecord as TeacherRecord | null
-        );
+          if (
+            !attendanceResponse.ok
+          ) {
+            throw new Error(
+              "Could not load attendance permissions."
+            );
+          }
 
-        setClasses(classList as ClassRoom[]);
-        setSubjects(subjectList as Subject[]);
-      })
+          const attendanceData =
+            await attendanceResponse.json();
+
+          setTeacher(
+            teacherRecord as
+              | TeacherRecord
+              | null
+          );
+
+          setClasses(
+            classList as ClassRoom[]
+          );
+
+          setSubjects(
+            subjectList as Subject[]
+          );
+
+          setAttendanceClassIds(
+            Array.isArray(
+              attendanceData.attendanceClassIds
+            )
+              ? attendanceData.attendanceClassIds
+              : []
+          );
+        }
+      )
       .catch((err) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setError(
           err instanceof Error
@@ -134,31 +229,54 @@ export default function TeacherDashboardPage() {
   /*
    * Only show classes assigned to this teacher.
    */
-  const myClasses = classes.filter((classRoom) =>
-    teacher.classIds?.includes(classRoom.id)
-  );
+  const myClasses =
+    classes.filter((classRoom) =>
+      teacher.classIds?.includes(
+        classRoom.id
+      )
+    );
 
   /*
    * Only show subjects assigned to this teacher.
    */
-  const mySubjects = subjects.filter((subject) =>
-    teacher.subjectIds?.includes(subject.id)
-  );
+  const mySubjects =
+    subjects.filter((subject) =>
+      teacher.subjectIds?.includes(
+        subject.id
+      )
+    );
 
   /*
    * Resolve Form Master class.
-   *
-   * formClassId is the primary field.
-   * formMasterClassId is supported as a fallback.
    */
   const formClassId =
     teacher.formClassId ||
     teacher.formMasterClassId ||
     "";
 
-  const formClass = classes.find(
-    (classRoom) => classRoom.id === formClassId
-  );
+  const formClass =
+    classes.find(
+      (classRoom) =>
+        classRoom.id ===
+        formClassId
+    );
+
+  /*
+   * Determine whether this teacher
+   * can actually take attendance.
+   */
+  const canTakeAttendance =
+    attendanceClassIds.length > 0;
+
+  /*
+   * Resolve attendance classes.
+   */
+  const attendanceClasses =
+    classes.filter((classRoom) =>
+      attendanceClassIds.includes(
+        classRoom.id
+      )
+    );
 
   const teacherName =
     `${teacher.firstName || ""} ${
@@ -167,10 +285,12 @@ export default function TeacherDashboardPage() {
     profile?.name ||
     "Teacher";
 
-  const isFormMaster = Boolean(formClass);
+  const isFormMaster =
+    Boolean(formClass);
 
   return (
     <div className="max-w-6xl space-y-6">
+
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
@@ -183,36 +303,47 @@ export default function TeacherDashboardPage() {
       </div>
 
       {/* Form Master notice */}
-      {isFormMaster && formClass && (
-        <div className="bg-brand/5 border border-brand/10 rounded-card p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide font-medium text-brand">
-                Form Master
-              </p>
+      {isFormMaster &&
+        formClass && (
+          <div className="bg-brand/5 border border-brand/10 rounded-card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-              <h2 className="text-lg font-semibold text-gray-800 mt-1">
-                {formClass.name}
-              </h2>
+              <div>
+                <p className="text-xs uppercase tracking-wide font-medium text-brand">
+                  Form Master
+                </p>
 
-              <p className="text-sm text-gray-500 mt-1">
-                You are the Form Master of this class and can
-                manage its attendance.
-              </p>
+                <h2 className="text-lg font-semibold text-gray-800 mt-1">
+                  {formClass.name}
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  You are the Form Master of this class.
+                  {isSecondaryClass(
+                    formClass
+                  )
+                    ? " You are authorized to manage its attendance."
+                    : " You can manage its attendance."}
+                </p>
+              </div>
+
+              {attendanceClassIds.includes(
+                formClass.id
+              ) && (
+                <Link
+                  href="/teacher/attendance"
+                  className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+                >
+                  Take Attendance
+                </Link>
+              )}
             </div>
-
-            <Link
-              href="/teacher/attendance"
-              className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
-            >
-              Take Attendance
-            </Link>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Overview cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
         {/* Classes */}
         <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
@@ -254,7 +385,8 @@ export default function TeacherDashboardPage() {
           </p>
 
           <p className="text-lg font-semibold text-gray-800 mt-1">
-            {formClass?.name || "Not Assigned"}
+            {formClass?.name ||
+              "Not Assigned"}
           </p>
 
           <p className="text-xs text-gray-400 mt-2">
@@ -262,6 +394,69 @@ export default function TeacherDashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Attendance permission */}
+      <section className="bg-white rounded-card border border-gray-100 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800">
+            Attendance Access
+          </h2>
+
+          <p className="text-xs text-gray-400 mt-1">
+            Attendance permissions depend on your class role.
+          </p>
+        </div>
+
+        <div className="p-5">
+
+          {canTakeAttendance ? (
+            <>
+              <p className="text-sm text-gray-600">
+                You can take attendance for:
+              </p>
+
+              <div className="flex flex-wrap gap-2 mt-3">
+                {attendanceClasses.map(
+                  (classRoom) => (
+                    <span
+                      key={
+                        classRoom.id
+                      }
+                      className="inline-flex items-center rounded-full bg-brand/5 border border-brand/10 px-3 py-1.5 text-sm text-gray-700"
+                    >
+                      {classRoom.name}
+
+                      {classRoom.id ===
+                        formClassId && (
+                        <span className="ml-2 text-xs text-brand font-medium">
+                          Form Master
+                        </span>
+                      )}
+                    </span>
+                  )
+                )}
+              </div>
+
+              <Link
+                href="/teacher/attendance"
+                className="inline-flex mt-4 items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+              >
+                Open Attendance
+              </Link>
+            </>
+          ) : (
+            <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+              <p className="text-sm font-medium text-gray-700">
+                You do not have attendance entry permission.
+              </p>
+
+              <p className="text-xs text-gray-500 mt-1">
+                For JSS1 to SS3, only the Form Master can take attendance.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Assigned classes */}
       <section className="bg-white rounded-card border border-gray-100 shadow-sm">
@@ -282,42 +477,48 @@ export default function TeacherDashboardPage() {
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {myClasses.map((classRoom) => {
-                const isFormClass =
-                  classRoom.id === formClassId;
+              {myClasses.map(
+                (classRoom) => {
+                  const isFormClass =
+                    classRoom.id ===
+                    formClassId;
 
-                return (
-                  <div
-                    key={classRoom.id}
-                    className={`rounded-lg border p-4 ${
-                      isFormClass
-                        ? "border-brand/20 bg-brand/5"
-                        : "border-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {classRoom.name}
-                        </p>
+                  return (
+                    <div
+                      key={
+                        classRoom.id
+                      }
+                      className={`rounded-lg border p-4 ${
+                        isFormClass
+                          ? "border-brand/20 bg-brand/5"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
 
-                        {isFormClass && (
-                          <p className="text-xs text-brand mt-1 font-medium">
-                            Form Master
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {classRoom.name}
                           </p>
-                        )}
-                      </div>
 
-                      <Link
-                        href={`/teacher/results?classId=${classRoom.id}`}
-                        className="text-xs text-brand hover:underline"
-                      >
-                        Results
-                      </Link>
+                          {isFormClass && (
+                            <p className="text-xs text-brand mt-1 font-medium">
+                              Form Master
+                            </p>
+                          )}
+                        </div>
+
+                        <Link
+                          href={`/teacher/results?classId=${classRoom.id}`}
+                          className="text-xs text-brand hover:underline"
+                        >
+                          Results
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
           )}
         </div>
@@ -342,14 +543,18 @@ export default function TeacherDashboardPage() {
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {mySubjects.map((subject) => (
-                <span
-                  key={subject.id}
-                  className="inline-flex items-center rounded-full bg-brand/5 border border-brand/10 px-3 py-1.5 text-sm text-gray-700"
-                >
-                  {subject.name}
-                </span>
-              ))}
+              {mySubjects.map(
+                (subject) => (
+                  <span
+                    key={
+                      subject.id
+                    }
+                    className="inline-flex items-center rounded-full bg-brand/5 border border-brand/10 px-3 py-1.5 text-sm text-gray-700"
+                  >
+                    {subject.name}
+                  </span>
+                )
+              )}
             </div>
           )}
         </div>
@@ -362,6 +567,7 @@ export default function TeacherDashboardPage() {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
           {/* Results */}
           <Link
             href="/teacher/results"
@@ -372,25 +578,35 @@ export default function TeacherDashboardPage() {
             </h3>
 
             <p className="text-sm text-gray-500 mt-1">
-              Enter results for your assigned subjects and
-              classes.
+              Enter results for your assigned subjects and classes.
             </p>
           </Link>
 
           {/* Attendance */}
-          <Link
-            href="/teacher/attendance"
-            className="bg-white rounded-card border border-gray-100 shadow-sm p-5 hover:border-brand/20 hover:shadow-md transition"
-          >
-            <h3 className="font-semibold text-gray-800">
-              Attendance
-            </h3>
+          {canTakeAttendance ? (
+            <Link
+              href="/teacher/attendance"
+              className="bg-white rounded-card border border-gray-100 shadow-sm p-5 hover:border-brand/20 hover:shadow-md transition"
+            >
+              <h3 className="font-semibold text-gray-800">
+                Attendance
+              </h3>
 
-            <p className="text-sm text-gray-500 mt-1">
-              Take and manage attendance for your assigned
-              classes.
-            </p>
-          </Link>
+              <p className="text-sm text-gray-500 mt-1">
+                Take and manage attendance for your authorized classes.
+              </p>
+            </Link>
+          ) : (
+            <div className="bg-gray-50 rounded-card border border-gray-100 p-5">
+              <h3 className="font-semibold text-gray-700">
+                Attendance
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-1">
+                For JSS1 to SS3, attendance can only be taken by the Form Master.
+              </p>
+            </div>
+          )}
 
           {/* Students */}
           <Link
@@ -415,6 +631,7 @@ export default function TeacherDashboardPage() {
         </h2>
 
         <div className="mt-4 space-y-3 text-sm">
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-1">
             <span className="text-gray-500 sm:w-40">
               Classes:
@@ -423,7 +640,10 @@ export default function TeacherDashboardPage() {
             <span className="text-gray-700">
               {myClasses.length > 0
                 ? myClasses
-                    .map((classRoom) => classRoom.name)
+                    .map(
+                      (classRoom) =>
+                        classRoom.name
+                    )
                     .join(", ")
                 : "None assigned"}
             </span>
@@ -437,7 +657,10 @@ export default function TeacherDashboardPage() {
             <span className="text-gray-700">
               {mySubjects.length > 0
                 ? mySubjects
-                    .map((subject) => subject.name)
+                    .map(
+                      (subject) =>
+                        subject.name
+                    )
                     .join(", ")
                 : "None assigned"}
             </span>
@@ -449,9 +672,11 @@ export default function TeacherDashboardPage() {
             </span>
 
             <span className="text-gray-700">
-              {formClass?.name || "Not assigned"}
+              {formClass?.name ||
+                "Not assigned"}
             </span>
           </div>
+
         </div>
       </section>
     </div>
