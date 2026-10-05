@@ -36,16 +36,40 @@ type SubjectData = {
   scoringType?: string;
 };
 
-function cleanString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+type NormalizedResultEntry = {
+  studentId: string;
+  subjectId: string;
+  classId: string;
+  term: string;
+  session: string;
+  ca1: number;
+  ca2: number;
+  exam: number;
+  total: number;
+  grade: string;
+  remark: string;
+};
+
+function cleanString(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
-function normalize(value: unknown): string {
+function normalize(
+  value: unknown
+): string {
   return cleanString(value).toLowerCase();
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
+function asStringArray(
+  value: unknown
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
   return value
     .filter(
@@ -56,25 +80,48 @@ function asStringArray(value: unknown): string[] {
     .map((item) => item.trim());
 }
 
+/*
+ * Resolve a class using either:
+ *
+ * 1. Firestore document ID
+ * 2. Class name
+ */
 function resolveClass(
   identifier: string,
   classes: ClassData[]
 ): ClassData | null {
-  const value = normalize(identifier);
+  const value =
+    normalize(identifier);
 
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
   return (
     classes.find(
-      (item) => normalize(item.id) === value
+      (classroom) =>
+        normalize(classroom.id) ===
+        value
     ) ||
     classes.find(
-      (item) => normalize(item.name) === value
+      (classroom) =>
+        normalize(classroom.name) ===
+        value
     ) ||
     null
   );
 }
 
+/*
+ * Determine the school's class level.
+ *
+ * Supported:
+ * - pre-nursery
+ * - nursery
+ * - primary
+ * - jss
+ * - ss
+ */
 function getClassLevel(
   classroom: ClassData
 ): string {
@@ -118,6 +165,11 @@ function getClassLevel(
   return "";
 }
 
+/*
+ * Arabic:
+ *
+ * CA 40 + Exam 60
+ */
 function isArabicSubject(
   subject: SubjectData
 ): boolean {
@@ -127,12 +179,15 @@ function isArabicSubject(
   );
 }
 
-function computeGrade(total: number): string {
+function computeGrade(
+  total: number
+): string {
   if (total >= 75) return "A";
   if (total >= 65) return "B";
   if (total >= 55) return "C";
   if (total >= 45) return "D";
   if (total >= 40) return "E";
+
   return "F";
 }
 
@@ -142,14 +197,19 @@ function computeRemark(
   switch (grade) {
     case "A":
       return "Excellent";
+
     case "B":
       return "Very Good";
+
     case "C":
       return "Good";
+
     case "D":
       return "Fair";
+
     case "E":
       return "Pass";
+
     default:
       return "Fail";
   }
@@ -160,8 +220,11 @@ export async function POST(
 ) {
   try {
     /*
-     * 1. Verify secure Firebase session.
+     * =========================================================
+     * 1. VERIFY SECURE FIREBASE SESSION
+     * =========================================================
      */
+
     const sessionCookie =
       request.cookies.get(
         SESSION_COOKIE_NAME
@@ -170,9 +233,12 @@ export async function POST(
     if (!sessionCookie) {
       return NextResponse.json(
         {
-          error: "Not authenticated.",
+          error:
+            "Not authenticated.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
@@ -185,13 +251,17 @@ export async function POST(
     const db = adminDb();
 
     /*
-     * 2. Verify authoritative user profile.
+     * =========================================================
+     * 2. VERIFY AUTHORITATIVE USER PROFILE
+     * =========================================================
      */
-    const userDoc = await db
-      .doc(
-        "users/" + decoded.uid
-      )
-      .get();
+
+    const userDoc =
+      await db
+        .doc(
+          `users/${decoded.uid}`
+        )
+        .get();
 
     if (!userDoc.exists) {
       return NextResponse.json(
@@ -199,7 +269,9 @@ export async function POST(
           error:
             "User profile was not found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -207,35 +279,61 @@ export async function POST(
       userDoc.data() || {};
 
     if (
-      userData.role !== "teacher" ||
+      userData.role !== "teacher"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Only teachers can submit results.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    if (
       userData.status !== "active"
     ) {
       return NextResponse.json(
         {
           error:
-            "Only active teachers can submit results.",
+            "Your teacher account is not active.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     /*
-     * 3. Read request.
+     * =========================================================
+     * 3. READ REQUEST
+     * =========================================================
      */
+
     const body =
       await request.json();
 
     const classId =
-      cleanString(body.classId);
+      cleanString(
+        body.classId
+      );
 
     const subjectId =
-      cleanString(body.subjectId);
+      cleanString(
+        body.subjectId
+      );
 
     const term =
-      cleanString(body.term);
+      cleanString(
+        body.term
+      );
 
     const session =
-      cleanString(body.session);
+      cleanString(
+        body.session
+      );
 
     const entries =
       body.entries;
@@ -253,17 +351,30 @@ export async function POST(
           error:
             "Class, subject, term, session and result entries are required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     /*
-     * 4. Enforce Result Control Centre.
+     * =========================================================
+     * 4. RESULT CONTROL CENTRE
+     * =========================================================
      *
-     * OPEN      = teachers can enter/edit
-     * LOCKED    = no teacher editing
-     * PUBLISHED = no teacher editing
+     * OPEN:
+     *     teachers can submit/edit.
+     *
+     * LOCKED:
+     *     teachers cannot edit.
+     *
+     * PUBLISHED:
+     *     teachers cannot edit.
+     *
+     * If the setting does not exist yet,
+     * preserve the existing open behaviour.
      */
+
     const settingsDoc =
       await db
         .doc(
@@ -284,13 +395,18 @@ export async function POST(
           error:
             "Results are locked or published. Editing is disabled.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     /*
-     * 5. Load class, subject and teacher.
+     * =========================================================
+     * 5. LOAD CLASS, SUBJECT AND TEACHER
+     * =========================================================
      */
+
     const [
       classDoc,
       subjectDoc,
@@ -298,13 +414,13 @@ export async function POST(
     ] = await Promise.all([
       db
         .doc(
-          "classes/" + classId
+          `classes/${classId}`
         )
         .get(),
 
       db
         .doc(
-          "subjects/" + subjectId
+          `subjects/${subjectId}`
         )
         .get(),
 
@@ -325,7 +441,9 @@ export async function POST(
           error:
             "The selected class could not be found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -335,7 +453,9 @@ export async function POST(
           error:
             "The selected subject could not be found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -345,7 +465,9 @@ export async function POST(
           error:
             "Your teacher record could not be found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -366,21 +488,17 @@ export async function POST(
     };
 
     const teacher =
-      teacherQuery.docs[0].data() as TeacherData;
+      teacherQuery.docs[0]
+        .data() as TeacherData;
 
     /*
-     * 6. Resolve Form Master.
+     * =========================================================
+     * 6. LOAD ALL CLASSES
+     * =========================================================
+     *
+     * We need this because old teacher records
+     * may store class names instead of IDs.
      */
-    const formMasterIdentifier =
-      cleanString(
-        teacher.formClassId
-      ) ||
-      cleanString(
-        teacher.formMasterClassId
-      ) ||
-      cleanString(
-        teacher.formMasterClassName
-      );
 
     const allClasses =
       await db
@@ -398,29 +516,20 @@ export async function POST(
         })
       );
 
-    const formMasterClass =
-      resolveClass(
-        formMasterIdentifier,
-        classes
-      );
-
-    const isFormMaster =
-      Boolean(
-        formMasterClass &&
-        formMasterClass.id ===
-          classroom.id
-      );
-
     /*
-     * 7. Verify teacher class assignment.
+     * =========================================================
+     * 7. RESOLVE TEACHER CLASS ASSIGNMENTS
+     * =========================================================
      */
+
     const assignedClassIds =
       new Set<string>();
 
     for (
-      const identifier of asStringArray(
-        teacher.classIds
-      )
+      const identifier of
+        asStringArray(
+          teacher.classIds
+        )
     ) {
       const resolved =
         resolveClass(
@@ -436,33 +545,128 @@ export async function POST(
     }
 
     /*
-     * Form Master is automatically
-     * allowed for their own class.
+     * =========================================================
+     * 8. RESOLVE FORM MASTER CLASS
+     * =========================================================
      */
+
+    const formMasterIdentifier =
+      cleanString(
+        teacher.formClassId
+      ) ||
+      cleanString(
+        teacher.formMasterClassId
+      ) ||
+      cleanString(
+        teacher.formMasterClassName
+      );
+
+    const formMasterClass =
+      resolveClass(
+        formMasterIdentifier,
+        classes
+      );
+
+    const isFormMasterForSelectedClass =
+      Boolean(
+        formMasterClass &&
+        formMasterClass.id ===
+          classroom.id
+      );
+
+    /*
+     * =========================================================
+     * 9. CAN UPLOAD ALL RESULTS
+     * =========================================================
+     *
+     * canUploadAllResults does NOT give a teacher
+     * unrestricted access to every class.
+     *
+     * It gives elevated subject access for a class
+     * the teacher is legitimately assigned to.
+     *
+     * This keeps the server aligned with the
+     * frontend's Form Master/all-results logic.
+     */
+
+    const hasAllResultAccess =
+      teacher.canUploadAllResults ===
+      true;
+
+    const isElevatedResultUploader =
+      isFormMasterForSelectedClass ||
+      (
+        hasAllResultAccess &&
+        assignedClassIds.has(
+          classroom.id
+        )
+      );
+
+    /*
+     * =========================================================
+     * 10. VERIFY CLASS ACCESS
+     * =========================================================
+     */
+
     if (
-      !isFormMaster &&
       !assignedClassIds.has(
         classroom.id
-      )
+      ) &&
+      !isFormMasterForSelectedClass
     ) {
       return NextResponse.json(
         {
           error:
             "You are not assigned to this class.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     /*
-     * 8. Verify subject assignment.
+     * =========================================================
+     * 11. VERIFY SUBJECT ACCESS
+     * =========================================================
      */
+
     const subjectIds =
       new Set(
         asStringArray(
           teacher.subjectIds
         )
       );
+
+    /*
+     * Normal teacher:
+     * subject must be explicitly assigned.
+     *
+     * Form Master / elevated uploader:
+     * subject assignment is not required.
+     */
+    if (
+      !isElevatedResultUploader &&
+      !subjectIds.has(
+        subject.id
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "You are not assigned to this subject.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    /*
+     * =========================================================
+     * 12. VERIFY SUBJECT LEVEL
+     * =========================================================
+     */
 
     const level =
       getClassLevel(
@@ -478,34 +682,20 @@ export async function POST(
               item
             ): item is string =>
               typeof item ===
-              "string"
+              "string" &&
+              item.trim() !== ""
           )
         : [];
 
     const subjectAppliesToClass =
       subjectLevels.length === 0 ||
-      subjectLevels.includes(
-        level
+      subjectLevels.some(
+        (subjectLevel) =>
+          normalize(
+            subjectLevel
+          ) ===
+          normalize(level)
       );
-
-    /*
-     * Form Master can upload all
-     * results for their Form Master class.
-     */
-    if (
-      !isFormMaster &&
-      !subjectIds.has(
-        subject.id
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "You are not assigned to this subject.",
-        },
-        { status: 403 }
-      );
-    }
 
     if (
       !subjectAppliesToClass
@@ -515,13 +705,18 @@ export async function POST(
           error:
             "This subject is not configured for the selected class.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     /*
-     * Music remains excluded.
+     * =========================================================
+     * 13. MUSIC IS EXCLUDED
+     * =========================================================
      */
+
     if (
       normalize(
         subject.name
@@ -532,31 +727,24 @@ export async function POST(
           error:
             "Music is not available for result entry.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     /*
-     * 9. Validate and normalize
-     * every student result.
+     * =========================================================
+     * 14. VALIDATE EVERY RESULT ENTRY
+     * =========================================================
      */
-    const seen =
+
+    const seenStudentIds =
       new Set<string>();
 
     const normalizedEntries:
-      Array<{
-        studentId: string;
-        subjectId: string;
-        classId: string;
-        term: string;
-        session: string;
-        ca1: number;
-        ca2: number;
-        exam: number;
-        total: number;
-        grade: string;
-        remark: string;
-      }> = [];
+      NormalizedResultEntry[] =
+      [];
 
     for (
       const raw of entries
@@ -570,7 +758,9 @@ export async function POST(
             error:
               "One or more result entries are invalid.",
           },
-          { status: 400 }
+          {
+            status: 400,
+          }
         );
       }
 
@@ -585,24 +775,47 @@ export async function POST(
           item.studentId
         );
 
+      /*
+       * Every student must appear exactly once.
+       */
+      if (!studentId) {
+        return NextResponse.json(
+          {
+            error:
+              "A result entry is missing its student.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
       if (
-        !studentId ||
-        seen.has(studentId)
+        seenStudentIds.has(
+          studentId
+        )
       ) {
         return NextResponse.json(
           {
             error:
               "Each student must appear exactly once.",
           },
-          { status: 400 }
+          {
+            status: 400,
+          }
         );
       }
 
-      seen.add(studentId);
+      seenStudentIds.add(
+        studentId
+      );
 
       /*
-       * Verify student exists.
+       * =======================================================
+       * VERIFY STUDENT
+       * =======================================================
        */
+
       const studentDoc =
         await db
           .collection("students")
@@ -615,7 +828,9 @@ export async function POST(
             error:
               "One or more students could not be found.",
           },
-          { status: 403 }
+          {
+            status: 403,
+          }
         );
       }
 
@@ -632,10 +847,6 @@ export async function POST(
           student.className
         );
 
-      /*
-       * Student must actually belong
-       * to the selected class.
-       */
       const belongsToClass =
         studentClassId ===
           classroom.id ||
@@ -652,12 +863,16 @@ export async function POST(
             error:
               "One or more students do not belong to the selected class.",
           },
-          { status: 403 }
+          {
+            status: 403,
+          }
         );
       }
 
       /*
-       * 10. Enforce scoring limits.
+       * =======================================================
+       * SCORING
+       * =======================================================
        *
        * Normal:
        * CA1 20 + CA2 20 + Exam 60
@@ -665,6 +880,7 @@ export async function POST(
        * Arabic:
        * CA 40 + Exam 60
        */
+
       const arabic =
         isArabicSubject(
           subject
@@ -709,16 +925,28 @@ export async function POST(
           )
         );
 
+      /*
+       * Server calculates the total.
+       * Never trust total from the browser.
+       */
       const total =
         ca1 +
         ca2 +
         exam;
 
+      /*
+       * Server calculates grade.
+       * Never trust grade from the browser.
+       */
       const grade =
         computeGrade(
           total
         );
 
+      /*
+       * Server calculates remark.
+       * Never trust remark from the browser.
+       */
       const remark =
         computeRemark(
           grade
@@ -742,8 +970,11 @@ export async function POST(
     }
 
     /*
-     * 11. Upsert results.
+     * =========================================================
+     * 15. UPSERT RESULTS
+     * =========================================================
      */
+
     const batch =
       db.batch();
 
@@ -751,6 +982,16 @@ export async function POST(
       const entry of
         normalizedEntries
     ) {
+      /*
+       * Existing result is identified by:
+       *
+       * student + subject + term + session
+       *
+       * This allows the same student to have
+       * separate results for different subjects,
+       * terms and sessions.
+       */
+
       const existing =
         await db
           .collection("results")
@@ -777,7 +1018,7 @@ export async function POST(
           .limit(1)
           .get();
 
-      const ref =
+      const resultRef =
         existing.empty
           ? db
               .collection(
@@ -787,30 +1028,72 @@ export async function POST(
           : existing.docs[0]
               .ref;
 
-      batch.set(
-        ref,
-        {
-          ...entry,
-          updatedAt:
-            new Date(),
-          ...(existing.empty
-            ? {
-                createdAt:
-                  new Date(),
-              }
-            : {}),
-        },
-        {
-          merge: true,
-        }
-      );
+      const resultData = {
+        studentId:
+          entry.studentId,
+
+        subjectId:
+          entry.subjectId,
+
+        classId:
+          entry.classId,
+
+        term:
+          entry.term,
+
+        session:
+          entry.session,
+
+        ca1:
+          entry.ca1,
+
+        ca2:
+          entry.ca2,
+
+        exam:
+          entry.exam,
+
+        total:
+          entry.total,
+
+        grade:
+          entry.grade,
+
+        remark:
+          entry.remark,
+
+        updatedAt:
+          new Date(),
+      };
+
+      if (existing.empty) {
+        batch.set(
+          resultRef,
+          {
+            ...resultData,
+            createdAt:
+              new Date(),
+          }
+        );
+      } else {
+        batch.set(
+          resultRef,
+          resultData,
+          {
+            merge: true,
+          }
+        );
+      }
     }
 
     await batch.commit();
 
     /*
-     * 12. Activity log.
+     * =========================================================
+     * 16. ACTIVITY LOG
+     * =========================================================
      */
+
     const actor =
       cleanString(
         userData.name
@@ -820,6 +1103,21 @@ export async function POST(
       ) ||
       "teacher";
 
+    const classLabel =
+      classroom.name ||
+      classroom.id;
+
+    const subjectLabel =
+      subject.name ||
+      subject.id;
+
+    const mode =
+      isFormMasterForSelectedClass
+        ? "Form Master"
+        : hasAllResultAccess
+        ? "Elevated Teacher"
+        : "Subject Teacher";
+
     await db
       .collection(
         "activityLog"
@@ -827,29 +1125,34 @@ export async function POST(
       .add({
         action:
           "Result uploaded",
+
         actor,
+
         details:
-          (classroom.name ||
-            classroom.id) +
-          " — " +
-          (subject.name ||
-            subject.id) +
-          " — " +
-          normalizedEntries.length +
-          " student(s) — " +
-          term +
-          " " +
-          session,
+          `${classLabel} — ${subjectLabel} — ${normalizedEntries.length} student(s) — ${term} ${session} — ${mode}`,
+
         createdAt:
           new Date(),
       });
 
+    /*
+     * =========================================================
+     * 17. SUCCESS
+     * =========================================================
+     */
+
     return NextResponse.json({
       ok: true,
+
       message:
-        "Results saved successfully.",
+        isFormMasterForSelectedClass
+          ? "Results saved successfully by Form Master."
+          : "Results saved successfully.",
+
       count:
         normalizedEntries.length,
+
+      mode,
     });
   } catch (error) {
     console.error(
@@ -864,7 +1167,9 @@ export async function POST(
             ? error.message
             : "Could not save results.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
