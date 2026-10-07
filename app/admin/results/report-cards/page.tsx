@@ -54,7 +54,7 @@ function gradeRemark(grade?: string): string {
     case "C":
       return "Good";
     case "D":
-      return "Fair";
+      return "Pass"; // FIX: was "Fair" — sample shows D = Pass
     case "E":
       return "Pass";
     case "F":
@@ -75,12 +75,15 @@ function generateGeneralComment(
     return "No academic results have been recorded for this student.";
   }
 
+  // FIX: tiers were shifted by one level (80+ had the 70+ phrase, etc).
+  // Each phrase now sits one bracket lower so quality ascends correctly,
+  // and 67.68 (your sample) now correctly returns the "very good result" line.
   if (overallAverage >= 80) {
-    return "Very good result, keep pushing and all the hard work will pay up!";
-  } else if (overallAverage >= 70) {
     return "Excellent performance! Continue striving for excellence.";
-  } else if (overallAverage >= 60) {
+  } else if (overallAverage >= 70) {
     return "Very good overall performance. Keep working hard.";
+  } else if (overallAverage >= 60) {
+    return "Very good result, keep pushing and all the hard work will pay up!";
   } else if (overallAverage >= 50) {
     return "Good performance. Encouraging progress.";
   } else if (overallAverage >= 40) {
@@ -388,6 +391,7 @@ export default function ReportCardsPage() {
                       Email:
                     </div>
 
+                    {/* Mirrored crest (same logo on both sides, per confirmed direction) */}
                     <div className="absolute right-1 top-0 h-10 w-10">
                       <Image
                         src={SCHOOL.logoPath}
@@ -558,7 +562,11 @@ export default function ReportCardsPage() {
                   </div>
 
                   <div className="grid grid-cols-4 text-[8.5px] border-b border-gray-800">
-                    <BehaviourCell label="Conduct" value={behaviour.conduct} />
+                    <BehaviourCell
+                      label="Conduct"
+                      value={behaviour.conduct}
+                      onChange={(v) => updateBehaviour("conduct", v)}
+                    />
                     <BehaviourCell label="Hospitality" value={behaviour.hospitality} onChange={(v) => updateBehaviour("hospitality", v)} />
                     <BehaviourCell label="Punctuality" value={behaviour.punctuality} onChange={(v) => updateBehaviour("punctuality", v)} />
                     <BehaviourCell label="Participation in Class" value={behaviour.participation} onChange={(v) => updateBehaviour("participation", v)} />
