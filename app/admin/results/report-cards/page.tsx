@@ -613,7 +613,9 @@ export default function ReportCardsPage() {
                 </div>
 
                 {/* SIGNATURES & STAMP */}
-                <div className="relative grid grid-cols-2 text-[9.5px] font-bold italic min-h-[50px]">
+                {/* FIX: taller row so the stamp (now bigger) has room to overlap
+                    the signature/date line instead of hanging below it */}
+                <div className="relative grid grid-cols-2 text-[9.5px] font-bold italic min-h-[85px]">
                   <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
                     <div>
                       <p>Director&apos;s</p>
@@ -633,7 +635,11 @@ export default function ReportCardsPage() {
                       26 February, 2026
                     </div>
 
-                    <div className="absolute right-[-5px] bottom-[-10px] h-20 w-20 z-10 pointer-events-none opacity-85">
+                    {/* FIX: matches the sample exactly — stamp bleeds past the
+                        signature cell's right/bottom edge and overlaps the outer
+                        border, the way a real ink stamp does near the edge of a
+                        form, rather than sitting neatly contained inside the cell */}
+                    <div className="absolute right-[-12px] bottom-[-14px] h-32 w-32 z-10 pointer-events-none opacity-90">
                       <Image
                         src={SCHOOL.stampPath}
                         alt="Official Stamp"
