@@ -34,7 +34,7 @@ type Behaviour = {
   physicalHealth: string;
 };
 
-type SubjectResultRow = {
+type SubjectResult = {
   result: ResultEntry;
   subject?: Subject;
 };
@@ -58,6 +58,14 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(number) ? number : 0;
 }
 
+function displayValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+
+  return String(value);
+}
+
 function gradeRemark(grade?: string): string {
   switch (grade) {
     case "A":
@@ -78,43 +86,34 @@ function gradeRemark(grade?: string): string {
 }
 
 function generateGeneralComment(
-  overallAverage: number,
-  hasMainSubjects: boolean,
-  hasArabicSubjects: boolean
+  average: number,
+  hasResults: boolean
 ): string {
-  if (!hasMainSubjects && !hasArabicSubjects) {
+  if (!hasResults) {
     return "No academic results have been recorded for this student.";
   }
 
-  if (overallAverage >= 80) {
+  if (average >= 80) {
     return "Outstanding performance. Keep up the excellent work!";
   }
 
-  if (overallAverage >= 70) {
+  if (average >= 70) {
     return "Excellent performance. Continue striving for excellence.";
   }
 
-  if (overallAverage >= 60) {
+  if (average >= 60) {
     return "Very good overall performance. Keep working hard.";
   }
 
-  if (overallAverage >= 50) {
+  if (average >= 50) {
     return "Good performance. Encouraging progress.";
   }
 
-  if (overallAverage >= 40) {
+  if (average >= 40) {
     return "Fair performance. More consistent study is required.";
   }
 
   return "Requires significant improvement and regular study.";
-}
-
-function formatResultValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-
-  return String(value);
 }
 
 export default function ReportCardsPage() {
@@ -136,16 +135,13 @@ export default function ReportCardsPage() {
   const [behaviour, setBehaviour] =
     useState<Behaviour>(emptyBehaviour);
 
-  /*
-   * These values can later be moved into school settings.
-   * Keeping them here prevents undefined values from breaking
-   * the printed report.
-   */
   const nextTermDate = "30th MARCH, 2026";
   const reportDate = "26 February, 2026";
 
   /*
-   * Load classes and subjects.
+   * =========================================================
+   * LOAD CLASSES + SUBJECTS
+   * =========================================================
    */
   useEffect(() => {
     let mounted = true;
@@ -158,7 +154,10 @@ export default function ReportCardsPage() {
         setSubjects((subjectData || []) as Subject[]);
       })
       .catch((error) => {
-        console.error("Failed to load report-card data:", error);
+        console.error(
+          "Failed to load classes/subjects:",
+          error
+        );
 
         if (!mounted) return;
 
@@ -172,7 +171,9 @@ export default function ReportCardsPage() {
   }, []);
 
   /*
-   * Load students whenever class changes.
+   * =========================================================
+   * LOAD STUDENTS WHEN CLASS CHANGES
+   * =========================================================
    */
   useEffect(() => {
     let mounted = true;
@@ -192,7 +193,10 @@ export default function ReportCardsPage() {
         setStudents((data || []) as Student[]);
       })
       .catch((error) => {
-        console.error("Failed to load students:", error);
+        console.error(
+          "Failed to load students:",
+          error
+        );
 
         if (!mounted) return;
 
@@ -205,7 +209,9 @@ export default function ReportCardsPage() {
   }, [classId]);
 
   /*
-   * Load student's results whenever student/session/term changes.
+   * =========================================================
+   * LOAD RESULTS
+   * =========================================================
    */
   useEffect(() => {
     let mounted = true;
@@ -219,14 +225,21 @@ export default function ReportCardsPage() {
 
     setLoading(true);
 
-    getResultsForStudent(studentId, term, session)
+    getResultsForStudent(
+      studentId,
+      term,
+      session
+    )
       .then((data) => {
         if (!mounted) return;
 
         setResults((data || []) as ResultEntry[]);
       })
       .catch((error) => {
-        console.error("Failed to load student results:", error);
+        console.error(
+          "Failed to load results:",
+          error
+        );
 
         if (!mounted) return;
 
@@ -244,36 +257,45 @@ export default function ReportCardsPage() {
   }, [studentId, term, session]);
 
   /*
-   * Current student.
+   * =========================================================
+   * CURRENT STUDENT
+   * =========================================================
    */
   const student = useMemo(
-    () => students.find((item) => item.id === studentId),
+    () =>
+      students.find(
+        (item) => item.id === studentId
+      ),
     [students, studentId]
   );
 
   /*
-   * Current student's class.
+   * =========================================================
+   * CURRENT CLASS
+   * =========================================================
    */
   const classRoom = useMemo(
-    () => classes.find((item) => item.id === student?.classId),
+    () =>
+      classes.find(
+        (item) => item.id === student?.classId
+      ),
     [classes, student?.classId]
   );
 
   /*
-   * Main subjects.
+   * =========================================================
+   * MAIN SUBJECTS
+   * =========================================================
    */
-  const mainSubjects = useMemo<SubjectResultRow[]>(() => {
+  const mainSubjects = useMemo<SubjectResult[]>(() => {
     return results
-      .map((result) => {
-        const subject = subjects.find(
-          (item) => item.id === result.subjectId
-        );
-
-        return {
-          result,
-          subject,
-        };
-      })
+      .map((result) => ({
+        result,
+        subject: subjects.find(
+          (subject) =>
+            subject.id === result.subjectId
+        ),
+      }))
       .filter(
         ({ subject }) =>
           Boolean(subject) &&
@@ -283,35 +305,37 @@ export default function ReportCardsPage() {
   }, [results, subjects]);
 
   /*
-   * Arabic subjects.
+   * =========================================================
+   * ARABIC SUBJECTS
+   * =========================================================
    */
-  const arabicSubjects = useMemo<SubjectResultRow[]>(() => {
+  const arabicSubjects = useMemo<SubjectResult[]>(() => {
     return results
-      .map((result) => {
-        const subject = subjects.find(
-          (item) => item.id === result.subjectId
-        );
-
-        return {
-          result,
-          subject,
-        };
-      })
+      .map((result) => ({
+        result,
+        subject: subjects.find(
+          (subject) =>
+            subject.id === result.subjectId
+        ),
+      }))
       .filter(
         ({ subject }) =>
           Boolean(subject) &&
           (subject?.section === "arabic" ||
-            subject?.scoringType === "arabic-40-60")
+            subject?.scoringType ===
+              "arabic-40-60")
       );
   }, [results, subjects]);
 
   /*
-   * Main subjects: always display at least 11 rows.
+   * =========================================================
+   * PAD MAIN SUBJECTS
+   * =========================================================
    */
   const paddedMainSubjects = useMemo<
-    Array<SubjectResultRow | null>
+    Array<SubjectResult | null>
   >(() => {
-    const list: Array<SubjectResultRow | null> = [
+    const list: Array<SubjectResult | null> = [
       ...mainSubjects,
     ];
 
@@ -323,12 +347,14 @@ export default function ReportCardsPage() {
   }, [mainSubjects]);
 
   /*
-   * Arabic subjects: 1-4 on the left.
+   * =========================================================
+   * PAD ARABIC SUBJECTS
+   * =========================================================
    */
   const paddedArabicLeft = useMemo<
-    Array<SubjectResultRow | null>
+    Array<SubjectResult | null>
   >(() => {
-    const list: Array<SubjectResultRow | null> =
+    const list: Array<SubjectResult | null> =
       arabicSubjects.slice(0, 4);
 
     while (list.length < MIN_ARABIC_ROWS) {
@@ -338,13 +364,10 @@ export default function ReportCardsPage() {
     return list;
   }, [arabicSubjects]);
 
-  /*
-   * Arabic subjects: 5-8 on the right.
-   */
   const paddedArabicRight = useMemo<
-    Array<SubjectResultRow | null>
+    Array<SubjectResult | null>
   >(() => {
-    const list: Array<SubjectResultRow | null> =
+    const list: Array<SubjectResult | null> =
       arabicSubjects.slice(4, 8);
 
     while (list.length < MIN_ARABIC_ROWS) {
@@ -355,7 +378,9 @@ export default function ReportCardsPage() {
   }, [arabicSubjects]);
 
   /*
-   * Main subject totals.
+   * =========================================================
+   * TOTALS
+   * =========================================================
    */
   const mainTotal = useMemo(
     () =>
@@ -367,17 +392,11 @@ export default function ReportCardsPage() {
     [mainSubjects]
   );
 
-  const mainAverage = useMemo(
-    () =>
-      mainSubjects.length > 0
-        ? mainTotal / mainSubjects.length
-        : 0,
-    [mainSubjects.length, mainTotal]
-  );
+  const mainAverage =
+    mainSubjects.length > 0
+      ? mainTotal / mainSubjects.length
+      : 0;
 
-  /*
-   * Arabic totals.
-   */
   const arabicTotal = useMemo(
     () =>
       arabicSubjects.reduce(
@@ -388,44 +407,42 @@ export default function ReportCardsPage() {
     [arabicSubjects]
   );
 
-  const arabicAverage = useMemo(
-    () =>
-      arabicSubjects.length > 0
-        ? arabicTotal / arabicSubjects.length
-        : 0,
-    [arabicSubjects.length, arabicTotal]
-  );
+  const arabicAverage =
+    arabicSubjects.length > 0
+      ? arabicTotal / arabicSubjects.length
+      : 0;
 
-  /*
-   * Overall totals.
-   */
-  const overallTotal = mainTotal + arabicTotal;
+  const overallTotal =
+    mainTotal + arabicTotal;
 
   const overallCount =
-    mainSubjects.length + arabicSubjects.length;
+    mainSubjects.length +
+    arabicSubjects.length;
 
   const overallAverage =
     overallCount > 0
       ? overallTotal / overallCount
       : 0;
 
-  /*
-   * General comment.
-   */
-  const generalComment = generateGeneralComment(
-    overallAverage,
-    mainSubjects.length > 0,
-    arabicSubjects.length > 0
-  );
+  const generalComment =
+    generateGeneralComment(
+      overallAverage,
+      overallCount > 0
+    );
 
   /*
-   * Behavioural assessment.
+   * =========================================================
+   * BEHAVIOUR
+   * =========================================================
    */
   function updateBehaviour(
     field: keyof Behaviour,
     value: string
   ) {
-    if (value !== "" && !/^[1-5]$/.test(value)) {
+    if (
+      value !== "" &&
+      !/^[1-5]$/.test(value)
+    ) {
       return;
     }
 
@@ -441,7 +458,9 @@ export default function ReportCardsPage() {
     "PRIMARY TWO";
 
   /*
-   * Print.
+   * =========================================================
+   * PRINT
+   * =========================================================
    */
   function handlePrint() {
     window.print();
@@ -450,6 +469,10 @@ export default function ReportCardsPage() {
   return (
     <>
       <style jsx global>{`
+        * {
+          box-sizing: border-box;
+        }
+
         .report-card-font {
           font-family:
             "Times New Roman",
@@ -464,54 +487,113 @@ export default function ReportCardsPage() {
             serif;
         }
 
+        /*
+         * A4 PAGE
+         */
         .a4-report-wrapper {
           width: 210mm;
           height: 297mm;
+          min-height: 297mm;
           max-height: 297mm;
+
           margin: 0 auto;
+
           background: #ffffff;
-          box-sizing: border-box;
-          padding: 2.5mm;
+
+          padding: 3mm;
+
           position: relative;
-          display: flex;
-          flex-direction: column;
+
           overflow: hidden;
+
           color: #000000;
+
+          box-sizing: border-box;
+
+          display: flex;
         }
 
-        .report-inner-border {
+        /*
+         * OUTER BLACK BORDER
+         */
+        .report-outer-border {
           width: 100%;
           height: 100%;
-          box-sizing: border-box;
+
           border: 3px solid #000000;
+
           padding: 1.5mm;
+
           background: #ffffff;
+
+          box-sizing: border-box;
         }
 
-        .report-inner-content {
+        /*
+         * INNER BLACK BORDER
+         */
+        .report-inner {
           width: 100%;
           height: 100%;
-          box-sizing: border-box;
+
           border: 1px solid #000000;
-          padding: 1mm;
+
+          padding: 1.5mm;
+
+          background: #ffffff;
+
+          box-sizing: border-box;
+
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
+
           overflow: hidden;
         }
 
+        /*
+         * THE MAIN CONTENT IS ALLOWED TO USE
+         * THE AVAILABLE A4 HEIGHT.
+         */
+        .report-main {
+          flex: 1 1 auto;
+
+          min-height: 0;
+
+          display: flex;
+          flex-direction: column;
+
+          overflow: hidden;
+        }
+
+        /*
+         * FOOTER MUST STAY AT THE BOTTOM.
+         */
+        .report-footer {
+          flex: 0 0 auto;
+        }
+
+        /*
+         * ARABIC CELLS
+         */
         .arabic-cell {
           direction: rtl;
           text-align: right;
         }
 
+        /*
+         * SCREEN VIEW
+         */
         @media screen {
           .a4-report-wrapper {
             box-shadow:
-              0 4px 20px rgba(0, 0, 0, 0.12);
+              0 5px 25px
+              rgba(0, 0, 0, 0.15);
           }
         }
 
+        /*
+         * PRINT
+         */
         @media print {
           @page {
             size: A4 portrait;
@@ -522,10 +604,14 @@ export default function ReportCardsPage() {
           body {
             width: 210mm !important;
             height: 297mm !important;
+
             margin: 0 !important;
             padding: 0 !important;
+
             background: #ffffff !important;
+
             overflow: hidden !important;
+
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -546,47 +632,58 @@ export default function ReportCardsPage() {
 
           .a4-report-wrapper {
             position: absolute !important;
+
             left: 0 !important;
             top: 0 !important;
+
             width: 210mm !important;
             height: 297mm !important;
+
+            min-height: 297mm !important;
             max-height: 297mm !important;
+
             margin: 0 !important;
-            padding: 2.5mm !important;
-            box-sizing: border-box !important;
+
+            padding: 3mm !important;
+
             overflow: hidden !important;
+
             box-shadow: none !important;
+
             page-break-before: avoid !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
           }
 
-          .report-inner-border,
-          .report-inner-content {
+          .report-outer-border,
+          .report-inner,
+          .report-main,
+          .report-footer {
             page-break-inside: avoid !important;
           }
 
-          table,
-          tr,
-          td,
-          th {
+          table {
+            page-break-inside: avoid !important;
+          }
+
+          tr {
             page-break-inside: avoid !important;
           }
         }
       `}</style>
 
-      <div className="max-w-5xl space-y-4 report-card-font mx-auto">
+      <div className="max-w-5xl mx-auto space-y-4 report-card-font">
 
-        {/* CONTROL PANEL */}
+        {/* =====================================================
+            CONTROL PANEL
+        ====================================================== */}
         <div className="print:hidden print-controls grid grid-cols-1 gap-4 rounded-card border border-gray-100 bg-white p-4 shadow-sm md:grid-cols-3 items-center">
 
           <SelectInput
             label="Class"
             value={classId}
             onChange={(event) => {
-              const value = event.target.value;
-
-              setClassId(value);
+              setClassId(event.target.value);
               setStudentId("");
               setResults([]);
               setBehaviour(emptyBehaviour);
@@ -607,9 +704,7 @@ export default function ReportCardsPage() {
             label="Student"
             value={studentId}
             onChange={(event) => {
-              const value = event.target.value;
-
-              setStudentId(value);
+              setStudentId(event.target.value);
               setBehaviour(emptyBehaviour);
             }}
             options={[
@@ -632,50 +727,57 @@ export default function ReportCardsPage() {
               Print / Save as PDF
             </Button>
           </div>
+
         </div>
 
-        {/* LOADING */}
+        {/* =====================================================
+            LOADING
+        ====================================================== */}
         {loading && (
           <p className="print:hidden text-sm text-gray-400 text-center">
             Loading results...
           </p>
         )}
 
-        {/* REPORT */}
+        {/* =====================================================
+            REPORT
+        ====================================================== */}
         {student && !loading && (
-          <div className="a4-report-wrapper text-black">
+          <div className="a4-report-wrapper">
 
-            <div className="report-inner-border">
+            <div className="report-outer-border">
 
-              <div className="report-inner-content">
+              <div className="report-inner">
 
-                {/* =========================
-                    UPPER DOCUMENT CONTENT
-                ========================== */}
-                <div>
+                {/* =================================================
+                    MAIN REPORT CONTENT
+                ================================================== */}
+                <div className="report-main">
 
-                  {/* HEADER */}
-                  <div className="text-center pt-0.5">
+                  {/* =================================================
+                      SCHOOL HEADER
+                  ================================================== */}
+                  <div className="text-center shrink-0">
 
-                    <h1 className="text-[20px] sm:text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
+                    <h1 className="text-[20px] font-extrabold tracking-wider uppercase leading-none">
                       JIDDA STANDARD ACADEMY
                     </h1>
 
-                    <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1 leading-tight">
+                    <div className="mt-1 bg-gray-700 text-white text-[8px] font-semibold py-[2px] px-2 mx-1 leading-tight">
                       Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
                     </div>
 
-                    <div className="mt-[1px] bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-1 leading-tight">
+                    <div className="mt-[1px] bg-gray-700 text-white text-[7.5px] font-semibold py-[2px] px-2 mx-1 leading-tight">
                       Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
                     </div>
 
-                    <div className="relative mt-1 px-8 flex items-center justify-between min-h-[42px]">
+                    <div className="relative mt-1 px-10 flex items-center justify-between min-h-[42px]">
 
                       {/* LEFT LOGO */}
                       <div className="absolute left-1 top-0 h-10 w-10">
                         <Image
                           src={SCHOOL.logoPath}
-                          alt="Jidda Standard Academy Logo"
+                          alt="School Logo"
                           fill
                           priority
                           className="object-contain"
@@ -692,9 +794,9 @@ export default function ReportCardsPage() {
                           Phone Numbers: 08121414008, 08069121401
                         </p>
 
-                        <div className="bg-gray-400 text-white text-[8px] font-bold py-[0.5px] mt-[1px] mx-auto w-1/2 leading-none">
-                          Email:
-                        </div>
+                        <p className="text-[8px] font-bold leading-tight mt-[1px]">
+                          Email: —
+                        </p>
 
                       </div>
 
@@ -702,7 +804,7 @@ export default function ReportCardsPage() {
                       <div className="absolute right-1 top-0 h-10 w-10">
                         <Image
                           src={SCHOOL.logoPath}
-                          alt="Jidda Standard Academy Logo"
+                          alt="School Logo"
                           fill
                           priority
                           className="object-contain"
@@ -711,7 +813,7 @@ export default function ReportCardsPage() {
 
                     </div>
 
-                    <div className="mt-1 border-t border-b border-black py-[1px] bg-gray-100">
+                    <div className="mt-1 border-t border-b border-black py-[2px] bg-gray-100">
                       <p className="text-[10.5px] font-bold italic tracking-wide leading-tight">
                         End of Term Examination Report Sheet (Primary Section)
                       </p>
@@ -719,57 +821,55 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
+                  {/* =================================================
                       STUDENT INFORMATION
-                  ========================== */}
-                  <div className="mt-[2px]">
+                  ================================================== */}
+                  <div className="shrink-0">
 
-                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[1px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[2px] leading-tight">
                       Student Information
                     </div>
 
-                    <table className="w-full text-[9px] border-collapse leading-tight">
+                    <table className="w-full text-[8.5px] border-collapse leading-tight">
 
                       <tbody>
 
-                        {/* ROW 1 — 6 COLUMNS */}
                         <tr className="border-b border-black">
 
-                          <td className="w-[9%] font-bold p-[2px] px-1 border-r border-black">
+                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
                             Name:
                           </td>
 
-                          <td className="w-[31%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic font-serif">
+                          <td className="w-[32%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic">
                             {student.firstName}{" "}
                             {student.lastName}
                           </td>
 
-                          <td className="w-[9%] font-bold p-[2px] px-1 border-r border-black">
+                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
                             Class:
                           </td>
 
-                          <td className="w-[21%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic font-serif">
+                          <td className="w-[18%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic">
                             {className}
                           </td>
 
-                          <td className="w-[9%] font-bold p-[2px] px-1 border-r border-black">
+                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
                             Term:
                           </td>
 
-                          <td className="w-[21%] p-[2px] px-1 text-center font-bold uppercase italic font-serif">
+                          <td className="w-[26%] p-[2px] px-1 text-center font-bold uppercase italic">
                             {term}
                           </td>
 
                         </tr>
 
-                        {/* ROW 2 — 6 COLUMNS */}
                         <tr className="border-b border-black">
 
                           <td className="font-bold p-[2px] px-1 border-r border-black">
                             Session:
                           </td>
 
-                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic font-serif">
+                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic">
                             {session}
                           </td>
 
@@ -777,7 +877,7 @@ export default function ReportCardsPage() {
                             No. in Class:
                           </td>
 
-                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic font-serif">
+                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic">
                             {students.length}
                           </td>
 
@@ -785,7 +885,7 @@ export default function ReportCardsPage() {
                             Student ID:
                           </td>
 
-                          <td className="p-[2px] px-1 text-center font-bold italic font-serif truncate">
+                          <td className="p-[2px] px-1 text-center font-bold italic truncate">
                             {student.id}
                           </td>
 
@@ -797,50 +897,50 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
-                      MAIN SUBJECT TABLE
-                  ========================== */}
-                  <div className="mt-0">
+                  {/* =================================================
+                      MAIN ACADEMIC TABLE
+                  ================================================== */}
+                  <div className="shrink-0">
 
-                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[1px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[2px] leading-tight">
                       STUDENT ACADEMIC PERFORMANCE
                     </div>
 
-                    <table className="w-full text-[8.5px] border-collapse leading-tight">
+                    <table className="w-full text-[8px] border-collapse leading-none">
 
                       <thead>
 
                         <tr className="border-b border-black font-bold italic bg-gray-50">
 
-                          <th className="border-r border-black p-0.5 w-[5%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[5%] text-center">
                             S/N
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[32%] text-left pl-2 leading-none">
+                          <th className="border-r border-black p-[2px] w-[31%] text-left pl-2">
                             SUBJECTS
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[11%] text-center">
                             1ST C.A (20)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[11%] text-center">
                             2ND C.A (20)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[11%] text-center">
                             EXAM (60)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[10%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[11%] text-center">
                             TOTAL (100)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[8%] text-center">
                             GRADE
                           </th>
 
-                          <th className="p-0.5 w-[12%] text-center leading-none">
+                          <th className="p-[2px] w-[12%] text-center">
                             REMARK
                           </th>
 
@@ -854,48 +954,48 @@ export default function ReportCardsPage() {
                           (item, index) => (
                             <tr
                               key={`main-${index}`}
-                              className="border-b border-black h-[21px]"
+                              className="border-b border-black h-[20px]"
                             >
 
-                              <td className="border-r border-black p-0.5 text-center font-semibold">
+                              <td className="border-r border-black p-[2px] text-center font-semibold">
                                 {index + 1}
                               </td>
 
-                              <td className="border-r border-black p-0.5 pl-2 font-semibold text-gray-900">
+                              <td className="border-r border-black p-[2px] pl-2 font-semibold">
                                 {item?.subject?.name || ""}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   item?.result.ca1
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   item?.result.ca2
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   item?.result.exam
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center font-bold">
+                                {displayValue(
                                   item?.result.total
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center font-bold">
+                                {displayValue(
                                   item?.result.grade
                                 )}
                               </td>
 
-                              <td className="p-0.5 text-center italic text-[8px]">
+                              <td className="p-[2px] text-center italic text-[7.5px]">
                                 {item
                                   ? item.result.remark ||
                                     gradeRemark(
@@ -908,33 +1008,33 @@ export default function ReportCardsPage() {
                           )
                         )}
 
-                        <tr className="border-b border-black font-bold bg-gray-50 h-[22px]">
+                        <tr className="border-b border-black font-bold bg-gray-50 h-[20px]">
 
                           <td
                             colSpan={2}
-                            className="border-r border-black p-0.5 text-right pr-4"
+                            className="border-r border-black p-[2px] text-right pr-4"
                           >
                             TOTAL:
                           </td>
 
                           <td
                             colSpan={3}
-                            className="border-r border-black p-0.5 text-center text-[9.5px]"
+                            className="border-r border-black p-[2px] text-center"
                           >
-                            {mainSubjects.length > 0
+                            {mainSubjects.length
                               ? mainTotal
                               : ""}
                           </td>
 
                           <td
                             colSpan={2}
-                            className="border-r border-black p-0.5 text-right pr-2"
+                            className="border-r border-black p-[2px] text-right pr-2"
                           >
                             AVERAGE:
                           </td>
 
-                          <td className="p-0.5 text-center text-[9.5px]">
-                            {mainSubjects.length > 0
+                          <td className="p-[2px] text-center">
+                            {mainSubjects.length
                               ? mainAverage.toFixed(2)
                               : ""}
                           </td>
@@ -947,17 +1047,17 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
+                  {/* =================================================
                       ARABIC TABLE
-                  ========================== */}
-                  <div className="mt-0">
+                  ================================================== */}
+                  <div className="shrink-0">
 
-                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[1px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[2px] leading-tight">
                       STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
                     </div>
 
                     <table
-                      className="w-full text-[8.5px] border-collapse leading-tight"
+                      className="w-full text-[7.8px] border-collapse leading-none"
                       dir="ltr"
                     >
 
@@ -965,51 +1065,51 @@ export default function ReportCardsPage() {
 
                         <tr className="border-b border-black font-bold italic bg-gray-50">
 
-                          <th className="border-r border-black p-0.5 w-[4%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[4%] text-center">
                             S/N
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[20%] text-right pr-2 leading-none">
+                          <th className="border-r border-black p-[2px] w-[20%] text-right pr-2">
                             SUBJECTS
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[8%] text-center">
                             C.A (40)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[9%] text-center">
                             EXAM (60)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">
-                            TOTAL (100)
+                          <th className="border-r border-black p-[2px] w-[9%] text-center">
+                            TOTAL
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[6%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[6%] text-center">
                             GRADE
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[4%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[4%] text-center">
                             S/N
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[20%] text-right pr-2 leading-none">
+                          <th className="border-r border-black p-[2px] w-[20%] text-right pr-2">
                             SUBJECTS
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[8%] text-center">
                             C.A (40)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">
+                          <th className="border-r border-black p-[2px] w-[9%] text-center">
                             EXAM (60)
                           </th>
 
-                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">
-                            TOTAL (100)
+                          <th className="border-r border-black p-[2px] w-[9%] text-center">
+                            TOTAL
                           </th>
 
-                          <th className="p-0.5 w-[6%] text-center leading-none">
+                          <th className="p-[2px] w-[6%] text-center">
                             GRADE
                           </th>
 
@@ -1021,82 +1121,80 @@ export default function ReportCardsPage() {
 
                         {Array.from({
                           length: MIN_ARABIC_ROWS,
-                        }).map((_, idx) => {
+                        }).map((_, index) => {
 
                           const left =
-                            paddedArabicLeft[idx];
+                            paddedArabicLeft[index];
 
                           const right =
-                            paddedArabicRight[idx];
+                            paddedArabicRight[index];
 
                           return (
                             <tr
-                              key={`arabic-${idx}`}
-                              className="border-b border-black h-[21px]"
+                              key={`arabic-${index}`}
+                              className="border-b border-black h-[20px]"
                             >
 
-                              {/* LEFT */}
-                              <td className="border-r border-black p-0.5 text-center font-semibold">
-                                {idx + 1}
+                              <td className="border-r border-black p-[2px] text-center font-semibold">
+                                {index + 1}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-right pr-2 font-bold arabic-font text-[9.5px] arabic-cell">
+                              <td className="border-r border-black p-[2px] text-right pr-2 font-bold arabic-font arabic-cell">
                                 {left?.subject?.name || ""}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   left?.result.ca1
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   left?.result.exam
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center font-bold">
+                                {displayValue(
                                   left?.result.total
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center font-bold">
+                                {displayValue(
                                   left?.result.grade
                                 )}
                               </td>
 
-                              {/* RIGHT */}
-                              <td className="border-r border-black p-0.5 text-center font-semibold">
-                                {idx + 5}
+                              <td className="border-r border-black p-[2px] text-center font-semibold">
+                                {index + 5}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-right pr-2 font-bold arabic-font text-[9.5px] arabic-cell">
+                              <td className="border-r border-black p-[2px] text-right pr-2 font-bold arabic-font arabic-cell">
                                 {right?.subject?.name || ""}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   right?.result.ca1
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center">
+                                {displayValue(
                                   right?.result.exam
                                 )}
                               </td>
 
-                              <td className="border-r border-black p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="border-r border-black p-[2px] text-center font-bold">
+                                {displayValue(
                                   right?.result.total
                                 )}
                               </td>
 
-                              <td className="p-0.5 text-center font-bold">
-                                {formatResultValue(
+                              <td className="p-[2px] text-center font-bold">
+                                {displayValue(
                                   right?.result.grade
                                 )}
                               </td>
@@ -1105,36 +1203,36 @@ export default function ReportCardsPage() {
                           );
                         })}
 
-                        <tr className="border-b border-black font-bold bg-gray-50 h-[22px]">
+                        <tr className="border-b border-black font-bold bg-gray-50 h-[20px]">
 
                           <td
                             colSpan={2}
-                            className="border-r border-black p-0.5 text-right pr-2"
+                            className="border-r border-black p-[2px] text-right pr-2"
                           >
                             TOTAL:
                           </td>
 
                           <td
                             colSpan={4}
-                            className="border-r border-black p-0.5 text-center text-[9.5px]"
+                            className="border-r border-black p-[2px] text-center"
                           >
-                            {arabicSubjects.length > 0
+                            {arabicSubjects.length
                               ? arabicTotal
                               : ""}
                           </td>
 
                           <td
                             colSpan={4}
-                            className="border-r border-black p-0.5 text-right pr-2"
+                            className="border-r border-black p-[2px] text-right pr-2"
                           >
                             AVERAGE:
                           </td>
 
                           <td
                             colSpan={2}
-                            className="p-0.5 text-center text-[9.5px]"
+                            className="p-[2px] text-center"
                           >
-                            {arabicSubjects.length > 0
+                            {arabicSubjects.length
                               ? arabicAverage.toFixed(2)
                               : ""}
                           </td>
@@ -1147,18 +1245,18 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
-                      OVERALL TOTAL
-                  ========================== */}
-                  <div className="border-b border-black font-bold text-[9px] uppercase bg-gray-100 leading-tight">
+                  {/* =================================================
+                      OVERALL RESULT
+                  ================================================== */}
+                  <div className="border-b border-black font-bold text-[8.5px] uppercase bg-gray-100 leading-tight shrink-0">
 
-                    <div className="grid grid-cols-2 text-center py-[2px]">
+                    <div className="grid grid-cols-2 text-center py-[3px]">
 
                       <div className="border-r border-black">
                         OVERALL TOTAL:
 
-                        <span className="ml-4 text-[10px]">
-                          {overallCount > 0
+                        <span className="ml-4 text-[9.5px]">
+                          {overallCount
                             ? overallTotal
                             : ""}
                         </span>
@@ -1167,8 +1265,8 @@ export default function ReportCardsPage() {
                       <div>
                         OVERALL AVERAGE:
 
-                        <span className="ml-4 text-[10px]">
-                          {overallCount > 0
+                        <span className="ml-4 text-[9.5px]">
+                          {overallCount
                             ? overallAverage.toFixed(2)
                             : ""}
                         </span>
@@ -1178,16 +1276,16 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
+                  {/* =================================================
                       BEHAVIOURAL ASSESSMENT
-                  ========================== */}
-                  <div>
+                  ================================================== */}
+                  <div className="shrink-0">
 
-                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[1px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[2px] leading-tight">
                       Behavioural Assessment
                     </div>
 
-                    <div className="grid grid-cols-4 text-[8.5px] border-b border-black leading-tight">
+                    <div className="grid grid-cols-4 text-[7.8px] border-b border-black leading-tight">
 
                       <BehaviourCell
                         label="Conduct"
@@ -1281,18 +1379,18 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
-                      GUIDE + COMMENT
-                  ========================== */}
-                  <div className="grid grid-cols-3 border-b border-black text-[8.5px] leading-tight">
+                  {/* =================================================
+                      GUIDE + GENERAL COMMENT
+                  ================================================== */}
+                  <div className="grid grid-cols-3 border-b border-black text-[7.8px] leading-tight shrink-0">
 
-                    <div className="border-r border-black p-1 italic leading-none">
+                    <div className="border-r border-black p-1">
 
-                      <p className="font-bold underline text-center text-[8.5px]">
-                        GUIDE:
+                      <p className="font-bold underline text-center">
+                        GUIDE
                       </p>
 
-                      <div className="grid grid-cols-2 mt-0.5 text-[8px] px-0.5">
+                      <div className="grid grid-cols-2 mt-0.5 px-1">
 
                         <div>
                           <p>5 - Excellent</p>
@@ -1311,11 +1409,11 @@ export default function ReportCardsPage() {
 
                     <div className="col-span-2 p-1 text-center flex flex-col justify-center items-center">
 
-                      <p className="font-bold italic text-[9px]">
+                      <p className="font-bold italic text-[8.5px]">
                         General Comment:
                       </p>
 
-                      <p className="mt-1 italic font-semibold text-[9.5px] px-1">
+                      <p className="mt-1 italic font-semibold text-[9px] px-2">
                         {generalComment}
                       </p>
 
@@ -1323,10 +1421,10 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
+                  {/* =================================================
                       NEXT TERM
-                  ========================== */}
-                  <div className="border-b border-black p-1 text-center text-[9px] font-bold italic leading-tight bg-gray-50">
+                  ================================================== */}
+                  <div className="border-b border-black p-[3px] text-center text-[8.5px] font-bold italic leading-tight bg-gray-50 shrink-0">
 
                     Next term begins on:
 
@@ -1338,27 +1436,28 @@ export default function ReportCardsPage() {
 
                 </div>
 
-                {/* =========================
-                    SIGNATURES + STAMP
-                ========================== */}
-                <div>
+                {/* =================================================
+                    REPORT FOOTER
+                ================================================== */}
+                <div className="report-footer">
 
-                  <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[46px] leading-tight pt-1">
+                  {/* SIGNATURE AREA */}
+                  <div className="relative grid grid-cols-2 text-[8.5px] font-bold italic min-h-[48px] leading-tight pt-1">
 
                     {/* DIRECTOR */}
                     <div className="border-r border-black p-1 text-center relative flex flex-col justify-between items-center">
 
                       <div>
-                        <p className="leading-tight">
+                        <p>
                           Director&apos;s
                         </p>
 
-                        <p className="leading-tight">
+                        <p>
                           Signature and Date
                         </p>
                       </div>
 
-                      <div className="w-full text-right pr-2 text-[8px] font-serif font-semibold mt-3">
+                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold">
                         {reportDate}
                       </div>
 
@@ -1368,21 +1467,21 @@ export default function ReportCardsPage() {
                     <div className="p-1 text-center relative flex flex-col justify-between items-center">
 
                       <div>
-                        <p className="leading-tight">
+                        <p>
                           Headmaster&apos;s/Headmistress
                         </p>
 
-                        <p className="leading-tight">
+                        <p>
                           Signature and Date
                         </p>
                       </div>
 
-                      <div className="w-full text-right pr-2 text-[8px] font-serif font-semibold mt-3">
+                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold">
                         {reportDate}
                       </div>
 
-                      {/* OFFICIAL STAMP */}
-                      <div className="absolute right-[-4px] bottom-[-6px] h-16 w-16 z-10 pointer-events-none opacity-85">
+                      {/* SCHOOL STAMP */}
+                      <div className="absolute right-0 bottom-[-4px] h-[62px] w-[62px] z-10 pointer-events-none opacity-90">
 
                         <Image
                           src={SCHOOL.stampPath}
@@ -1397,18 +1496,22 @@ export default function ReportCardsPage() {
 
                   </div>
 
-                  {/* =========================
-                      FOOTER
-                  ========================== */}
-                  <div className="mt-1 text-[7px] italic text-gray-700 font-semibold border-t border-gray-400 pt-[1px] flex justify-between px-1 leading-none">
+                  {/* =================================================
+                      MAIDAMMANATION TECHNOLOGY FOOTER
+                  ================================================== */}
+                  <div className="mt-1 border-t border-gray-500 pt-[2px] px-1 flex items-center justify-between text-[7px] leading-tight">
 
-                    <span>
-                      Designed @ 08101130605
-                    </span>
+                    <div className="font-bold italic">
+                      Maidammanation Tech Company
+                    </div>
 
-                    <span>
-                      JIDDA STANDARD ACADEMY OFFICIAL RESULT SHEET
-                    </span>
+                    <div className="font-semibold text-center">
+                      08032191668&nbsp;&nbsp;|&nbsp;&nbsp;08117106867
+                    </div>
+
+                    <div className="italic font-semibold">
+                      School Management System
+                    </div>
 
                   </div>
 
@@ -1427,7 +1530,9 @@ export default function ReportCardsPage() {
 }
 
 /*
- * Behavioural Assessment Cell
+ * ============================================================
+ * BEHAVIOUR CELL
+ * ============================================================
  */
 function BehaviourCell({
   label,
@@ -1439,9 +1544,9 @@ function BehaviourCell({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="border-r border-b border-black p-[2px] flex items-center justify-between px-1.5">
+    <div className="border-r border-b border-black p-[3px] flex items-center justify-between px-1.5 min-h-[20px]">
 
-      <span className="italic">
+      <span className="italic leading-none">
         {label}
       </span>
 
@@ -1454,12 +1559,12 @@ function BehaviourCell({
         onChange={(event) =>
           onChange(event.target.value)
         }
-        className="print:hidden w-4 h-4 text-center border border-gray-400 font-bold text-[8.5px] outline-none"
+        className="print:hidden w-4 h-4 text-center border border-gray-400 font-bold text-[8px] outline-none"
         aria-label={`${label} rating`}
       />
 
       {/* PRINT VALUE */}
-      <span className="hidden print:inline font-bold text-[8.5px]">
+      <span className="hidden print:inline font-bold text-[8px]">
         {value || "—"}
       </span>
 
