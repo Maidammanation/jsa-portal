@@ -268,8 +268,12 @@ export default function ReportCardsPage() {
         @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
 
         @page {
-          size: portrait;
-          margin: 0;
+          /* FIX: "portrait" alone leaves paper size up to the browser/printer
+             default. If that default is Letter (279mm tall) instead of
+             A4 (297mm tall), this content — sized for A4 — overflows onto
+             a second page. Naming the size removes that ambiguity. */
+          size: A4 portrait;
+          margin: 6mm;
         }
 
         .report-card-font {
@@ -302,7 +306,10 @@ export default function ReportCardsPage() {
             top: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            padding: 4mm !important;
+            /* FIX: reduced from 4mm now that @page margin (6mm) also applies,
+               so the two don't stack into an oversized combined margin that
+               eats into the usable page height. */
+            padding: 2mm !important;
           }
 
           .print-button,
@@ -359,14 +366,14 @@ export default function ReportCardsPage() {
 
                 {/* HEADER SECTION */}
                 <div className="text-center pt-1">
-                  <h1 className="text-[20px] sm:text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
+                  <h1 className="text-[21px] sm:text-[23px] font-extrabold tracking-wider uppercase leading-none font-serif">
                     JIDDA STANDARD ACADEMY
                   </h1>
 
-                  <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1">
+                  <div className="mt-1 bg-gray-600 text-white text-[8.5px] font-semibold py-[1px] px-2 mx-1">
                     Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
                   </div>
-                  <div className="mt-0.5 bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-1">
+                  <div className="mt-0.5 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1">
                     Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
                   </div>
 
@@ -380,14 +387,14 @@ export default function ReportCardsPage() {
                       />
                     </div>
 
-                    <p className="text-[9.5px] italic font-semibold">
+                    <p className="text-[10px] italic font-semibold">
                       Motto: Knowledge is Light
                     </p>
-                    <p className="text-[8.5px] font-bold">
+                    <p className="text-[9px] font-bold">
                       Phone Numbers: 08121414008, 08069121401
                     </p>
 
-                    <div className="bg-gray-400 text-white text-[8px] font-bold py-[0.5px] mt-0.5 mx-auto w-3/5">
+                    <div className="bg-gray-400 text-white text-[8.5px] font-bold py-[0.5px] mt-0.5 mx-auto w-3/5">
                       Email:
                     </div>
 
@@ -403,7 +410,7 @@ export default function ReportCardsPage() {
                   </div>
 
                   <div className="mt-1 border-t border-b border-gray-800 py-0.5">
-                    <p className="text-[10.5px] font-bold italic tracking-wide">
+                    <p className="text-[11px] font-bold italic tracking-wide">
                       End of Term Examination Report Sheet (Primary Section)
                     </p>
                   </div>
@@ -411,10 +418,10 @@ export default function ReportCardsPage() {
 
                 {/* STUDENT INFORMATION */}
                 <div>
-                  <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-gray-800 py-[1px]">
+                  <div className="bg-gray-300 text-center font-bold text-[9.5px] italic border-b border-gray-800 py-[1px]">
                     Student Information
                   </div>
-                  <table className="w-full text-[9px] border-collapse">
+                  <table className="w-full text-[9.5px] border-collapse">
                     <tbody>
                       <tr className="border-b border-gray-800">
                         <td className="w-16 font-bold p-0.5 border-r border-gray-800">Name:</td>
@@ -438,11 +445,11 @@ export default function ReportCardsPage() {
 
                 {/* MAIN SUBJECTS TABLE */}
                 <div>
-                  <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-gray-800 py-[1px]">
+                  <div className="bg-gray-300 text-center font-bold text-[9.5px] uppercase border-t border-b border-gray-800 py-[1px]">
                     STUDENT ACADEMIC PERFORMANCE
                   </div>
 
-                  <table className="w-full text-[8.5px] border-collapse">
+                  <table className="w-full text-[9.5px] border-collapse">
                     <thead>
                       <tr className="border-b border-gray-800 font-bold italic">
                         <th className="border-r border-gray-800 p-0.5 w-[5%] text-center">S/N</th>
@@ -481,11 +488,11 @@ export default function ReportCardsPage() {
                 {/* ARABIC SECTION TABLE */}
                 {student.attendsArabic && (
                   <div>
-                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-gray-800 py-[1px]">
+                    <div className="bg-gray-300 text-center font-bold text-[9.5px] uppercase border-t border-b border-gray-800 py-[1px]">
                       STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
                     </div>
 
-                    <table className="w-full text-[8.5px] border-collapse">
+                    <table className="w-full text-[9.5px] border-collapse">
                       <thead>
                         <tr className="border-b border-gray-800 font-bold italic">
                           <th className="border-r border-gray-800 p-0.5 w-[4%] text-center">S/N</th>
@@ -544,7 +551,7 @@ export default function ReportCardsPage() {
                 )}
 
                 {/* OVERALL TOTAL & AVERAGE */}
-                <div className="border-b border-gray-800 font-bold text-[9px] uppercase">
+                <div className="border-b border-gray-800 font-bold text-[9.5px] uppercase">
                   <div className="grid grid-cols-2 text-center">
                     <div className="border-r border-gray-800 p-0.5">
                       OVERALL TOTAL: <span className="ml-4">{overallTotal}</span>
@@ -557,11 +564,11 @@ export default function ReportCardsPage() {
 
                 {/* BEHAVIOURAL ASSESSMENT */}
                 <div>
-                  <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-gray-800 py-[1px]">
+                  <div className="bg-gray-300 text-center font-bold text-[9.5px] italic border-b border-gray-800 py-[1px]">
                     Behavioural Assessment
                   </div>
 
-                  <div className="grid grid-cols-4 text-[8.5px] border-b border-gray-800">
+                  <div className="grid grid-cols-4 text-[9.5px] border-b border-gray-800">
                     <BehaviourCell
                       label="Conduct"
                       value={behaviour.conduct}
@@ -578,10 +585,10 @@ export default function ReportCardsPage() {
                 </div>
 
                 {/* GUIDE & GENERAL COMMENT */}
-                <div className="grid grid-cols-3 border-b border-gray-800 text-[8.5px]">
+                <div className="grid grid-cols-3 border-b border-gray-800 text-[9.5px]">
                   <div className="border-r border-gray-800 p-1 italic leading-tight">
                     <p className="font-bold underline text-center">GUIDE:</p>
-                    <div className="grid grid-cols-2 mt-0.5 text-[8px]">
+                    <div className="grid grid-cols-2 mt-0.5 text-[8.5px]">
                       <div>
                         <p>5 - Excellent</p>
                         <p>4 - V. Good</p>
@@ -601,18 +608,18 @@ export default function ReportCardsPage() {
                 </div>
 
                 {/* NEXT TERM */}
-                <div className="border-b border-gray-800 p-0.5 text-center text-[9px] font-bold italic">
+                <div className="border-b border-gray-800 p-0.5 text-center text-[9.5px] font-bold italic">
                   Next term begins on: <span className="ml-2 underline">{nextTermDate}</span>
                 </div>
 
                 {/* SIGNATURES & STAMP */}
-                <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[50px]">
+                <div className="relative grid grid-cols-2 text-[9.5px] font-bold italic min-h-[50px]">
                   <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
                     <div>
                       <p>Director&apos;s</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       26 February, 2026
                     </div>
                   </div>
@@ -622,7 +629,7 @@ export default function ReportCardsPage() {
                       <p>Headmaster&apos;s/Headmistress</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       26 February, 2026
                     </div>
 
