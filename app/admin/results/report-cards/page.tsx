@@ -109,6 +109,11 @@ export default function ReportCardsPage() {
   const [behaviour, setBehaviour] = useState<Behaviour>(emptyBehaviour);
   const [nextTermDate, setNextTermDate] = useState("30th MARCH, 2026");
 
+  // ADDED: single shared date for BOTH signature lines. Director's and
+  // Headmaster's date inputs both read/write this one value, so editing
+  // either one updates the other automatically (as requested).
+  const [signatureDate, setSignatureDate] = useState("26 February, 2026");
+
   useEffect(() => {
     let mounted = true;
 
@@ -607,39 +612,69 @@ export default function ReportCardsPage() {
                   </div>
                 </div>
 
-                {/* NEXT TERM */}
-                <div className="border-b border-gray-800 p-0.5 text-center text-[9.5px] font-bold italic">
-                  Next term begins on: <span className="ml-2 underline">{nextTermDate}</span>
+                {/* NEXT TERM — ADDED: now an editable input (print:hidden) backed
+                    by the existing nextTermDate state, with a plain printable
+                    span for the actual printed page. Previously this state
+                    existed but had no input anywhere, so it could never change. */}
+                <div className="border-b border-gray-800 p-0.5 text-center text-[9.5px] font-bold italic flex items-center justify-center gap-2 flex-wrap">
+                  <span>Next term begins on:</span>
+                  <input
+                    type="text"
+                    value={nextTermDate}
+                    onChange={(e) => setNextTermDate(e.target.value)}
+                    className="print:hidden w-40 border border-gray-400 px-1 py-0.5 text-center font-bold italic underline not-italic"
+                  />
+                  <span className="hidden print:inline underline">{nextTermDate}</span>
                 </div>
 
                 {/* SIGNATURES & STAMP */}
-                {/* FIX: taller row so the stamp (now bigger) has room to overlap
-                    the signature/date line instead of hanging below it */}
                 <div className="relative grid grid-cols-2 text-[9.5px] font-bold italic min-h-[85px]">
                   <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
-                    <div>
+                    <div className="relative z-20">
                       <p>Director&apos;s</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
-                      26 February, 2026
+                    {/* ADDED: editable, synced to the shared signatureDate state */}
+                    <div className="relative z-20 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
+                      <input
+                        type="text"
+                        value={signatureDate}
+                        onChange={(e) => setSignatureDate(e.target.value)}
+                        className="print:hidden w-full border border-gray-400 px-1 text-center text-[8.5px] not-italic"
+                      />
+                      <span className="hidden print:inline">{signatureDate}</span>
                     </div>
                   </div>
 
                   <div className="p-1 text-center relative flex flex-col justify-between">
-                    <div>
+                    <div className="relative z-20">
                       <p>Headmaster&apos;s/Headmistress</p>
                       <p>Signature and Date</p>
                     </div>
-                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
-                      26 February, 2026
+                    {/* ADDED: same shared signatureDate — editing this one updates
+                        the Director's field above automatically, and vice versa */}
+                    <div className="relative z-20 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
+                      <input
+                        type="text"
+                        value={signatureDate}
+                        onChange={(e) => setSignatureDate(e.target.value)}
+                        className="print:hidden w-full border border-gray-400 px-1 text-center text-[8.5px] not-italic"
+                      />
+                      <span className="hidden print:inline">{signatureDate}</span>
                     </div>
 
-                    {/* FIX: matches the sample exactly — stamp bleeds past the
-                        signature cell's right/bottom edge and overlaps the outer
-                        border, the way a real ink stamp does near the edge of a
-                        form, rather than sitting neatly contained inside the cell */}
-                    <div className="absolute right-[-12px] bottom-[-14px] h-32 w-32 z-10 pointer-events-none opacity-90">
+                    {/* REPOSITIONED per your sample: shifted left off the bled
+                        right edge, centered horizontally in the column, and
+                        placed vertically between the "Headmaster's/Headmistress
+                        Signature and Date" label and the date line below it —
+                        i.e. straddling the border-t divider that acts as the
+                        signature line, so a real signature crosses over it.
+                        z-10 (below the z-20 text above) so the label/date stay
+                        legible on top of the stamp rather than hidden under it.
+                        This offset is estimated from the cell's layout, not a
+                        live render — check it against the real page and tell me
+                        which way to nudge if it's off. */}
+                    <div className="absolute left-1/2 top-[44px] -translate-x-1/2 -translate-y-1/2 h-20 w-20 z-10 pointer-events-none opacity-90">
                       <Image
                         src={SCHOOL.stampPath}
                         alt="Official Stamp"
