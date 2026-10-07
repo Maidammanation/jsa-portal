@@ -40,6 +40,9 @@ const emptyBehaviour: Behaviour = {
   physicalHealth: "",
 };
 
+const MIN_MAIN_ROWS = 11;
+const MIN_ARABIC_ROWS = 4;
+
 function safeNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -202,10 +205,6 @@ export default function ReportCardsPage() {
   }, [results, subjects]);
 
   const arabicSubjects = useMemo(() => {
-    if (!student?.attendsArabic) {
-      return [];
-    }
-
     return results
       .map((result) => {
         const subject = subjects.find((item) => item.id === result.subjectId);
@@ -217,7 +216,33 @@ export default function ReportCardsPage() {
           (subject?.section === "arabic" ||
             subject?.scoringType === "arabic-40-60")
       );
-  }, [results, subjects, student]);
+  }, [results, subjects]);
+
+  // Pad main subjects so there are ALWAYS at least 11 rows rendered
+  const paddedMainSubjects = useMemo(() => {
+    const list = [...mainSubjects];
+    while (list.length < MIN_MAIN_ROWS) {
+      list.push(null as unknown as (typeof mainSubjects)[0]);
+    }
+    return list;
+  }, [mainSubjects]);
+
+  // Pad Arabic subjects for left (1-4) and right (5-8) columns
+  const paddedArabicLeft = useMemo(() => {
+    const list = arabicSubjects.slice(0, 4);
+    while (list.length < MIN_ARABIC_ROWS) {
+      list.push(null as unknown as (typeof arabicSubjects)[0]);
+    }
+    return list;
+  }, [arabicSubjects]);
+
+  const paddedArabicRight = useMemo(() => {
+    const list = arabicSubjects.slice(4, 8);
+    while (list.length < MIN_ARABIC_ROWS) {
+      list.push(null as unknown as (typeof arabicSubjects)[0]);
+    }
+    return list;
+  }, [arabicSubjects]);
 
   const mainTotal = mainSubjects.reduce(
     (sum, item) => sum + safeNumber(item.result.total),
@@ -386,27 +411,27 @@ export default function ReportCardsPage() {
 
         {student && !loading && (
           <div className="a4-report-wrapper text-black">
-            {/* FULL WIDTH STRETCH CONTAINER WITH DOUBLE BORDER */}
-            <div className="w-full h-full border-[3px] border-gray-800 p-[1.5mm] bg-white text-black box-border">
-              <div className="border border-gray-800 relative p-1 h-full flex flex-col justify-between overflow-hidden">
+            {/* FULL WIDTH CONTAINER WITH DOUBLE BORDER */}
+            <div className="w-full h-full border-[3px] border-black p-[1.5mm] bg-white text-black box-border">
+              <div className="border border-black relative p-1 h-full flex flex-col justify-between overflow-hidden">
 
                 {/* UPPER DOCUMENT CONTENT */}
                 <div>
                   {/* HEADER SECTION */}
                   <div className="text-center pt-0.5">
-                    <h1 className="text-[19px] sm:text-[21px] font-extrabold tracking-wider uppercase leading-none font-serif">
+                    <h1 className="text-[20px] sm:text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
                       JIDDA STANDARD ACADEMY
                     </h1>
 
-                    <div className="mt-0.5 bg-gray-600 text-white text-[7.5px] font-semibold py-[0.5px] px-2 mx-1 leading-tight">
+                    <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1 leading-tight">
                       Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
                     </div>
-                    <div className="mt-[1px] bg-gray-600 text-white text-[7px] font-semibold py-[0.5px] px-2 mx-1 leading-tight">
+                    <div className="mt-[1px] bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-1 leading-tight">
                       Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
                     </div>
 
-                    <div className="relative mt-0.5 px-8 flex items-center justify-between min-h-[38px]">
-                      <div className="absolute left-1 top-0 h-9 w-9">
+                    <div className="relative mt-1 px-8 flex items-center justify-between min-h-[42px]">
+                      <div className="absolute left-1 top-0 h-10 w-10">
                         <Image
                           src={SCHOOL.logoPath}
                           alt="Logo"
@@ -416,19 +441,19 @@ export default function ReportCardsPage() {
                       </div>
 
                       <div className="w-full text-center">
-                        <p className="text-[9px] italic font-semibold leading-tight">
+                        <p className="text-[9.5px] italic font-semibold leading-tight">
                           Motto: Knowledge is Light
                         </p>
-                        <p className="text-[8px] font-bold leading-tight mt-[1px]">
+                        <p className="text-[8.5px] font-bold leading-tight mt-[1px]">
                           Phone Numbers: 08121414008, 08069121401
                         </p>
 
-                        <div className="bg-gray-400 text-white text-[7.5px] font-bold py-[0.5px] mt-[1px] mx-auto w-1/2 leading-none">
+                        <div className="bg-gray-400 text-white text-[8px] font-bold py-[0.5px] mt-[1px] mx-auto w-1/2 leading-none">
                           Email:
                         </div>
                       </div>
 
-                      <div className="absolute right-1 top-0 h-9 w-9">
+                      <div className="absolute right-1 top-0 h-10 w-10">
                         <Image
                           src={SCHOOL.logoPath}
                           alt="Logo"
@@ -438,166 +463,166 @@ export default function ReportCardsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-0.5 border-t border-b border-gray-800 py-[1px] bg-gray-100">
-                      <p className="text-[10px] font-bold italic tracking-wide leading-tight">
+                    <div className="mt-1 border-t border-b border-black py-[1px] bg-gray-100">
+                      <p className="text-[10.5px] font-bold italic tracking-wide leading-tight">
                         End of Term Examination Report Sheet (Primary Section)
                       </p>
                     </div>
                   </div>
 
                   {/* STUDENT INFORMATION */}
-                  <div className="mt-[1px]">
-                    <div className="bg-gray-300 text-center font-bold text-[8.5px] italic border-b border-gray-800 py-[0.5px] leading-tight">
+                  <div className="mt-[2px]">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[1px] leading-tight">
                       Student Information
                     </div>
-                    <table className="w-full text-[8.5px] border-collapse leading-tight">
+                    <table className="w-full text-[9px] border-collapse leading-tight">
                       <tbody>
-                        <tr className="border-b border-gray-800">
-                          <td className="w-14 font-bold p-[1px] px-1 border-r border-gray-800">Name:</td>
-                          <td className="p-[1px] px-1 border-r border-gray-800 uppercase font-bold text-center">
+                        <tr className="border-b border-black">
+                          <td className="w-14 font-bold p-[2px] px-1 border-r border-black">Name:</td>
+                          <td className="p-[2px] px-1 border-r border-black uppercase font-bold text-center italic font-serif">
                             {student.firstName} {student.lastName}
                           </td>
-                          <td className="w-14 font-bold p-[1px] px-1 border-r border-gray-800">Class:</td>
-                          <td className="p-[1px] px-1 uppercase font-bold text-center">{className}</td>
+                          <td className="w-14 font-bold p-[2px] px-1 border-r border-black">Class:</td>
+                          <td className="p-[2px] px-1 uppercase font-bold text-center italic font-serif">{className}</td>
                         </tr>
-                        <tr className="border-b border-gray-800">
-                          <td className="font-bold p-[1px] px-1 border-r border-gray-800">Session:</td>
-                          <td className="p-[1px] px-1 border-r border-gray-800 text-center font-bold">{session}</td>
-                          <td className="font-bold p-[1px] px-1 border-r border-gray-800">Number in Class:</td>
-                          <td className="p-[1px] px-1 border-r border-gray-800 text-center font-bold">{students.length}</td>
-                          <td className="w-12 font-bold p-[1px] px-1 border-r border-gray-800">Term:</td>
-                          <td className="p-[1px] px-1 text-center font-bold uppercase">{term}</td>
+                        <tr className="border-b border-black">
+                          <td className="font-bold p-[2px] px-1 border-r border-black">Session:</td>
+                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic font-serif">{session}</td>
+                          <td className="font-bold p-[2px] px-1 border-r border-black">Number in Class:</td>
+                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic font-serif">{students.length}</td>
+                          <td className="w-12 font-bold p-[2px] px-1 border-r border-black">Term:</td>
+                          <td className="p-[2px] px-1 text-center font-bold uppercase italic font-serif">{term}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
-                  {/* MAIN SUBJECTS TABLE */}
+                  {/* MAIN SUBJECTS TABLE (FIXED 11 ROWS) */}
                   <div className="mt-0">
-                    <div className="bg-gray-300 text-center font-bold text-[8.5px] uppercase border-t border-b border-gray-800 py-[0.5px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[1px] leading-tight">
                       STUDENT ACADEMIC PERFORMANCE
                     </div>
 
-                    <table className="w-full text-[8px] border-collapse leading-tight">
+                    <table className="w-full text-[8.5px] border-collapse leading-tight">
                       <thead>
-                        <tr className="border-b border-gray-800 font-bold italic bg-gray-50">
-                          <th className="border-r border-gray-800 p-[1px] w-[5%] text-center leading-none">S/N</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[32%] text-left pl-2 leading-none">SUBJECTS</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[11%] text-center leading-none">1ST C.A (20)</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[11%] text-center leading-none">2ND C.A (20)</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[11%] text-center leading-none">EXAM (60)</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[10%] text-center leading-none">TOTAL (100)</th>
-                          <th className="border-r border-gray-800 p-[1px] w-[8%] text-center leading-none">GRADE</th>
-                          <th className="p-[1px] w-[12%] text-center leading-none">REMARK</th>
+                        <tr className="border-b border-black font-bold italic bg-gray-50">
+                          <th className="border-r border-black p-0.5 w-[5%] text-center leading-none">S/N</th>
+                          <th className="border-r border-black p-0.5 w-[32%] text-left pl-2 leading-none">SUBJECTS</th>
+                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">1ST C.A (20)</th>
+                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">2ND C.A (20)</th>
+                          <th className="border-r border-black p-0.5 w-[11%] text-center leading-none">EXAM (60)</th>
+                          <th className="border-r border-black p-0.5 w-[10%] text-center leading-none">TOTAL (100)</th>
+                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">GRADE</th>
+                          <th className="p-0.5 w-[12%] text-center leading-none">REMARK</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {mainSubjects.map((item, index) => (
-                          <tr key={index} className="border-b border-gray-800 h-[15px]">
-                            <td className="border-r border-gray-800 p-[1px] text-center">{index + 1}</td>
-                            <td className="border-r border-gray-800 p-[1px] pl-2 font-semibold">{item.subject?.name}</td>
-                            <td className="border-r border-gray-800 p-[1px] text-center">{item.result.ca1 ?? "—"}</td>
-                            <td className="border-r border-gray-800 p-[1px] text-center">{item.result.ca2 ?? "—"}</td>
-                            <td className="border-r border-gray-800 p-[1px] text-center">{item.result.exam ?? "—"}</td>
-                            <td className="border-r border-gray-800 p-[1px] text-center font-bold">{item.result.total ?? "—"}</td>
-                            <td className="border-r border-gray-800 p-[1px] text-center font-bold">{item.result.grade ?? "—"}</td>
-                            <td className="p-[1px] text-center italic text-[7.5px]">{item.result.remark || gradeRemark(item.result.grade)}</td>
+                        {paddedMainSubjects.map((item, index) => (
+                          <tr key={index} className="border-b border-black h-[21px]">
+                            <td className="border-r border-black p-0.5 text-center font-semibold">{index + 1}</td>
+                            <td className="border-r border-black p-0.5 pl-2 font-semibold text-gray-900">
+                              {item?.subject?.name || ""}
+                            </td>
+                            <td className="border-r border-black p-0.5 text-center">{item?.result.ca1 ?? ""}</td>
+                            <td className="border-r border-black p-0.5 text-center">{item?.result.ca2 ?? ""}</td>
+                            <td className="border-r border-black p-0.5 text-center">{item?.result.exam ?? ""}</td>
+                            <td className="border-r border-black p-0.5 text-center font-bold">{item?.result.total ?? ""}</td>
+                            <td className="border-r border-black p-0.5 text-center font-bold">{item?.result.grade ?? ""}</td>
+                            <td className="p-0.5 text-center italic text-[8px]">
+                              {item ? (item.result.remark || gradeRemark(item.result.grade)) : ""}
+                            </td>
                           </tr>
                         ))}
-                        <tr className="border-b border-gray-800 font-bold bg-gray-50 h-[16px]">
-                          <td colSpan={2} className="border-r border-gray-800 p-[1px] text-right pr-4">TOTAL:</td>
-                          <td colSpan={3} className="border-r border-gray-800 p-[1px] text-center text-[9px]">{mainTotal}</td>
-                          <td colSpan={2} className="border-r border-gray-800 p-[1px] text-right pr-2">AVERAGE:</td>
-                          <td className="p-[1px] text-center text-[9px]">{mainAverage.toFixed(2)}</td>
+                        <tr className="border-b border-black font-bold bg-gray-50 h-[22px]">
+                          <td colSpan={2} className="border-r border-black p-0.5 text-right pr-4">TOTAL:</td>
+                          <td colSpan={3} className="border-r border-black p-0.5 text-center text-[9.5px]">{mainTotal || 0}</td>
+                          <td colSpan={2} className="border-r border-black p-0.5 text-right pr-2">AVERAGE:</td>
+                          <td className="p-0.5 text-center text-[9.5px]">{mainAverage.toFixed(2)}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
-                  {/* ARABIC SECTION TABLE */}
-                  {student.attendsArabic && (
-                    <div className="mt-0">
-                      <div className="bg-gray-300 text-center font-bold text-[8.5px] uppercase border-t border-b border-gray-800 py-[0.5px] leading-tight">
-                        STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
-                      </div>
-
-                      <table className="w-full text-[8px] border-collapse leading-tight">
-                        <thead>
-                          <tr className="border-b border-gray-800 font-bold italic bg-gray-50">
-                            <th className="border-r border-gray-800 p-[1px] w-[4%] text-center leading-none">S/N</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[20%] text-right pr-2 leading-none">SUBJECTS</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[8%] text-center leading-none">C.A (40)</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[9%] text-center leading-none">EXAM (60)</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[9%] text-center leading-none">TOTAL (100)</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[6%] text-center leading-none">GRADE</th>
-
-                            <th className="border-r border-gray-800 p-[1px] w-[4%] text-center leading-none">S/N</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[20%] text-right pr-2 leading-none">SUBJECTS</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[8%] text-center leading-none">C.A (40)</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[9%] text-center leading-none">EXAM (60)</th>
-                            <th className="border-r border-gray-800 p-[1px] w-[9%] text-center leading-none">TOTAL (100)</th>
-                            <th className="p-[1px] w-[6%] text-center leading-none">GRADE</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(() => {
-                            const left = arabicSubjects.slice(0, 4);
-                            const right = arabicSubjects.slice(4, 8);
-                            const rows = Math.max(left.length, right.length, 4);
-
-                            return Array.from({ length: rows }).map((_, idx) => {
-                              const a = left[idx];
-                              const b = right[idx];
-
-                              return (
-                                <tr key={idx} className="border-b border-gray-800 h-[15px]">
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{a ? idx + 1 : ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-right pr-2 font-bold arabic-font text-[9px]">{a?.subject?.name || ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{a?.result.ca1 ?? ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{a?.result.exam ?? ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center font-bold">{a?.result.total ?? ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center font-bold">{a?.result.grade ?? ""}</td>
-
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{b ? idx + 5 : ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-right pr-2 font-bold arabic-font text-[9px]">{b?.subject?.name || ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{b?.result.ca1 ?? ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center">{b?.result.exam ?? ""}</td>
-                                  <td className="border-r border-gray-800 p-[1px] text-center font-bold">{b?.result.total ?? ""}</td>
-                                  <td className="p-[1px] text-center font-bold">{b?.result.grade ?? ""}</td>
-                                </tr>
-                              );
-                            });
-                          })()}
-                          <tr className="border-b border-gray-800 font-bold bg-gray-50 h-[16px]">
-                            <td colSpan={2} className="border-r border-gray-800 p-[1px] text-right pr-2">TOTAL:</td>
-                            <td colSpan={4} className="border-r border-gray-800 p-[1px] text-center text-[9px]">{arabicTotal}</td>
-                            <td colSpan={4} className="border-r border-gray-800 p-[1px] text-right pr-2">AVERAGE:</td>
-                            <td colSpan={2} className="p-[1px] text-center text-[9px]">{arabicAverage.toFixed(2)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  {/* ARABIC SECTION TABLE (FIXED 4 ROWS / 8 SUBJECT SLOTS) */}
+                  <div className="mt-0">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[1px] leading-tight">
+                      STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
                     </div>
-                  )}
+
+                    <table className="w-full text-[8.5px] border-collapse leading-tight">
+                      <thead>
+                        <tr className="border-b border-black font-bold italic bg-gray-50">
+                          <th className="border-r border-black p-0.5 w-[4%] text-center leading-none">S/N</th>
+                          <th className="border-r border-black p-0.5 w-[20%] text-right pr-2 leading-none">SUBJECTS</th>
+                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">C.A (40)</th>
+                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">EXAM (60)</th>
+                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">TOTAL (100)</th>
+                          <th className="border-r border-black p-0.5 w-[6%] text-center leading-none">GRADE</th>
+
+                          <th className="border-r border-black p-0.5 w-[4%] text-center leading-none">S/N</th>
+                          <th className="border-r border-black p-0.5 w-[20%] text-right pr-2 leading-none">SUBJECTS</th>
+                          <th className="border-r border-black p-0.5 w-[8%] text-center leading-none">C.A (40)</th>
+                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">EXAM (60)</th>
+                          <th className="border-r border-black p-0.5 w-[9%] text-center leading-none">TOTAL (100)</th>
+                          <th className="p-0.5 w-[6%] text-center leading-none">GRADE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from({ length: MIN_ARABIC_ROWS }).map((_, idx) => {
+                          const left = paddedArabicLeft[idx];
+                          const right = paddedArabicRight[idx];
+
+                          return (
+                            <tr key={idx} className="border-b border-black h-[21px]">
+                              <td className="border-r border-black p-0.5 text-center font-semibold">{idx + 1}</td>
+                              <td className="border-r border-black p-0.5 text-right pr-2 font-bold arabic-font text-[9.5px]">
+                                {left?.subject?.name || ""}
+                              </td>
+                              <td className="border-r border-black p-0.5 text-center">{left?.result.ca1 ?? ""}</td>
+                              <td className="border-r border-black p-0.5 text-center">{left?.result.exam ?? ""}</td>
+                              <td className="border-r border-black p-0.5 text-center font-bold">{left?.result.total ?? ""}</td>
+                              <td className="border-r border-black p-0.5 text-center font-bold">{left?.result.grade ?? ""}</td>
+
+                              <td className="border-r border-black p-0.5 text-center font-semibold">{idx + 5}</td>
+                              <td className="border-r border-black p-0.5 text-right pr-2 font-bold arabic-font text-[9.5px]">
+                                {right?.subject?.name || ""}
+                              </td>
+                              <td className="border-r border-black p-0.5 text-center">{right?.result.ca1 ?? ""}</td>
+                              <td className="border-r border-black p-0.5 text-center">{right?.result.exam ?? ""}</td>
+                              <td className="border-r border-black p-0.5 text-center font-bold">{right?.result.total ?? ""}</td>
+                              <td className="p-0.5 text-center font-bold">{right?.result.grade ?? ""}</td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="border-b border-black font-bold bg-gray-50 h-[22px]">
+                          <td colSpan={2} className="border-r border-black p-0.5 text-right pr-2">TOTAL:</td>
+                          <td colSpan={4} className="border-r border-black p-0.5 text-center text-[9.5px]">{arabicTotal || 0}</td>
+                          <td colSpan={4} className="border-r border-black p-0.5 text-right pr-2">AVERAGE:</td>
+                          <td colSpan={2} className="p-0.5 text-center text-[9.5px]">{arabicAverage.toFixed(2)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* OVERALL TOTAL & AVERAGE */}
-                  <div className="border-b border-gray-800 font-bold text-[8.5px] uppercase bg-gray-100 leading-tight">
-                    <div className="grid grid-cols-2 text-center py-[1px]">
-                      <div className="border-r border-gray-800">
-                        OVERALL TOTAL: <span className="ml-4 text-[9.5px]">{overallTotal}</span>
+                  <div className="border-b border-black font-bold text-[9px] uppercase bg-gray-100 leading-tight">
+                    <div className="grid grid-cols-2 text-center py-[2px]">
+                      <div className="border-r border-black">
+                        OVERALL TOTAL: <span className="ml-4 text-[10px]">{overallTotal || 0}</span>
                       </div>
                       <div>
-                        OVERALL AVERAGE: <span className="ml-4 text-[9.5px]">{overallAverage.toFixed(2)}</span>
+                        OVERALL AVERAGE: <span className="ml-4 text-[10px]">{overallAverage.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* BEHAVIOURAL ASSESSMENT */}
                   <div>
-                    <div className="bg-gray-300 text-center font-bold text-[8.5px] italic border-b border-gray-800 py-[0.5px] leading-tight">
+                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[1px] leading-tight">
                       Behavioural Assessment
                     </div>
 
-                    <div className="grid grid-cols-4 text-[8px] border-b border-gray-800 leading-tight">
+                    <div className="grid grid-cols-4 text-[8.5px] border-b border-black leading-tight">
                       <BehaviourCell label="Conduct" value={behaviour.conduct} onChange={(v) => updateBehaviour("conduct", v)} />
                       <BehaviourCell label="Hospitality" value={behaviour.hospitality} onChange={(v) => updateBehaviour("hospitality", v)} />
                       <BehaviourCell label="Punctuality" value={behaviour.punctuality} onChange={(v) => updateBehaviour("punctuality", v)} />
@@ -610,10 +635,10 @@ export default function ReportCardsPage() {
                   </div>
 
                   {/* GUIDE & GENERAL COMMENT */}
-                  <div className="grid grid-cols-3 border-b border-gray-800 text-[8px] leading-tight">
-                    <div className="border-r border-gray-800 p-0.5 italic leading-none">
-                      <p className="font-bold underline text-center text-[8px]">GUIDE:</p>
-                      <div className="grid grid-cols-2 mt-0.5 text-[7.5px] px-0.5">
+                  <div className="grid grid-cols-3 border-b border-black text-[8.5px] leading-tight">
+                    <div className="border-r border-black p-1 italic leading-none">
+                      <p className="font-bold underline text-center text-[8.5px]">GUIDE:</p>
+                      <div className="grid grid-cols-2 mt-0.5 text-[8px] px-0.5">
                         <div>
                           <p>5 - Excellent</p>
                           <p>4 - V. Good</p>
@@ -626,37 +651,37 @@ export default function ReportCardsPage() {
                       </div>
                     </div>
 
-                    <div className="col-span-2 p-0.5 text-center flex flex-col justify-center items-center">
-                      <p className="font-bold italic text-[8.5px]">General Comment:</p>
-                      <p className="mt-0.5 italic font-semibold text-[9px] px-1">{generalComment}</p>
+                    <div className="col-span-2 p-1 text-center flex flex-col justify-center items-center">
+                      <p className="font-bold italic text-[9px]">General Comment:</p>
+                      <p className="mt-1 italic font-semibold text-[9.5px] px-1">{generalComment}</p>
                     </div>
                   </div>
 
                   {/* NEXT TERM */}
-                  <div className="border-b border-gray-800 p-[1px] text-center text-[8.5px] font-bold italic leading-tight bg-gray-50">
+                  <div className="border-b border-black p-1 text-center text-[9px] font-bold italic leading-tight bg-gray-50">
                     Next term begins on: <span className="ml-2 underline font-serif tracking-wider">{nextTermDate}</span>
                   </div>
                 </div>
 
                 {/* SIGNATURES & STAMP FOOTER */}
                 <div>
-                  <div className="relative grid grid-cols-2 text-[8.5px] font-bold italic min-h-[42px] leading-tight pt-0.5">
-                    <div className="border-r border-gray-800 p-0.5 text-center relative flex flex-col justify-between items-center">
+                  <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[46px] leading-tight pt-1">
+                    <div className="border-r border-black p-1 text-center relative flex flex-col justify-between items-center">
                       <div>
                         <p className="leading-tight">Director&apos;s</p>
                         <p className="leading-tight">Signature and Date</p>
                       </div>
-                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold mt-2">
+                      <div className="w-full text-right pr-2 text-[8px] font-serif font-semibold mt-3">
                         26 February, 2026
                       </div>
                     </div>
 
-                    <div className="p-0.5 text-center relative flex flex-col justify-between items-center">
+                    <div className="p-1 text-center relative flex flex-col justify-between items-center">
                       <div>
                         <p className="leading-tight">Headmaster&apos;s/Headmistress</p>
                         <p className="leading-tight">Signature and Date</p>
                       </div>
-                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold mt-2">
+                      <div className="w-full text-right pr-2 text-[8px] font-serif font-semibold mt-3">
                         26 February, 2026
                       </div>
 
@@ -672,8 +697,8 @@ export default function ReportCardsPage() {
                   </div>
 
                   {/* BRANDING FOOTER */}
-                  <div className="mt-0.5 text-[6.5px] italic text-gray-700 font-semibold border-t border-gray-300 pt-[0.5px] flex justify-between px-0.5 leading-none">
-                    <span>Designed by Maidammanation tech company 08032191668 / 08117106867</span>
+                  <div className="mt-1 text-[7px] italic text-gray-700 font-semibold border-t border-gray-400 pt-[1px] flex justify-between px-1 leading-none">
+                    <span>Designed @ 08101130605</span>
                     <span>JIDDA STANDARD ACADEMY OFFICIAL RESULT SHEET</span>
                   </div>
                 </div>
@@ -697,16 +722,16 @@ function BehaviourCell({
   onChange?: (v: string) => void;
 }) {
   return (
-    <div className="border-r border-b border-gray-800 p-[1px] flex items-center justify-between px-1">
+    <div className="border-r border-b border-black p-[2px] flex items-center justify-between px-1.5">
       <span className="italic">{label}</span>
       <input
         type="text"
         maxLength={1}
         value={value}
         onChange={(e) => onChange && onChange(e.target.value)}
-        className="print:hidden w-3.5 h-3.5 text-center border border-gray-400 font-bold text-[8px]"
+        className="print:hidden w-4 h-4 text-center border border-gray-400 font-bold text-[8.5px]"
       />
-      <span className="hidden print:inline font-bold text-[8px]">{value || "—"}</span>
+      <span className="hidden print:inline font-bold text-[8.5px]">{value || "—"}</span>
     </div>
   );
 }
