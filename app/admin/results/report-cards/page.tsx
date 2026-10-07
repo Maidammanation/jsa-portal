@@ -16,12 +16,7 @@ import {
 import { SCHOOL } from "@/settings/config";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
-import type {
-  ClassRoom,
-  ResultEntry,
-  Student,
-  Subject,
-} from "@/lib/types";
+import type { ClassRoom, ResultEntry, Student, Subject } from "@/lib/types";
 
 type Behaviour = {
   conduct: string;
@@ -32,11 +27,6 @@ type Behaviour = {
   neatness: string;
   dedication: string;
   physicalHealth: string;
-};
-
-type SubjectResult = {
-  result: ResultEntry;
-  subject?: Subject;
 };
 
 const emptyBehaviour: Behaviour = {
@@ -50,20 +40,9 @@ const emptyBehaviour: Behaviour = {
   physicalHealth: "",
 };
 
-const MIN_MAIN_ROWS = 11;
-const MIN_ARABIC_ROWS = 4;
-
 function safeNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
-}
-
-function displayValue(value: unknown): string {
-  if (value === undefined || value === null || value === "") {
-    return "";
-  }
-
-  return String(value);
 }
 
 function gradeRemark(grade?: string): string {
@@ -86,41 +65,33 @@ function gradeRemark(grade?: string): string {
 }
 
 function generateGeneralComment(
-  average: number,
-  hasResults: boolean
+  overallAverage: number,
+  mainAverage: number,
+  arabicAverage: number,
+  hasMainSubjects: boolean,
+  hasArabicSubjects: boolean
 ): string {
-  if (!hasResults) {
+  if (!hasMainSubjects && !hasArabicSubjects) {
     return "No academic results have been recorded for this student.";
   }
 
-  if (average >= 80) {
-    return "Outstanding performance. Keep up the excellent work!";
-  }
-
-  if (average >= 70) {
-    return "Excellent performance. Continue striving for excellence.";
-  }
-
-  if (average >= 60) {
+  if (overallAverage >= 80) {
+    return "Very good result, keep pushing and all the hard work will pay up!";
+  } else if (overallAverage >= 70) {
+    return "Excellent performance! Continue striving for excellence.";
+  } else if (overallAverage >= 60) {
     return "Very good overall performance. Keep working hard.";
-  }
-
-  if (average >= 50) {
+  } else if (overallAverage >= 50) {
     return "Good performance. Encouraging progress.";
+  } else if (overallAverage >= 40) {
+    return "Fair performance. More consistent study required.";
+  } else {
+    return "Requires significant improvement and regular study.";
   }
-
-  if (average >= 40) {
-    return "Fair performance. More consistent study is required.";
-  }
-
-  return "Requires significant improvement and regular study.";
 }
 
 export default function ReportCardsPage() {
-  const schoolSettings = useSchoolSettings();
-
-  const session = schoolSettings?.session || "2025/2026";
-  const term = schoolSettings?.term || "SECOND TERM";
+  const { session, term } = useSchoolSettings();
 
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -132,35 +103,20 @@ export default function ReportCardsPage() {
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [behaviour, setBehaviour] =
-    useState<Behaviour>(emptyBehaviour);
+  const [behaviour, setBehaviour] = useState<Behaviour>(emptyBehaviour);
+  const [nextTermDate, setNextTermDate] = useState("30th MARCH, 2026");
 
-  const nextTermDate = "30th MARCH, 2026";
-  const reportDate = "26 February, 2026";
-
-  /*
-   * =========================================================
-   * LOAD CLASSES + SUBJECTS
-   * =========================================================
-   */
   useEffect(() => {
     let mounted = true;
 
     Promise.all([getClasses(), getSubjects()])
       .then(([classData, subjectData]) => {
         if (!mounted) return;
-
         setClasses((classData || []) as ClassRoom[]);
         setSubjects((subjectData || []) as Subject[]);
       })
-      .catch((error) => {
-        console.error(
-          "Failed to load classes/subjects:",
-          error
-        );
-
+      .catch(() => {
         if (!mounted) return;
-
         setClasses([]);
         setSubjects([]);
       });
@@ -170,11 +126,6 @@ export default function ReportCardsPage() {
     };
   }, []);
 
-  /*
-   * =========================================================
-   * LOAD STUDENTS WHEN CLASS CHANGES
-   * =========================================================
-   */
   useEffect(() => {
     let mounted = true;
 
@@ -182,24 +133,16 @@ export default function ReportCardsPage() {
       setStudents([]);
       setStudentId("");
       setResults([]);
-      setBehaviour(emptyBehaviour);
       return;
     }
 
     getStudentsByClass(classId)
       .then((data) => {
         if (!mounted) return;
-
         setStudents((data || []) as Student[]);
       })
-      .catch((error) => {
-        console.error(
-          "Failed to load students:",
-          error
-        );
-
+      .catch(() => {
         if (!mounted) return;
-
         setStudents([]);
       });
 
@@ -208,11 +151,6 @@ export default function ReportCardsPage() {
     };
   }, [classId]);
 
-  /*
-   * =========================================================
-   * LOAD RESULTS
-   * =========================================================
-   */
   useEffect(() => {
     let mounted = true;
 
@@ -225,29 +163,17 @@ export default function ReportCardsPage() {
 
     setLoading(true);
 
-    getResultsForStudent(
-      studentId,
-      term,
-      session
-    )
+    getResultsForStudent(studentId, term, session)
       .then((data) => {
         if (!mounted) return;
-
         setResults((data || []) as ResultEntry[]);
       })
-      .catch((error) => {
-        console.error(
-          "Failed to load results:",
-          error
-        );
-
+      .catch(() => {
         if (!mounted) return;
-
         setResults([]);
       })
       .finally(() => {
         if (!mounted) return;
-
         setLoading(false);
       });
 
@@ -256,46 +182,15 @@ export default function ReportCardsPage() {
     };
   }, [studentId, term, session]);
 
-  /*
-   * =========================================================
-   * CURRENT STUDENT
-   * =========================================================
-   */
-  const student = useMemo(
-    () =>
-      students.find(
-        (item) => item.id === studentId
-      ),
-    [students, studentId]
-  );
+  const student = students.find((item) => item.id === studentId);
+  const classRoom = classes.find((item) => item.id === student?.classId);
 
-  /*
-   * =========================================================
-   * CURRENT CLASS
-   * =========================================================
-   */
-  const classRoom = useMemo(
-    () =>
-      classes.find(
-        (item) => item.id === student?.classId
-      ),
-    [classes, student?.classId]
-  );
-
-  /*
-   * =========================================================
-   * MAIN SUBJECTS
-   * =========================================================
-   */
-  const mainSubjects = useMemo<SubjectResult[]>(() => {
+  const mainSubjects = useMemo(() => {
     return results
-      .map((result) => ({
-        result,
-        subject: subjects.find(
-          (subject) =>
-            subject.id === result.subjectId
-        ),
-      }))
+      .map((result) => {
+        const subject = subjects.find((item) => item.id === result.subjectId);
+        return { result, subject };
+      })
       .filter(
         ({ subject }) =>
           Boolean(subject) &&
@@ -304,145 +199,55 @@ export default function ReportCardsPage() {
       );
   }, [results, subjects]);
 
-  /*
-   * =========================================================
-   * ARABIC SUBJECTS
-   * =========================================================
-   */
-  const arabicSubjects = useMemo<SubjectResult[]>(() => {
+  const arabicSubjects = useMemo(() => {
+    if (!student?.attendsArabic) {
+      return [];
+    }
+
     return results
-      .map((result) => ({
-        result,
-        subject: subjects.find(
-          (subject) =>
-            subject.id === result.subjectId
-        ),
-      }))
+      .map((result) => {
+        const subject = subjects.find((item) => item.id === result.subjectId);
+        return { result, subject };
+      })
       .filter(
         ({ subject }) =>
           Boolean(subject) &&
           (subject?.section === "arabic" ||
-            subject?.scoringType ===
-              "arabic-40-60")
+            subject?.scoringType === "arabic-40-60")
       );
-  }, [results, subjects]);
+  }, [results, subjects, student]);
 
-  /*
-   * =========================================================
-   * PAD MAIN SUBJECTS
-   * =========================================================
-   */
-  const paddedMainSubjects = useMemo<
-    Array<SubjectResult | null>
-  >(() => {
-    const list: Array<SubjectResult | null> = [
-      ...mainSubjects,
-    ];
-
-    while (list.length < MIN_MAIN_ROWS) {
-      list.push(null);
-    }
-
-    return list;
-  }, [mainSubjects]);
-
-  /*
-   * =========================================================
-   * PAD ARABIC SUBJECTS
-   * =========================================================
-   */
-  const paddedArabicLeft = useMemo<
-    Array<SubjectResult | null>
-  >(() => {
-    const list: Array<SubjectResult | null> =
-      arabicSubjects.slice(0, 4);
-
-    while (list.length < MIN_ARABIC_ROWS) {
-      list.push(null);
-    }
-
-    return list;
-  }, [arabicSubjects]);
-
-  const paddedArabicRight = useMemo<
-    Array<SubjectResult | null>
-  >(() => {
-    const list: Array<SubjectResult | null> =
-      arabicSubjects.slice(4, 8);
-
-    while (list.length < MIN_ARABIC_ROWS) {
-      list.push(null);
-    }
-
-    return list;
-  }, [arabicSubjects]);
-
-  /*
-   * =========================================================
-   * TOTALS
-   * =========================================================
-   */
-  const mainTotal = useMemo(
-    () =>
-      mainSubjects.reduce(
-        (sum, item) =>
-          sum + safeNumber(item.result.total),
-        0
-      ),
-    [mainSubjects]
+  const mainTotal = mainSubjects.reduce(
+    (sum, item) => sum + safeNumber(item.result.total),
+    0
   );
 
   const mainAverage =
-    mainSubjects.length > 0
-      ? mainTotal / mainSubjects.length
-      : 0;
+    mainSubjects.length > 0 ? mainTotal / mainSubjects.length : 0;
 
-  const arabicTotal = useMemo(
-    () =>
-      arabicSubjects.reduce(
-        (sum, item) =>
-          sum + safeNumber(item.result.total),
-        0
-      ),
-    [arabicSubjects]
+  const arabicTotal = arabicSubjects.reduce(
+    (sum, item) => sum + safeNumber(item.result.total),
+    0
   );
 
   const arabicAverage =
-    arabicSubjects.length > 0
-      ? arabicTotal / arabicSubjects.length
-      : 0;
+    arabicSubjects.length > 0 ? arabicTotal / arabicSubjects.length : 0;
 
-  const overallTotal =
-    mainTotal + arabicTotal;
-
-  const overallCount =
-    mainSubjects.length +
-    arabicSubjects.length;
-
+  const overallTotal = mainTotal + arabicTotal;
+  const overallCount = mainSubjects.length + arabicSubjects.length;
   const overallAverage =
-    overallCount > 0
-      ? overallTotal / overallCount
-      : 0;
+    overallCount > 0 ? overallTotal / overallCount : 0;
 
-  const generalComment =
-    generateGeneralComment(
-      overallAverage,
-      overallCount > 0
-    );
+  const generalComment = generateGeneralComment(
+    overallAverage,
+    mainAverage,
+    arabicAverage,
+    mainSubjects.length > 0,
+    arabicSubjects.length > 0
+  );
 
-  /*
-   * =========================================================
-   * BEHAVIOUR
-   * =========================================================
-   */
-  function updateBehaviour(
-    field: keyof Behaviour,
-    value: string
-  ) {
-    if (
-      value !== "" &&
-      !/^[1-5]$/.test(value)
-    ) {
+  function updateBehaviour(field: keyof Behaviour, value: string) {
+    if (value !== "" && !/^[1-5]?$/.test(value)) {
       return;
     }
 
@@ -452,177 +257,35 @@ export default function ReportCardsPage() {
     }));
   }
 
-  const className =
-    classRoom?.name ||
-    student?.className ||
-    "PRIMARY TWO";
-
-  /*
-   * =========================================================
-   * PRINT
-   * =========================================================
-   */
-  function handlePrint() {
-    window.print();
-  }
+  const className = classRoom?.name || student?.className || "PRIMARY TWO";
 
   return (
     <>
       <style jsx global>{`
-        * {
-          box-sizing: border-box;
+        @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
+
+        @page {
+          size: portrait;
+          margin: 0;
         }
 
         .report-card-font {
-          font-family:
-            "Times New Roman",
-            Times,
-            serif;
+          font-family: 'Times New Roman', Times, serif, sans-serif;
         }
 
-        .arabic-font {
-          font-family:
-            "Noto Naskh Arabic",
-            "Times New Roman",
-            serif;
-        }
-
-        /*
-         * A4 PAGE
-         */
-        .a4-report-wrapper {
-          width: 210mm;
-          height: 297mm;
-          min-height: 297mm;
-          max-height: 297mm;
-
-          margin: 0 auto;
-
-          background: #ffffff;
-
-          padding: 3mm;
-
-          position: relative;
-
-          overflow: hidden;
-
-          color: #000000;
-
-          box-sizing: border-box;
-
-          display: flex;
-        }
-
-        /*
-         * OUTER BLACK BORDER
-         */
-        .report-outer-border {
-          width: 100%;
-          height: 100%;
-
-          border: 3px solid #000000;
-
-          padding: 1.5mm;
-
-          background: #ffffff;
-
-          box-sizing: border-box;
-        }
-
-        /*
-         * INNER BLACK BORDER
-         */
-        .report-inner {
-          width: 100%;
-          height: 100%;
-
-          border: 1px solid #000000;
-
-          padding: 1.5mm;
-
-          background: #ffffff;
-
-          box-sizing: border-box;
-
-          display: flex;
-          flex-direction: column;
-
-          overflow: hidden;
-        }
-
-        /*
-         * THE MAIN CONTENT IS ALLOWED TO USE
-         * THE AVAILABLE A4 HEIGHT.
-         */
-        .report-main {
-          flex: 1 1 auto;
-
-          min-height: 0;
-
-          display: flex;
-          flex-direction: column;
-
-          overflow: hidden;
-        }
-
-        /*
-         * FOOTER MUST STAY AT THE BOTTOM.
-         */
-        .report-footer {
-          flex: 0 0 auto;
-        }
-
-        /*
-         * ARABIC CELLS
-         */
-        .arabic-cell {
-          direction: rtl;
-          text-align: right;
-        }
-
-        /*
-         * SCREEN VIEW
-         */
-        @media screen {
-          .a4-report-wrapper {
-            box-shadow:
-              0 5px 25px
-              rgba(0, 0, 0, 0.15);
-          }
-        }
-
-        /*
-         * PRINT
-         */
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 0 !important;
-          }
-
-          html,
-          body {
-            width: 210mm !important;
-            height: 297mm !important;
-
+          html, body {
+            width: 100% !important;
+            height: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-
-            background: #ffffff !important;
-
-            overflow: hidden !important;
-
+            background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
           body * {
             visibility: hidden;
-          }
-
-          .print-controls,
-          .print-button {
-            display: none !important;
           }
 
           .a4-report-wrapper,
@@ -632,53 +295,23 @@ export default function ReportCardsPage() {
 
           .a4-report-wrapper {
             position: absolute !important;
-
             left: 0 !important;
             top: 0 !important;
-
-            width: 210mm !important;
-            height: 297mm !important;
-
-            min-height: 297mm !important;
-            max-height: 297mm !important;
-
-            margin: 0 !important;
-
-            padding: 3mm !important;
-
-            overflow: hidden !important;
-
-            box-shadow: none !important;
-
-            page-break-before: avoid !important;
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 4mm !important;
           }
 
-          .report-outer-border,
-          .report-inner,
-          .report-main,
-          .report-footer {
-            page-break-inside: avoid !important;
-          }
-
-          table {
-            page-break-inside: avoid !important;
-          }
-
-          tr {
-            page-break-inside: avoid !important;
+          .print-button,
+          .print-controls {
+            display: none !important;
           }
         }
       `}</style>
 
-      <div className="max-w-5xl mx-auto space-y-4 report-card-font">
-
-        {/* =====================================================
-            CONTROL PANEL
-        ====================================================== */}
-        <div className="print:hidden print-controls grid grid-cols-1 gap-4 rounded-card border border-gray-100 bg-white p-4 shadow-sm md:grid-cols-3 items-center">
-
+      <div className="max-w-5xl space-y-4 report-card-font mx-auto">
+        {/* CONTROL PANEL */}
+        <div className="print:hidden print-controls grid grid-cols-1 gap-4 rounded-card border border-gray-100 bg-white p-6 shadow-sm md:grid-cols-2">
           <SelectInput
             label="Class"
             value={classId}
@@ -689,14 +322,8 @@ export default function ReportCardsPage() {
               setBehaviour(emptyBehaviour);
             }}
             options={[
-              {
-                label: "Select a class",
-                value: "",
-              },
-              ...classes.map((item) => ({
-                label: item.name,
-                value: item.id,
-              })),
+              { label: "Select a class", value: "" },
+              ...classes.map((item) => ({ label: item.name, value: item.id })),
             ]}
           />
 
@@ -708,832 +335,318 @@ export default function ReportCardsPage() {
               setBehaviour(emptyBehaviour);
             }}
             options={[
-              {
-                label: "Select a student",
-                value: "",
-              },
+              { label: "Select a student", value: "" },
               ...students.map((item) => ({
                 label: `${item.firstName} ${item.lastName}`,
                 value: item.id,
               })),
             ]}
           />
-
-          <div className="flex justify-end items-end h-full pt-2 md:pt-0">
-            <Button
-              onClick={handlePrint}
-              className="print-button w-full md:w-auto"
-            >
-              Print / Save as PDF
-            </Button>
-          </div>
-
         </div>
 
-        {/* =====================================================
-            LOADING
-        ====================================================== */}
         {loading && (
-          <p className="print:hidden text-sm text-gray-400 text-center">
-            Loading results...
-          </p>
+          <p className="print:hidden text-sm text-gray-400">Loading results...</p>
         )}
 
-        {/* =====================================================
-            REPORT
-        ====================================================== */}
         {student && !loading && (
-          <div className="a4-report-wrapper">
+          <div className="a4-report-wrapper w-full">
+            {/* FULL WIDTH STRETCH CONTAINER WITH DOUBLE BORDER */}
+            <div className="w-full border-[3px] border-gray-800 p-[1.5mm] bg-white text-black box-border">
+              <div className="border border-gray-800 relative p-1">
 
-            <div className="report-outer-border">
+                {/* HEADER SECTION */}
+                <div className="text-center pt-1">
+                  <h1 className="text-[20px] sm:text-[22px] font-extrabold tracking-wider uppercase leading-none font-serif">
+                    JIDDA STANDARD ACADEMY
+                  </h1>
 
-              <div className="report-inner">
-
-                {/* =================================================
-                    MAIN REPORT CONTENT
-                ================================================== */}
-                <div className="report-main">
-
-                  {/* =================================================
-                      SCHOOL HEADER
-                  ================================================== */}
-                  <div className="text-center shrink-0">
-
-                    <h1 className="text-[20px] font-extrabold tracking-wider uppercase leading-none">
-                      JIDDA STANDARD ACADEMY
-                    </h1>
-
-                    <div className="mt-1 bg-gray-700 text-white text-[8px] font-semibold py-[2px] px-2 mx-1 leading-tight">
-                      Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
-                    </div>
-
-                    <div className="mt-[1px] bg-gray-700 text-white text-[7.5px] font-semibold py-[2px] px-2 mx-1 leading-tight">
-                      Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
-                    </div>
-
-                    <div className="relative mt-1 px-10 flex items-center justify-between min-h-[42px]">
-
-                      {/* LEFT LOGO */}
-                      <div className="absolute left-1 top-0 h-10 w-10">
-                        <Image
-                          src={SCHOOL.logoPath}
-                          alt="School Logo"
-                          fill
-                          priority
-                          className="object-contain"
-                        />
-                      </div>
-
-                      <div className="w-full text-center">
-
-                        <p className="text-[9.5px] italic font-semibold leading-tight">
-                          Motto: Knowledge is Light
-                        </p>
-
-                        <p className="text-[8.5px] font-bold leading-tight mt-[1px]">
-                          Phone Numbers: 08121414008, 08069121401
-                        </p>
-
-                        <p className="text-[8px] font-bold leading-tight mt-[1px]">
-                          Email: —
-                        </p>
-
-                      </div>
-
-                      {/* RIGHT LOGO */}
-                      <div className="absolute right-1 top-0 h-10 w-10">
-                        <Image
-                          src={SCHOOL.logoPath}
-                          alt="School Logo"
-                          fill
-                          priority
-                          className="object-contain"
-                        />
-                      </div>
-
-                    </div>
-
-                    <div className="mt-1 border-t border-b border-black py-[2px] bg-gray-100">
-                      <p className="text-[10.5px] font-bold italic tracking-wide leading-tight">
-                        End of Term Examination Report Sheet (Primary Section)
-                      </p>
-                    </div>
-
+                  <div className="mt-1 bg-gray-600 text-white text-[8px] font-semibold py-[1px] px-2 mx-1">
+                    Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
+                  </div>
+                  <div className="mt-0.5 bg-gray-600 text-white text-[7.5px] font-semibold py-[1px] px-2 mx-1">
+                    Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna&apos;s Garage, Gaskiya Road, Zaria
                   </div>
 
-                  {/* =================================================
-                      STUDENT INFORMATION
-                  ================================================== */}
-                  <div className="shrink-0">
-
-                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[2px] leading-tight">
-                      Student Information
+                  <div className="relative mt-1 px-10">
+                    <div className="absolute left-1 top-0 h-10 w-10">
+                      <Image
+                        src={SCHOOL.logoPath}
+                        alt="Logo"
+                        fill
+                        className="object-contain"
+                      />
                     </div>
 
-                    <table className="w-full text-[8.5px] border-collapse leading-tight">
+                    <p className="text-[9.5px] italic font-semibold">
+                      Motto: Knowledge is Light
+                    </p>
+                    <p className="text-[8.5px] font-bold">
+                      Phone Numbers: 08121414008, 08069121401
+                    </p>
 
-                      <tbody>
-
-                        <tr className="border-b border-black">
-
-                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
-                            Name:
-                          </td>
-
-                          <td className="w-[32%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic">
-                            {student.firstName}{" "}
-                            {student.lastName}
-                          </td>
-
-                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
-                            Class:
-                          </td>
-
-                          <td className="w-[18%] p-[2px] px-1 border-r border-black uppercase font-bold text-center italic">
-                            {className}
-                          </td>
-
-                          <td className="w-[8%] font-bold p-[2px] px-1 border-r border-black">
-                            Term:
-                          </td>
-
-                          <td className="w-[26%] p-[2px] px-1 text-center font-bold uppercase italic">
-                            {term}
-                          </td>
-
-                        </tr>
-
-                        <tr className="border-b border-black">
-
-                          <td className="font-bold p-[2px] px-1 border-r border-black">
-                            Session:
-                          </td>
-
-                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic">
-                            {session}
-                          </td>
-
-                          <td className="font-bold p-[2px] px-1 border-r border-black">
-                            No. in Class:
-                          </td>
-
-                          <td className="p-[2px] px-1 border-r border-black text-center font-bold italic">
-                            {students.length}
-                          </td>
-
-                          <td className="font-bold p-[2px] px-1 border-r border-black">
-                            Student ID:
-                          </td>
-
-                          <td className="p-[2px] px-1 text-center font-bold italic truncate">
-                            {student.id}
-                          </td>
-
-                        </tr>
-
-                      </tbody>
-
-                    </table>
-
-                  </div>
-
-                  {/* =================================================
-                      MAIN ACADEMIC TABLE
-                  ================================================== */}
-                  <div className="shrink-0">
-
-                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[2px] leading-tight">
-                      STUDENT ACADEMIC PERFORMANCE
+                    <div className="bg-gray-400 text-white text-[8px] font-bold py-[0.5px] mt-0.5 mx-auto w-3/5">
+                      Email:
                     </div>
 
-                    <table className="w-full text-[8px] border-collapse leading-none">
-
-                      <thead>
-
-                        <tr className="border-b border-black font-bold italic bg-gray-50">
-
-                          <th className="border-r border-black p-[2px] w-[5%] text-center">
-                            S/N
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[31%] text-left pl-2">
-                            SUBJECTS
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[11%] text-center">
-                            1ST C.A (20)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[11%] text-center">
-                            2ND C.A (20)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[11%] text-center">
-                            EXAM (60)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[11%] text-center">
-                            TOTAL (100)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[8%] text-center">
-                            GRADE
-                          </th>
-
-                          <th className="p-[2px] w-[12%] text-center">
-                            REMARK
-                          </th>
-
-                        </tr>
-
-                      </thead>
-
-                      <tbody>
-
-                        {paddedMainSubjects.map(
-                          (item, index) => (
-                            <tr
-                              key={`main-${index}`}
-                              className="border-b border-black h-[20px]"
-                            >
-
-                              <td className="border-r border-black p-[2px] text-center font-semibold">
-                                {index + 1}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] pl-2 font-semibold">
-                                {item?.subject?.name || ""}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  item?.result.ca1
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  item?.result.ca2
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  item?.result.exam
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-bold">
-                                {displayValue(
-                                  item?.result.total
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-bold">
-                                {displayValue(
-                                  item?.result.grade
-                                )}
-                              </td>
-
-                              <td className="p-[2px] text-center italic text-[7.5px]">
-                                {item
-                                  ? item.result.remark ||
-                                    gradeRemark(
-                                      item.result.grade
-                                    )
-                                  : ""}
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                        <tr className="border-b border-black font-bold bg-gray-50 h-[20px]">
-
-                          <td
-                            colSpan={2}
-                            className="border-r border-black p-[2px] text-right pr-4"
-                          >
-                            TOTAL:
-                          </td>
-
-                          <td
-                            colSpan={3}
-                            className="border-r border-black p-[2px] text-center"
-                          >
-                            {mainSubjects.length
-                              ? mainTotal
-                              : ""}
-                          </td>
-
-                          <td
-                            colSpan={2}
-                            className="border-r border-black p-[2px] text-right pr-2"
-                          >
-                            AVERAGE:
-                          </td>
-
-                          <td className="p-[2px] text-center">
-                            {mainSubjects.length
-                              ? mainAverage.toFixed(2)
-                              : ""}
-                          </td>
-
-                        </tr>
-
-                      </tbody>
-
-                    </table>
-
+                    <div className="absolute right-1 top-0 h-10 w-10">
+                      <Image
+                        src={SCHOOL.logoPath}
+                        alt="Logo"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
                   </div>
 
-                  {/* =================================================
-                      ARABIC TABLE
-                  ================================================== */}
-                  <div className="shrink-0">
+                  <div className="mt-1 border-t border-b border-gray-800 py-0.5">
+                    <p className="text-[10.5px] font-bold italic tracking-wide">
+                      End of Term Examination Report Sheet (Primary Section)
+                    </p>
+                  </div>
+                </div>
 
-                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-black py-[2px] leading-tight">
+                {/* STUDENT INFORMATION */}
+                <div>
+                  <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-gray-800 py-[1px]">
+                    Student Information
+                  </div>
+                  <table className="w-full text-[9px] border-collapse">
+                    <tbody>
+                      <tr className="border-b border-gray-800">
+                        <td className="w-16 font-bold p-0.5 border-r border-gray-800">Name:</td>
+                        <td className="p-0.5 border-r border-gray-800 uppercase font-bold text-center">
+                          {student.firstName} {student.lastName}
+                        </td>
+                        <td className="w-16 font-bold p-0.5 border-r border-gray-800">Class:</td>
+                        <td className="p-0.5 uppercase font-bold text-center">{className}</td>
+                      </tr>
+                      <tr className="border-b border-gray-800">
+                        <td className="font-bold p-0.5 border-r border-gray-800">Session:</td>
+                        <td className="p-0.5 border-r border-gray-800 text-center font-bold">{session}</td>
+                        <td className="font-bold p-0.5 border-r border-gray-800">Number in Class:</td>
+                        <td className="p-0.5 border-r border-gray-800 text-center font-bold">{students.length}</td>
+                        <td className="w-12 font-bold p-0.5 border-r border-gray-800">Term:</td>
+                        <td className="p-0.5 text-center font-bold uppercase">{term}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* MAIN SUBJECTS TABLE */}
+                <div>
+                  <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-gray-800 py-[1px]">
+                    STUDENT ACADEMIC PERFORMANCE
+                  </div>
+
+                  <table className="w-full text-[8.5px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-800 font-bold italic">
+                        <th className="border-r border-gray-800 p-0.5 w-[5%] text-center">S/N</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[32%] text-left pl-2">SUBJECTS</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[11%] text-center">1ST C.A (20)</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[11%] text-center">2ND C.A (20)</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[11%] text-center">EXAM (60)</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[10%] text-center">TOTAL (100)</th>
+                        <th className="border-r border-gray-800 p-0.5 w-[8%] text-center">GRADE</th>
+                        <th className="p-0.5 w-[12%] text-center">REMARK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mainSubjects.map((item, index) => (
+                        <tr key={index} className="border-b border-gray-800">
+                          <td className="border-r border-gray-800 p-0.5 text-center">{index + 1}</td>
+                          <td className="border-r border-gray-800 p-0.5 pl-2 font-semibold">{item.subject?.name}</td>
+                          <td className="border-r border-gray-800 p-0.5 text-center">{item.result.ca1 ?? "—"}</td>
+                          <td className="border-r border-gray-800 p-0.5 text-center">{item.result.ca2 ?? "—"}</td>
+                          <td className="border-r border-gray-800 p-0.5 text-center">{item.result.exam ?? "—"}</td>
+                          <td className="border-r border-gray-800 p-0.5 text-center font-bold">{item.result.total ?? "—"}</td>
+                          <td className="border-r border-gray-800 p-0.5 text-center font-bold">{item.result.grade ?? "—"}</td>
+                          <td className="p-0.5 text-center italic">{item.result.remark || gradeRemark(item.result.grade)}</td>
+                        </tr>
+                      ))}
+                      <tr className="border-b border-gray-800 font-bold">
+                        <td colSpan={2} className="border-r border-gray-800 p-0.5 text-right pr-4">TOTAL:</td>
+                        <td colSpan={3} className="border-r border-gray-800 p-0.5 text-center">{mainTotal}</td>
+                        <td colSpan={2} className="border-r border-gray-800 p-0.5 text-right pr-2">AVERAGE:</td>
+                        <td className="p-0.5 text-center">{mainAverage.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ARABIC SECTION TABLE */}
+                {student.attendsArabic && (
+                  <div>
+                    <div className="bg-gray-300 text-center font-bold text-[9px] uppercase border-t border-b border-gray-800 py-[1px]">
                       STUDENT ACADEMIC PERFORMANCE (ARABIC SECTION)
                     </div>
 
-                    <table
-                      className="w-full text-[7.8px] border-collapse leading-none"
-                      dir="ltr"
-                    >
-
+                    <table className="w-full text-[8.5px] border-collapse">
                       <thead>
+                        <tr className="border-b border-gray-800 font-bold italic">
+                          <th className="border-r border-gray-800 p-0.5 w-[4%] text-center">S/N</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[20%] text-right pr-2">SUBJECTS</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[8%] text-center">C.A (40)</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[9%] text-center">EXAM (60)</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[9%] text-center">TOTAL (100)</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[6%] text-center">GRADE</th>
 
-                        <tr className="border-b border-black font-bold italic bg-gray-50">
-
-                          <th className="border-r border-black p-[2px] w-[4%] text-center">
-                            S/N
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[20%] text-right pr-2">
-                            SUBJECTS
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[8%] text-center">
-                            C.A (40)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[9%] text-center">
-                            EXAM (60)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[9%] text-center">
-                            TOTAL
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[6%] text-center">
-                            GRADE
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[4%] text-center">
-                            S/N
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[20%] text-right pr-2">
-                            SUBJECTS
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[8%] text-center">
-                            C.A (40)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[9%] text-center">
-                            EXAM (60)
-                          </th>
-
-                          <th className="border-r border-black p-[2px] w-[9%] text-center">
-                            TOTAL
-                          </th>
-
-                          <th className="p-[2px] w-[6%] text-center">
-                            GRADE
-                          </th>
-
+                          <th className="border-r border-gray-800 p-0.5 w-[4%] text-center">S/N</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[20%] text-right pr-2">SUBJECTS</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[8%] text-center">C.A (40)</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[9%] text-center">EXAM (60)</th>
+                          <th className="border-r border-gray-800 p-0.5 w-[9%] text-center">TOTAL (100)</th>
+                          <th className="p-0.5 w-[6%] text-center">GRADE</th>
                         </tr>
-
                       </thead>
-
                       <tbody>
+                        {(() => {
+                          const left = arabicSubjects.slice(0, 4);
+                          const right = arabicSubjects.slice(4, 8);
+                          const rows = Math.max(left.length, right.length, 4);
 
-                        {Array.from({
-                          length: MIN_ARABIC_ROWS,
-                        }).map((_, index) => {
+                          return Array.from({ length: rows }).map((_, idx) => {
+                            const a = left[idx];
+                            const b = right[idx];
 
-                          const left =
-                            paddedArabicLeft[index];
+                            return (
+                              <tr key={idx} className="border-b border-gray-800">
+                                <td className="border-r border-gray-800 p-0.5 text-center">{a ? idx + 1 : ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-right pr-2 font-semibold">{a?.subject?.name || ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center">{a?.result.ca1 ?? ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center">{a?.result.exam ?? ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center font-bold">{a?.result.total ?? ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center font-bold">{a?.result.grade ?? ""}</td>
 
-                          const right =
-                            paddedArabicRight[index];
-
-                          return (
-                            <tr
-                              key={`arabic-${index}`}
-                              className="border-b border-black h-[20px]"
-                            >
-
-                              <td className="border-r border-black p-[2px] text-center font-semibold">
-                                {index + 1}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-right pr-2 font-bold arabic-font arabic-cell">
-                                {left?.subject?.name || ""}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  left?.result.ca1
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  left?.result.exam
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-bold">
-                                {displayValue(
-                                  left?.result.total
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-bold">
-                                {displayValue(
-                                  left?.result.grade
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-semibold">
-                                {index + 5}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-right pr-2 font-bold arabic-font arabic-cell">
-                                {right?.subject?.name || ""}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  right?.result.ca1
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center">
-                                {displayValue(
-                                  right?.result.exam
-                                )}
-                              </td>
-
-                              <td className="border-r border-black p-[2px] text-center font-bold">
-                                {displayValue(
-                                  right?.result.total
-                                )}
-                              </td>
-
-                              <td className="p-[2px] text-center font-bold">
-                                {displayValue(
-                                  right?.result.grade
-                                )}
-                              </td>
-
-                            </tr>
-                          );
-                        })}
-
-                        <tr className="border-b border-black font-bold bg-gray-50 h-[20px]">
-
-                          <td
-                            colSpan={2}
-                            className="border-r border-black p-[2px] text-right pr-2"
-                          >
-                            TOTAL:
-                          </td>
-
-                          <td
-                            colSpan={4}
-                            className="border-r border-black p-[2px] text-center"
-                          >
-                            {arabicSubjects.length
-                              ? arabicTotal
-                              : ""}
-                          </td>
-
-                          <td
-                            colSpan={4}
-                            className="border-r border-black p-[2px] text-right pr-2"
-                          >
-                            AVERAGE:
-                          </td>
-
-                          <td
-                            colSpan={2}
-                            className="p-[2px] text-center"
-                          >
-                            {arabicSubjects.length
-                              ? arabicAverage.toFixed(2)
-                              : ""}
-                          </td>
-
+                                <td className="border-r border-gray-800 p-0.5 text-center">{b ? idx + 5 : ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-right pr-2 font-semibold">{b?.subject?.name || ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center">{b?.result.ca1 ?? ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center">{b?.result.exam ?? ""}</td>
+                                <td className="border-r border-gray-800 p-0.5 text-center font-bold">{b?.result.total ?? ""}</td>
+                                <td className="p-0.5 text-center font-bold">{b?.result.grade ?? ""}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                        <tr className="border-b border-gray-800 font-bold">
+                          <td colSpan={2} className="border-r border-gray-800 p-0.5 text-right pr-2">TOTAL:</td>
+                          <td colSpan={4} className="border-r border-gray-800 p-0.5 text-center">{arabicTotal}</td>
+                          <td colSpan={4} className="border-r border-gray-800 p-0.5 text-right pr-2">AVERAGE:</td>
+                          <td colSpan={2} className="p-0.5 text-center">{arabicAverage.toFixed(2)}</td>
                         </tr>
-
                       </tbody>
-
                     </table>
-
                   </div>
+                )}
 
-                  {/* =================================================
-                      OVERALL RESULT
-                  ================================================== */}
-                  <div className="border-b border-black font-bold text-[8.5px] uppercase bg-gray-100 leading-tight shrink-0">
-
-                    <div className="grid grid-cols-2 text-center py-[3px]">
-
-                      <div className="border-r border-black">
-                        OVERALL TOTAL:
-
-                        <span className="ml-4 text-[9.5px]">
-                          {overallCount
-                            ? overallTotal
-                            : ""}
-                        </span>
-                      </div>
-
-                      <div>
-                        OVERALL AVERAGE:
-
-                        <span className="ml-4 text-[9.5px]">
-                          {overallCount
-                            ? overallAverage.toFixed(2)
-                            : ""}
-                        </span>
-                      </div>
-
+                {/* OVERALL TOTAL & AVERAGE */}
+                <div className="border-b border-gray-800 font-bold text-[9px] uppercase">
+                  <div className="grid grid-cols-2 text-center">
+                    <div className="border-r border-gray-800 p-0.5">
+                      OVERALL TOTAL: <span className="ml-4">{overallTotal}</span>
                     </div>
-
+                    <div className="p-0.5">
+                      OVERALL AVERAGE: <span className="ml-4">{overallAverage.toFixed(2)}</span>
+                    </div>
                   </div>
-
-                  {/* =================================================
-                      BEHAVIOURAL ASSESSMENT
-                  ================================================== */}
-                  <div className="shrink-0">
-
-                    <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-black py-[2px] leading-tight">
-                      Behavioural Assessment
-                    </div>
-
-                    <div className="grid grid-cols-4 text-[7.8px] border-b border-black leading-tight">
-
-                      <BehaviourCell
-                        label="Conduct"
-                        value={behaviour.conduct}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "conduct",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Hospitality"
-                        value={behaviour.hospitality}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "hospitality",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Punctuality"
-                        value={behaviour.punctuality}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "punctuality",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Participation in Class"
-                        value={behaviour.participation}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "participation",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Creativity"
-                        value={behaviour.creativity}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "creativity",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Neatness"
-                        value={behaviour.neatness}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "neatness",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Dedication"
-                        value={behaviour.dedication}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "dedication",
-                            value
-                          )
-                        }
-                      />
-
-                      <BehaviourCell
-                        label="Physical Health"
-                        value={behaviour.physicalHealth}
-                        onChange={(value) =>
-                          updateBehaviour(
-                            "physicalHealth",
-                            value
-                          )
-                        }
-                      />
-
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      GUIDE + GENERAL COMMENT
-                  ================================================== */}
-                  <div className="grid grid-cols-3 border-b border-black text-[7.8px] leading-tight shrink-0">
-
-                    <div className="border-r border-black p-1">
-
-                      <p className="font-bold underline text-center">
-                        GUIDE
-                      </p>
-
-                      <div className="grid grid-cols-2 mt-0.5 px-1">
-
-                        <div>
-                          <p>5 - Excellent</p>
-                          <p>4 - V. Good</p>
-                          <p>3 - Good</p>
-                        </div>
-
-                        <div>
-                          <p>2 - Fair</p>
-                          <p>1 - Weak</p>
-                        </div>
-
-                      </div>
-
-                    </div>
-
-                    <div className="col-span-2 p-1 text-center flex flex-col justify-center items-center">
-
-                      <p className="font-bold italic text-[8.5px]">
-                        General Comment:
-                      </p>
-
-                      <p className="mt-1 italic font-semibold text-[9px] px-2">
-                        {generalComment}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  {/* =================================================
-                      NEXT TERM
-                  ================================================== */}
-                  <div className="border-b border-black p-[3px] text-center text-[8.5px] font-bold italic leading-tight bg-gray-50 shrink-0">
-
-                    Next term begins on:
-
-                    <span className="ml-2 underline font-serif tracking-wider">
-                      {nextTermDate}
-                    </span>
-
-                  </div>
-
                 </div>
 
-                {/* =================================================
-                    REPORT FOOTER
-                ================================================== */}
-                <div className="report-footer">
-
-                  {/* SIGNATURE AREA */}
-                  <div className="relative grid grid-cols-2 text-[8.5px] font-bold italic min-h-[48px] leading-tight pt-1">
-
-                    {/* DIRECTOR */}
-                    <div className="border-r border-black p-1 text-center relative flex flex-col justify-between items-center">
-
-                      <div>
-                        <p>
-                          Director&apos;s
-                        </p>
-
-                        <p>
-                          Signature and Date
-                        </p>
-                      </div>
-
-                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold">
-                        {reportDate}
-                      </div>
-
-                    </div>
-
-                    {/* HEADMASTER */}
-                    <div className="p-1 text-center relative flex flex-col justify-between items-center">
-
-                      <div>
-                        <p>
-                          Headmaster&apos;s/Headmistress
-                        </p>
-
-                        <p>
-                          Signature and Date
-                        </p>
-                      </div>
-
-                      <div className="w-full text-right pr-2 text-[7.5px] font-serif font-semibold">
-                        {reportDate}
-                      </div>
-
-                      {/* SCHOOL STAMP */}
-                      <div className="absolute right-0 bottom-[-4px] h-[62px] w-[62px] z-10 pointer-events-none opacity-90">
-
-                        <Image
-                          src={SCHOOL.stampPath}
-                          alt="Official School Stamp"
-                          fill
-                          className="object-contain"
-                        />
-
-                      </div>
-
-                    </div>
-
+                {/* BEHAVIOURAL ASSESSMENT */}
+                <div>
+                  <div className="bg-gray-300 text-center font-bold text-[9px] italic border-b border-gray-800 py-[1px]">
+                    Behavioural Assessment
                   </div>
 
-                  {/* =================================================
-                      MAIDAMMANATION TECHNOLOGY FOOTER
-                  ================================================== */}
-                  <div className="mt-1 border-t border-gray-500 pt-[2px] px-1 flex items-center justify-between text-[7px] leading-tight">
+                  <div className="grid grid-cols-4 text-[8.5px] border-b border-gray-800">
+                    <BehaviourCell label="Conduct" value={behaviour.conduct} />
+                    <BehaviourCell label="Hospitality" value={behaviour.hospitality} onChange={(v) => updateBehaviour("hospitality", v)} />
+                    <BehaviourCell label="Punctuality" value={behaviour.punctuality} onChange={(v) => updateBehaviour("punctuality", v)} />
+                    <BehaviourCell label="Participation in Class" value={behaviour.participation} onChange={(v) => updateBehaviour("participation", v)} />
+                    <BehaviourCell label="Creativity" value={behaviour.creativity} onChange={(v) => updateBehaviour("creativity", v)} />
+                    <BehaviourCell label="Neatness" value={behaviour.neatness} onChange={(v) => updateBehaviour("neatness", v)} />
+                    <BehaviourCell label="Dedication" value={behaviour.dedication} onChange={(v) => updateBehaviour("dedication", v)} />
+                    <BehaviourCell label="Physical Health" value={behaviour.physicalHealth} onChange={(v) => updateBehaviour("physicalHealth", v)} />
+                  </div>
+                </div>
 
-                    <div className="font-bold italic">
-                      Maidammanation Tech Company
+                {/* GUIDE & GENERAL COMMENT */}
+                <div className="grid grid-cols-3 border-b border-gray-800 text-[8.5px]">
+                  <div className="border-r border-gray-800 p-1 italic leading-tight">
+                    <p className="font-bold underline text-center">GUIDE:</p>
+                    <div className="grid grid-cols-2 mt-0.5 text-[8px]">
+                      <div>
+                        <p>5 - Excellent</p>
+                        <p>4 - V. Good</p>
+                        <p>3 - Good</p>
+                      </div>
+                      <div>
+                        <p>2 - Fair</p>
+                        <p>1 - Weak</p>
+                      </div>
                     </div>
-
-                    <div className="font-semibold text-center">
-                      08032191668&nbsp;&nbsp;|&nbsp;&nbsp;08117106867
-                    </div>
-
-                    <div className="italic font-semibold">
-                      School Management System
-                    </div>
-
                   </div>
 
+                  <div className="col-span-2 p-1 text-center">
+                    <p className="font-bold italic">General Comment:</p>
+                    <p className="mt-1 italic font-semibold">{generalComment}</p>
+                  </div>
+                </div>
+
+                {/* NEXT TERM */}
+                <div className="border-b border-gray-800 p-0.5 text-center text-[9px] font-bold italic">
+                  Next term begins on: <span className="ml-2 underline">{nextTermDate}</span>
+                </div>
+
+                {/* SIGNATURES & STAMP */}
+                <div className="relative grid grid-cols-2 text-[9px] font-bold italic min-h-[50px]">
+                  <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
+                    <div>
+                      <p>Director&apos;s</p>
+                      <p>Signature and Date</p>
+                    </div>
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
+                      26 February, 2026
+                    </div>
+                  </div>
+
+                  <div className="p-1 text-center relative flex flex-col justify-between">
+                    <div>
+                      <p>Headmaster&apos;s/Headmistress</p>
+                      <p>Signature and Date</p>
+                    </div>
+                    <div className="border-t border-gray-500 pt-0.5 mt-3 text-[8px]">
+                      26 February, 2026
+                    </div>
+
+                    <div className="absolute right-[-5px] bottom-[-10px] h-20 w-20 z-10 pointer-events-none opacity-85">
+                      <Image
+                        src={SCHOOL.stampPath}
+                        alt="Official Stamp"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                  </div>
                 </div>
 
               </div>
 
+              {/* BRANDING FOOTER */}
+              <div className="mt-0.5 text-[7px] italic text-gray-700 font-semibold">
+                Designed by Maidammanation tech company 08032191668 / 08117106867
+              </div>
             </div>
 
+            <div className="print:hidden flex justify-end p-4">
+              <Button onClick={() => window.print()}>Print / Save as PDF</Button>
+            </div>
           </div>
         )}
-
       </div>
     </>
   );
 }
 
-/*
- * ============================================================
- * BEHAVIOUR CELL
- * ============================================================
- */
 function BehaviourCell({
   label,
   value,
@@ -1541,33 +654,19 @@ function BehaviourCell({
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (v: string) => void;
 }) {
   return (
-    <div className="border-r border-b border-black p-[3px] flex items-center justify-between px-1.5 min-h-[20px]">
-
-      <span className="italic leading-none">
-        {label}
-      </span>
-
-      {/* SCREEN INPUT */}
+    <div className="border-r border-b border-gray-800 p-0.5 flex items-center justify-between px-1">
+      <span className="italic">{label}</span>
       <input
         type="text"
-        inputMode="numeric"
         maxLength={1}
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="print:hidden w-4 h-4 text-center border border-gray-400 font-bold text-[8px] outline-none"
-        aria-label={`${label} rating`}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        className="print:hidden w-4 h-4 text-center border border-gray-400 font-bold"
       />
-
-      {/* PRINT VALUE */}
-      <span className="hidden print:inline font-bold text-[8px]">
-        {value || "—"}
-      </span>
-
+      <span className="hidden print:inline font-bold">{value || "—"}</span>
     </div>
   );
 }
