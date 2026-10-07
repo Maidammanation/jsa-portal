@@ -630,12 +630,12 @@ export default function ReportCardsPage() {
                 {/* SIGNATURES & STAMP */}
                 <div className="relative grid grid-cols-2 text-[9.5px] font-bold italic min-h-[85px]">
                   <div className="border-r border-gray-800 p-1 text-center relative flex flex-col justify-between">
-                    <div className="relative z-20">
+                    <div className="relative z-10">
                       <p>Director&apos;s</p>
                       <p>Signature and Date</p>
                     </div>
                     {/* ADDED: editable, synced to the shared signatureDate state */}
-                    <div className="relative z-20 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
+                    <div className="relative z-10 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       <input
                         type="text"
                         value={signatureDate}
@@ -647,13 +647,13 @@ export default function ReportCardsPage() {
                   </div>
 
                   <div className="p-1 text-center relative flex flex-col justify-between">
-                    <div className="relative z-20">
+                    <div className="relative z-10">
                       <p>Headmaster&apos;s/Headmistress</p>
                       <p>Signature and Date</p>
                     </div>
                     {/* ADDED: same shared signatureDate — editing this one updates
                         the Director's field above automatically, and vice versa */}
-                    <div className="relative z-20 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
+                    <div className="relative z-10 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       <input
                         type="text"
                         value={signatureDate}
@@ -663,18 +663,13 @@ export default function ReportCardsPage() {
                       <span className="hidden print:inline">{signatureDate}</span>
                     </div>
 
-                    {/* REPOSITIONED per your sample: shifted left off the bled
-                        right edge, centered horizontally in the column, and
-                        placed vertically between the "Headmaster's/Headmistress
-                        Signature and Date" label and the date line below it —
-                        i.e. straddling the border-t divider that acts as the
-                        signature line, so a real signature crosses over it.
-                        z-10 (below the z-20 text above) so the label/date stay
-                        legible on top of the stamp rather than hidden under it.
-                        This offset is estimated from the cell's layout, not a
-                        live render — check it against the real page and tell me
-                        which way to nudge if it's off. */}
-                    <div className="absolute left-1/2 top-[44px] -translate-x-1/2 -translate-y-1/2 h-20 w-20 z-10 pointer-events-none opacity-90">
+                    {/* FIX: swapped stacking order — stamp is now z-20, the
+                        label/date text above dropped to z-10, so the stamp
+                        prints ON TOP of the text instead of hiding underneath
+                        it, like a real stamp pressed over a signature line.
+                        Still pointer-events-none so the date input stays
+                        clickable on screen even though visually covered. */}
+                    <div className="absolute left-1/2 top-[44px] -translate-x-1/2 -translate-y-1/2 h-36 w-36 z-20 pointer-events-none opacity-90">
                       <Image
                         src={SCHOOL.stampPath}
                         alt="Official Stamp"
