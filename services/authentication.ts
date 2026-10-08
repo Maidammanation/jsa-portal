@@ -47,6 +47,7 @@ export async function login(
 
   if (profile.status === "suspended") {
     await signOut(auth);
+
     throw new Error(
       "This account is suspended. Contact your administrator."
     );
@@ -54,6 +55,7 @@ export async function login(
 
   if (profile.status === "disabled") {
     await signOut(auth);
+
     throw new Error(
       "This account has been disabled."
     );
@@ -157,11 +159,19 @@ export function watchAuthState(
   );
 }
 
+/**
+ * Creates a Firebase login account through the
+ * secure server-side API.
+ *
+ * Admin accounts can only be created by a
+ * Super Admin on the server.
+ */
 export async function createLoginAccount(params: {
   email: string;
   password: string;
   name: string;
   role:
+    | "admin"
     | "teacher"
     | "student"
     | "parent"
