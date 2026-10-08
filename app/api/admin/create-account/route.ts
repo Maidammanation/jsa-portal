@@ -3,16 +3,27 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const SESSION_COOKIE_NAME = "jsa_session";
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   try {
-    // 1. Verify the caller is an authenticated admin.
+    /*
+     * 1. Verify server session.
+     */
     const sessionCookie =
-      request.cookies.get(SESSION_COOKIE_NAME)?.value;
+      request.cookies.get(
+        SESSION_COOKIE_NAME
+      )?.value;
 
     if (!sessionCookie) {
       return NextResponse.json(
-        { error: "Not authenticated." },
-        { status: 401 }
+        {
+          error:
+            "Not authenticated.",
+        },
+        {
+          status: 401,
+        }
       );
     }
 
@@ -22,26 +33,63 @@ export async function POST(request: NextRequest) {
         true
       );
 
-    const callerDoc = await adminDb()
-      .doc(`users/${decoded.uid}`)
-      .get();
+    /*
+     * 2. Get authoritative caller
+     * profile from Firestore.
+     */
+    const callerDoc =
+      await adminDb()
+        .doc(
+          `users/${decoded.uid}`
+        )
+        .get();
 
-    const callerRole = callerDoc.data()?.role;
+    if (!callerDoc.exists) {
+      return NextResponse.json(
+        {
+          error:
+            "Administrator profile not found.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
 
+    const callerData =
+      callerDoc.data();
+
+    const callerRole =
+      callerData?.role;
+
+    const callerStatus =
+      callerData?.status;
+
+    /*
+     * Only active Admin/Super Admin
+     * accounts may create login accounts.
+     */
     if (
-      callerRole !== "admin" &&
-      callerRole !== "super-admin"
+      ![
+        "admin",
+        "super-admin",
+      ].includes(callerRole) ||
+      callerStatus !== "active"
     ) {
       return NextResponse.json(
         {
           error:
-            "Only admins can create login accounts.",
+            "Only an active administrator can create login accounts.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
-    // 2. Read request body.
+    /*
+     * 3. Read request.
+     */
     const {
       email,
       password,
@@ -51,54 +99,99 @@ export async function POST(request: NextRequest) {
       linkId,
     } = await request.json();
 
-    if (!email || !password || !name || !role) {
+    if (
+      !email ||
+      !password ||
+      !name ||
+      !role
+    ) {
       return NextResponse.json(
         {
           error:
             "Missing required fields.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
+    /*
+     * 4. Allowed account types.
+     */
+    const allowedRoles = [
+      "teacher",
+      "student",
+      "parent",
+      "super-admin",
+    ];
+
     if (
-      ![
-        "teacher",
-        "student",
-        "parent",
-        "super-admin",
-      ].includes(role)
+      !allowedRoles.includes(role)
     ) {
       return NextResponse.json(
         {
           error:
             "Invalid role for this action.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    if (password.length < 8) {
+    /*
+     * CRITICAL SECURITY RULE:
+     *
+     * A normal Admin may create:
+     * - Teacher
+     * - Student
+     * - Parent
+     *
+     * ONLY Super Admin may create:
+     * - Super Admin
+     */
+    if (
+      role === "super-admin" &&
+      callerRole !== "super-admin"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Only a Super Admin can create another Super Admin account.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    /*
+     * 5. Password validation.
+     */
+    if (
+      String(password).length < 8
+    ) {
       return NextResponse.json(
         {
           error:
             "Password must be at least 8 characters.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     const normalizedEmail =
-      String(email).trim().toLowerCase();
+      String(email)
+        .trim()
+        .toLowerCase();
 
     /*
-     * 3. If this is a linked teacher account,
-     * read the teacher record BEFORE creating
-     * the Auth account.
-     *
-     * This lets us copy the teacher's permissions
-     * into the users profile so Firestore Rules
-     * can enforce them later.
+     * 6. If linked to a teacher,
+     * student, or parent record,
+     * read it before creating Auth.
      */
     let linkedRecordData:
       | Record<string, unknown>
@@ -108,48 +201,53 @@ export async function POST(request: NextRequest) {
       linkCollection &&
       linkId
     ) {
-      const linkedDoc = await adminDb()
-        .doc(
-          `${linkCollection}/${linkId}`
-        )
-        .get();
+      const linkedDoc =
+        await adminDb()
+          .doc(
+            `${linkCollection}/${linkId}`
+          )
+          .get();
 
       if (linkedDoc.exists) {
         linkedRecordData =
-          linkedDoc.data() || null;
+          linkedDoc.data() ||
+          null;
       }
     }
 
-    // 4. Create the Firebase Auth account.
+    /*
+     * 7. Create Firebase Auth account.
+     */
     const userRecord =
       await adminAuth().createUser({
-        email: normalizedEmail,
-        password,
-        displayName: name,
+        email:
+          normalizedEmail,
+        password:
+          String(password),
+        displayName:
+          String(name).trim(),
       });
 
     /*
-     * 5. Build the user profile.
-     *
-     * For teachers, mirror the permission fields
-     * from the teacher record.
-     *
-     * These fields are intentionally kept in
-     * users/{uid} because Firestore Rules can
-     * securely read the current user's document.
+     * 8. Create user profile.
      */
-    const userProfile: Record<
-      string,
-      unknown
-    > = {
+    const userProfile:
+      Record<string, unknown> = {
       uid: userRecord.uid,
-      name,
-      email: normalizedEmail,
+      name:
+        String(name).trim(),
+      email:
+        normalizedEmail,
       role,
-      status: "active",
-      mustChangePassword: true,
+      status:
+        "active",
+      mustChangePassword:
+        true,
     };
 
+    /*
+     * 9. Teacher permissions.
+     */
     if (
       role === "teacher" &&
       linkedRecordData
@@ -192,14 +290,18 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // 6. Create the Firestore user profile.
+    /*
+     * 10. Save Firestore profile.
+     */
     await adminDb()
-      .doc(`users/${userRecord.uid}`)
+      .doc(
+        `users/${userRecord.uid}`
+      )
       .set(userProfile);
 
     /*
-     * 7. Link the Auth account back to the
-     * teacher/student/parent record.
+     * 11. Link Auth account back
+     * to the original record.
      */
     if (
       linkCollection &&
@@ -210,27 +312,33 @@ export async function POST(request: NextRequest) {
           `${linkCollection}/${linkId}`
         )
         .update({
-          authUid: userRecord.uid,
+          authUid:
+            userRecord.uid,
         });
     }
 
-    // 8. Audit trail.
+    /*
+     * 12. Activity log.
+     */
     await adminDb()
       .collection("activityLog")
       .add({
         action:
           "Login account created",
         actor:
-          callerDoc.data()?.name ||
-          callerDoc.data()?.email ||
-          "admin",
-        details: `${role} — ${normalizedEmail}`,
-        createdAt: new Date(),
+          callerData?.name ||
+          callerData?.email ||
+          "administrator",
+        details:
+          `${role} — ${normalizedEmail}`,
+        createdAt:
+          new Date(),
       });
 
     return NextResponse.json({
       ok: true,
-      uid: userRecord.uid,
+      uid:
+        userRecord.uid,
     });
   } catch (err) {
     const message =
@@ -239,8 +347,12 @@ export async function POST(request: NextRequest) {
         : "Could not create account.";
 
     const isDuplicate =
-      message.includes("already exists") ||
-      message.includes("EMAIL_EXISTS");
+      message.includes(
+        "already exists"
+      ) ||
+      message.includes(
+        "EMAIL_EXISTS"
+      );
 
     return NextResponse.json(
       {
@@ -249,9 +361,10 @@ export async function POST(request: NextRequest) {
           : message,
       },
       {
-        status: isDuplicate
-          ? 409
-          : 500,
+        status:
+          isDuplicate
+            ? 409
+            : 500,
       }
     );
   }
