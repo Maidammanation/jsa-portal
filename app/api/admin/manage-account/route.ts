@@ -3,43 +3,77 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const SESSION_COOKIE_NAME = "jsa_session";
 
-async function verifyAdmin(request: NextRequest) {
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+async function verifySuperAdmin(request: NextRequest) {
+  const sessionCookie =
+    request.cookies.get(
+      SESSION_COOKIE_NAME
+    )?.value;
 
   if (!sessionCookie) {
     throw new Error("Not authenticated.");
   }
 
-  const decoded = await adminAuth().verifySessionCookie(sessionCookie, true);
+  const decoded =
+    await adminAuth().verifySessionCookie(
+      sessionCookie,
+      true
+    );
 
-  const callerDoc = await adminDb()
-    .doc(`users/${decoded.uid}`)
-    .get();
+  const callerDoc =
+    await adminDb()
+      .doc(`users/${decoded.uid}`)
+      .get();
 
   if (!callerDoc.exists) {
-    throw new Error("Administrator profile not found.");
+    throw new Error(
+      "Administrator profile not found."
+    );
   }
 
-  const callerData = callerDoc.data();
-  const callerRole = callerData?.role;
+  const callerData =
+    callerDoc.data();
 
-  if (callerRole !== "admin" && callerRole !== "super-admin") {
-    throw new Error("Only administrators can manage team accounts.");
+  /*
+   * IMPORTANT:
+   * Only an ACTIVE Super Admin can use
+   * this endpoint.
+   */
+  if (
+    callerData?.role !== "super-admin" ||
+    callerData?.status !== "active"
+  ) {
+    throw new Error(
+      "Only an active Super Admin can manage team accounts."
+    );
   }
 
   return {
     uid: decoded.uid,
-    role: callerRole,
-    name: callerData?.name || callerData?.email || "admin",
+    role: callerData.role,
+    name:
+      callerData?.name ||
+      callerData?.email ||
+      "Super Admin",
   };
 }
 
 /**
- * Update an existing team/director account.
+ * UPDATE TEAM ACCOUNT
+ *
+ * Only Super Admin can:
+ * - change Admin accounts
+ * - change Super Admin accounts
+ * - change role
+ * - suspend accounts
+ * - disable accounts
+ * - reset passwords
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest
+) {
   try {
-    const caller = await verifyAdmin(request);
+    const caller =
+      await verifySuperAdmin(request);
 
     const {
       uid,
@@ -50,45 +84,108 @@ export async function PATCH(request: NextRequest) {
       password,
     } = await request.json();
 
-    if (!uid || !name || !email || !role || !status) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 }
-      );
-    }
-
-    if (!["admin", "super-admin"].includes(role)) {
-      return NextResponse.json(
-        { error: "Invalid team role." },
-        { status: 400 }
-      );
-    }
-
-    if (!["active", "suspended", "disabled"].includes(status)) {
-      return NextResponse.json(
-        { error: "Invalid account status." },
-        { status: 400 }
-      );
-    }
-
-    // Prevent an administrator from accidentally removing their own
-    // administrative access.
-    if (uid === caller.uid && role !== "super-admin") {
+    if (
+      !uid ||
+      !name ||
+      !email ||
+      !role ||
+      !status
+    ) {
       return NextResponse.json(
         {
           error:
-            "You cannot remove your own Director access from this page.",
+            "Missing required fields.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * Team Management only handles
+     * Admin and Super Admin accounts.
+     */
+    if (
+      ![
+        "admin",
+        "super-admin",
+      ].includes(role)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid team role.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (
+      ![
+        "active",
+        "suspended",
+        "disabled",
+      ].includes(status)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid account status.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * A Super Admin must never be able
+     * to accidentally lock themselves out.
+     */
+    if (
+      uid === caller.uid &&
+      (
+        role !== "super-admin" ||
+        status !== "active"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "You cannot remove, demote, suspend, or disable your own Super Admin access.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
     const auth = adminAuth();
     const db = adminDb();
 
-    const authUser = await auth.getUser(uid);
+    let authUser;
 
-    // Update Firebase Authentication.
+    try {
+      authUser =
+        await auth.getUser(uid);
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Firebase Authentication account not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    /*
+     * Firebase Authentication update.
+     */
     const authUpdate: {
       displayName: string;
       email?: string;
@@ -96,51 +193,89 @@ export async function PATCH(request: NextRequest) {
       disabled?: boolean;
     } = {
       displayName: name,
-      disabled: status !== "active",
+      disabled:
+        status !== "active",
     };
 
-    if (email !== authUser.email) {
-      authUpdate.email = email;
+    if (
+      email !== authUser.email
+    ) {
+      authUpdate.email = String(
+        email
+      )
+        .trim()
+        .toLowerCase();
     }
 
-    if (password && password.trim()) {
-      if (password.length < 8) {
+    /*
+     * Optional password reset.
+     */
+    if (
+      password &&
+      String(password).trim()
+    ) {
+      if (
+        String(password).length < 8
+      ) {
         return NextResponse.json(
           {
             error:
               "New password must be at least 8 characters.",
           },
-          { status: 400 }
+          {
+            status: 400,
+          }
         );
       }
 
-      authUpdate.password = password;
+      authUpdate.password =
+        String(password);
     }
 
-    await auth.updateUser(uid, authUpdate);
+    await auth.updateUser(
+      uid,
+      authUpdate
+    );
 
-    // Update the Firestore profile.
-    await db.doc(`users/${uid}`).update({
-      name,
-      email,
-      role,
-      status,
-      mustChangePassword:
-        password && password.trim() ? true : false,
-      updatedAt: new Date(),
-    });
+    /*
+     * Firestore profile update.
+     */
+    await db
+      .doc(`users/${uid}`)
+      .update({
+        name,
+        email: String(email)
+          .trim()
+          .toLowerCase(),
+        role,
+        status,
+        mustChangePassword:
+          password &&
+          String(password).trim()
+            ? true
+            : false,
+        updatedAt: new Date(),
+      });
 
-    // Activity log.
-    await db.collection("activityLog").add({
-      action: "Team account updated",
-      actor: caller.name,
-      details: `${role} — ${email}`,
-      createdAt: new Date(),
-    });
+    /*
+     * Audit trail.
+     */
+    await db
+      .collection("activityLog")
+      .add({
+        action:
+          "Team account updated",
+        actor: caller.name,
+        details:
+          `${role} — ${email}`,
+        createdAt:
+          new Date(),
+      });
 
     return NextResponse.json({
       ok: true,
-      message: "Team account updated successfully.",
+      message:
+        "Team account updated successfully.",
     });
   } catch (err) {
     const message =
@@ -149,75 +284,147 @@ export async function PATCH(request: NextRequest) {
         : "Could not update account.";
 
     return NextResponse.json(
-      { error: message },
-      { status: 500 }
+      {
+        error: message,
+      },
+      {
+        status:
+          message.includes(
+            "Only an active Super Admin"
+          )
+            ? 403
+            : 500,
+      }
     );
   }
 }
 
 /**
- * Delete an existing team/director account.
+ * DELETE TEAM ACCOUNT
+ *
+ * Only Super Admin can delete
+ * Admin/Super Admin team accounts.
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest
+) {
   try {
-    const caller = await verifyAdmin(request);
+    const caller =
+      await verifySuperAdmin(request);
 
-    const { uid } = await request.json();
+    const { uid } =
+      await request.json();
 
     if (!uid) {
       return NextResponse.json(
-        { error: "User ID is required." },
-        { status: 400 }
+        {
+          error:
+            "User ID is required.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
-    // Never allow an administrator to delete their own account
-    // from this page.
+    /*
+     * Never allow a Super Admin
+     * to delete their own account.
+     */
     if (uid === caller.uid) {
       return NextResponse.json(
         {
           error:
-            "You cannot delete your own account.",
+            "You cannot delete your own Super Admin account.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     const db = adminDb();
 
-    const userDoc = await db
-      .doc(`users/${uid}`)
-      .get();
+    const userDoc =
+      await db
+        .doc(`users/${uid}`)
+        .get();
 
     if (!userDoc.exists) {
       return NextResponse.json(
-        { error: "Team member not found." },
-        { status: 404 }
+        {
+          error:
+            "Team member not found.",
+        },
+        {
+          status: 404,
+        }
       );
     }
 
-    const userData = userDoc.data();
+    const userData =
+      userDoc.data();
 
-    // Delete Firebase Authentication account.
-    await adminAuth().deleteUser(uid);
+    /*
+     * Safety check:
+     * this endpoint must NEVER be used
+     * to delete Teacher/Student/Parent
+     * profiles.
+     */
+    if (
+      ![
+        "admin",
+        "super-admin",
+      ].includes(
+        userData?.role
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This endpoint can only delete Admin or Super Admin team accounts.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
 
-    // Delete Firestore profile.
-    await db.doc(`users/${uid}`).delete();
+    /*
+     * Delete Firebase Authentication
+     * account first.
+     */
+    await adminAuth()
+      .deleteUser(uid);
 
-    // Activity log.
-    await db.collection("activityLog").add({
-      action: "Team account deleted",
-      actor: caller.name,
-      details:
-        userData?.name ||
-        userData?.email ||
-        uid,
-      createdAt: new Date(),
-    });
+    /*
+     * Then delete Firestore profile.
+     */
+    await db
+      .doc(`users/${uid}`)
+      .delete();
+
+    /*
+     * Audit trail.
+     */
+    await db
+      .collection("activityLog")
+      .add({
+        action:
+          "Team account deleted",
+        actor: caller.name,
+        details:
+          userData?.name ||
+          userData?.email ||
+          uid,
+        createdAt:
+          new Date(),
+      });
 
     return NextResponse.json({
       ok: true,
-      message: "Team account deleted successfully.",
+      message:
+        "Team account deleted successfully.",
     });
   } catch (err) {
     const message =
@@ -226,8 +433,17 @@ export async function DELETE(request: NextRequest) {
         : "Could not delete account.";
 
     return NextResponse.json(
-      { error: message },
-      { status: 500 }
+      {
+        error: message,
+      },
+      {
+        status:
+          message.includes(
+            "Only an active Super Admin"
+          )
+            ? 403
+            : 500,
+      }
     );
   }
 }
