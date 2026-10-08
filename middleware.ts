@@ -15,25 +15,20 @@ const ROLE_HOME: Record<UserRole, string> = {
   parent: "/parent",
 };
 
-/**
- * Determines whether a user role is allowed to access
- * the requested protected section.
- */
-function isAllowed(
-  role: UserRole,
-  pathname: string
-): boolean {
-  // Super Admin has access to its own dashboard AND
-  // the existing /admin management section.
+function isAllowed(role: UserRole, pathname: string): boolean {
+  // Super Admin dashboard is Super Admin only.
   if (pathname.startsWith("/super-admin")) {
     return role === "super-admin";
   }
 
+  // Team/User Management is Super Admin only.
+  if (pathname.startsWith("/admin/team")) {
+    return role === "super-admin";
+  }
+
+  // Normal admin area remains available to Admin + Super Admin.
   if (pathname.startsWith("/admin")) {
-    return (
-      role === "admin" ||
-      role === "super-admin"
-    );
+    return role === "admin" || role === "super-admin";
   }
 
   if (pathname.startsWith("/teacher")) {
@@ -51,9 +46,7 @@ function isAllowed(
   return false;
 }
 
-export async function middleware(
-  request: NextRequest
-) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   const verifyUrl = new URL(
@@ -62,8 +55,6 @@ export async function middleware(
   );
 
   try {
-    // Ask the server-side verification route to validate
-    // the Firebase session and return the Firestore role.
     const verifyResponse = await fetch(
       verifyUrl,
       {
@@ -76,7 +67,6 @@ export async function middleware(
       }
     );
 
-    // No valid session.
     if (!verifyResponse.ok) {
       const loginUrl = new URL(
         "/login",
@@ -112,11 +102,6 @@ export async function middleware(
 
     const role = data.role as UserRole;
 
-    // SERVER-SIDE authorization.
-    //
-    // This is the important security improvement:
-    // the user cannot bypass this by typing another
-    // dashboard URL into the browser.
     if (!isAllowed(role, pathname)) {
       return NextResponse.redirect(
         new URL(
@@ -128,7 +113,6 @@ export async function middleware(
 
     return NextResponse.next();
   } catch {
-    // If verification itself fails, fail closed.
     const loginUrl = new URL(
       "/login",
       request.url
