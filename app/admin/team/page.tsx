@@ -8,13 +8,31 @@ import { generateTempPassword } from "@/lib/generatePassword";
 import { getAll } from "@/services/database";
 import { useAuth } from "@/lib/useAuth";
 
+type TeamRole = "admin" | "super-admin";
+type TeamStatus = "active" | "suspended" | "disabled";
+
 interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "super-admin";
-  status: "active" | "suspended" | "disabled";
+  role: TeamRole;
+  status: TeamStatus;
 }
+
+interface SuccessCredentials {
+  email: string;
+  password: string;
+  role: TeamRole;
+}
+
+const roleLabel = (role: TeamRole) =>
+  role === "super-admin" ? "Super Admin" : "Administrator";
+
+const statusLabel = (status: TeamStatus) => {
+  if (status === "active") return "Active";
+  if (status === "suspended") return "Suspended";
+  return "Disabled";
+};
 
 export default function TeamPage() {
   const { profile } = useAuth();
@@ -22,41 +40,38 @@ export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Add form
+  // Create form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [createRole, setCreateRole] =
+    useState<TeamRole>("admin");
   const [password, setPassword] = useState(
     generateTempPassword()
   );
 
   // Edit form
-  const [editing, setEditing] = useState<TeamMember | null>(
-    null
-  );
+  const [editing, setEditing] =
+    useState<TeamMember | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editRole, setEditRole] = useState<
-    "admin" | "super-admin"
-  >("super-admin");
-  const [editStatus, setEditStatus] = useState<
-    "active" | "suspended" | "disabled"
-  >("active");
+  const [editRole, setEditRole] =
+    useState<TeamRole>("admin");
+  const [editStatus, setEditStatus] =
+    useState<TeamStatus>("active");
   const [editPassword, setEditPassword] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(
-    null
-  );
+  const [deleting, setDeleting] =
+    useState<string | null>(null);
 
   const [error, setError] = useState("");
 
-  const [success, setSuccess] = useState<{
-    email: string;
-    password: string;
-  } | null>(null);
+  const [success, setSuccess] =
+    useState<SuccessCredentials | null>(null);
 
   const load = async () => {
     setLoading(true);
+    setError("");
 
     try {
       const data = await getAll("users");
@@ -65,13 +80,14 @@ export default function TeamPage() {
 
       setMembers(
         all.filter(
-          (u) =>
-            u.role === "admin" ||
-            u.role === "super-admin"
+          (user) =>
+            user.role === "admin" ||
+            user.role === "super-admin"
         )
       );
     } catch {
       setMembers([]);
+      setError("Could not load team members.");
     } finally {
       setLoading(false);
     }
@@ -90,8 +106,28 @@ export default function TeamPage() {
     setSuccess(null);
 
     if (!name.trim() || !email.trim()) {
-      setError("Please fill in all fields.");
+      setError(
+        "Please enter the full name and email address."
+      );
       return;
+    }
+
+    if (password.trim().length < 8) {
+      setError(
+        "Temporary password must be at least 8 characters."
+      );
+      return;
+    }
+
+    if (createRole === "super-admin") {
+      const confirmed = window.confirm(
+        "You are creating a Super Admin account.\n\n" +
+          "Super Admin has full control of the JSA Portal, including team management and administrative access.\n\n" +
+          "Only create this role for a trusted senior administrator.\n\n" +
+          "Continue?"
+      );
+
+      if (!confirmed) return;
     }
 
     setSaving(true);
@@ -99,18 +135,20 @@ export default function TeamPage() {
     try {
       await createLoginAccount({
         email: email.trim(),
-        password,
+        password: password.trim(),
         name: name.trim(),
-        role: "super-admin",
+        role: createRole,
       });
 
       setSuccess({
         email: email.trim(),
-        password,
+        password: password.trim(),
+        role: createRole,
       });
 
       setName("");
       setEmail("");
+      setCreateRole("admin");
       setPassword(generateTempPassword());
 
       await load();
@@ -143,6 +181,8 @@ export default function TeamPage() {
     setEditing(null);
     setEditName("");
     setEditEmail("");
+    setEditRole("admin");
+    setEditStatus("active");
     setEditPassword("");
   };
 
@@ -171,6 +211,33 @@ export default function TeamPage() {
       return;
     }
 
+    // Protect the currently signed-in Super Admin
+    // from accidentally changing their own role/status.
+    const isSelf = editing.id === profile?.uid;
+
+    if (
+      isSelf &&
+      (editRole !== "super-admin" ||
+        editStatus !== "active")
+    ) {
+      setError(
+        "You cannot change your own Super Admin role or deactivate your own account."
+      );
+      return;
+    }
+
+    if (
+      !isSelf &&
+      editing.role === "super-admin" &&
+      editRole === "admin"
+    ) {
+      const confirmed = window.confirm(
+        "You are removing Super Admin privileges from this account.\n\nContinue?"
+      );
+
+      if (!confirmed) return;
+    }
+
     setSaving(true);
 
     try {
@@ -185,9 +252,14 @@ export default function TeamPage() {
             uid: editing.id,
             name: editName.trim(),
             email: editEmail.trim(),
-            role: editRole,
-            status: editStatus,
-            password: editPassword.trim() || undefined,
+            role: isSelf
+              ? "super-admin"
+              : editRole,
+            status: isSelf
+              ? "active"
+              : editStatus,
+            password:
+              editPassword.trim() || undefined,
           }),
         }
       );
@@ -200,9 +272,7 @@ export default function TeamPage() {
         );
       }
 
-      setEditing(null);
-      setEditPassword("");
-
+      closeEdit();
       await load();
     } catch (err) {
       setError(
@@ -219,12 +289,16 @@ export default function TeamPage() {
     member: TeamMember
   ) => {
     if (member.id === profile?.uid) {
-      setError("You cannot delete your own account.");
+      setError(
+        "You cannot delete your own account."
+      );
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${member.name}'s account?\n\nThis will remove their login access and team profile. This action cannot be undone.`
+      `Permanently delete ${member.name}'s account?\n\n` +
+        "This will remove their login access and team profile.\n\n" +
+        "This action cannot be undone."
     );
 
     if (!confirmed) return;
@@ -268,47 +342,94 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-5xl space-y-6">
+      {/* HEADER */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
-          Team
+          Team Management
         </h1>
 
-        <p className="text-sm text-gray-500">
-          Manage Directors and Administrators who have
-          access to the JSA Portal.
+        <p className="text-sm text-gray-500 mt-1">
+          Manage Super Administrators and
+          Administrators who have access to the JSA
+          Portal.
         </p>
       </div>
 
+      {/* ERROR */}
       {error && (
-        <p className="text-sm text-status-disabled bg-status-disabled/10 rounded-lg px-3 py-2">
+        <div className="text-sm text-status-disabled bg-status-disabled/10 rounded-lg px-4 py-3">
           {error}
-        </p>
-      )}
-
-      {success && (
-        <div className="bg-status-active/10 rounded-card p-4 space-y-1">
-          <p className="text-sm text-status-active font-medium">
-            Director account created.
-          </p>
-
-          <p className="text-sm font-mono bg-white rounded px-3 py-2 border border-gray-200">
-            Email: {success.email}
-            <br />
-            Temporary password: {success.password}
-          </p>
         </div>
       )}
 
-      {/* ADD DIRECTOR */}
+      {/* SUCCESS */}
+      {success && (
+        <div className="bg-status-active/10 rounded-card p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-status-active">
+              {roleLabel(success.role)} account created
+              successfully.
+            </p>
+
+            <p className="text-xs text-gray-600 mt-1">
+              Save these temporary login credentials
+              securely and provide them to the new team
+              member.
+            </p>
+          </div>
+
+          <div className="text-sm font-mono bg-white rounded-lg px-4 py-3 border border-gray-200">
+            <div>
+              Role:{" "}
+              <strong>
+                {roleLabel(success.role)}
+              </strong>
+            </div>
+
+            <div className="mt-1 break-all">
+              Email: {success.email}
+            </div>
+
+            <div className="mt-1">
+              Temporary password:{" "}
+              {success.password}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECURITY NOTICE */}
+      <div className="rounded-card border border-yellow-200 bg-yellow-50 p-4">
+        <div className="flex gap-3">
+          <div className="text-yellow-700 text-lg">
+            ⚠
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-yellow-800">
+              Team security
+            </p>
+
+            <p className="text-xs text-yellow-700 mt-1 leading-5">
+              Super Admin accounts have the highest
+              level of access. Use the Administrator
+              role whenever full Super Admin privileges
+              are not required.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* CREATE TEAM MEMBER */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          Add a Director
+          Add Team Member
         </h2>
 
         <form
           onSubmit={handleCreate}
-          className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-3"
+          className="bg-white rounded-card border border-gray-100 shadow-sm p-6 space-y-4"
         >
           <TextInput
             label="Full Name"
@@ -316,6 +437,7 @@ export default function TeamPage() {
             onChange={(e) =>
               setName(e.target.value)
             }
+            placeholder="Enter full name"
             required
           />
 
@@ -326,8 +448,40 @@ export default function TeamPage() {
             onChange={(e) =>
               setEmail(e.target.value)
             }
+            placeholder="Enter login email"
             required
           />
+
+          {/* ROLE */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Account Role
+            </label>
+
+            <select
+              value={createRole}
+              onChange={(e) =>
+                setCreateRole(
+                  e.target.value as TeamRole
+                )
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+            >
+              <option value="admin">
+                Administrator
+              </option>
+
+              <option value="super-admin">
+                Super Admin
+              </option>
+            </select>
+
+            <p className="text-xs text-gray-500 mt-1.5">
+              Administrator: normal administrative
+              access. Super Admin: full portal and team
+              management access.
+            </p>
+          </div>
 
           <TextInput
             label="Temporary Password"
@@ -355,98 +509,128 @@ export default function TeamPage() {
           >
             {saving
               ? "Creating..."
-              : "Create Director Account"}
+              : "Create Team Account"}
           </Button>
         </form>
       </section>
 
       {/* CURRENT TEAM */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          Current Team
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            Current Team
+          </h2>
+
+          <span className="text-xs text-gray-400">
+            {members.length}{" "}
+            {members.length === 1
+              ? "member"
+              : "members"}
+          </span>
+        </div>
 
         {loading ? (
-          <p className="text-sm text-gray-400">
-            Loading...
-          </p>
+          <div className="bg-white rounded-card border border-gray-100 shadow-sm px-4 py-8 text-sm text-gray-400 text-center">
+            Loading team members...
+          </div>
         ) : (
           <div className="bg-white rounded-card border border-gray-100 shadow-sm divide-y divide-gray-100">
             {members.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-gray-400 text-center">
+              <p className="px-4 py-8 text-sm text-gray-400 text-center">
                 No team members found.
               </p>
             ) : (
-              members.map((m) => (
-                <div
-                  key={m.id}
-                  className="px-4 py-4"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800">
-                        {m.name}{" "}
-                        {m.id === profile?.uid && (
-                          <span className="text-gray-400 font-normal">
-                            (you)
+              members.map((member) => {
+                const isSelf =
+                  member.id === profile?.uid;
+
+                return (
+                  <div
+                    key={member.id}
+                    className="px-4 py-5"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-gray-800">
+                            {member.name}
+                          </p>
+
+                          {isSelf && (
+                            <span className="inline-flex rounded-full bg-brand/10 text-brand px-2 py-0.5 text-xs font-medium">
+                              You
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-1 break-all">
+                          {member.email}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                              member.role ===
+                              "super-admin"
+                                ? "bg-purple-50 text-purple-700"
+                                : "bg-blue-50 text-blue-700"
+                            }`}
+                          >
+                            {roleLabel(
+                              member.role
+                            )}
                           </span>
-                        )}
-                      </p>
 
-                      <p className="text-xs text-gray-500 mt-1 break-all">
-                        {m.email}
-                      </p>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs ${
+                              member.status ===
+                              "active"
+                                ? "bg-green-50 text-green-700"
+                                : member.status ===
+                                  "suspended"
+                                ? "bg-yellow-50 text-yellow-700"
+                                : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {statusLabel(
+                              member.status ||
+                                "active"
+                            )}
+                          </span>
+                        </div>
+                      </div>
 
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">
-                          {m.role === "super-admin"
-                            ? "Director"
-                            : "Admin"}
-                        </span>
-
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs ${
-                            m.status === "active"
-                              ? "bg-green-50 text-green-700"
-                              : m.status ===
-                                "suspended"
-                              ? "bg-yellow-50 text-yellow-700"
-                              : "bg-red-50 text-red-700"
-                          }`}
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            openEdit(member)
+                          }
                         >
-                          {m.status || "active"}
-                        </span>
+                          Edit
+                        </Button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            deleting === member.id ||
+                            isSelf
+                          }
+                          onClick={() =>
+                            handleDelete(member)
+                          }
+                          className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deleting === member.id
+                            ? "Deleting..."
+                            : "Delete"}
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex gap-2 shrink-0">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => openEdit(m)}
-                      >
-                        Edit
-                      </Button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          deleting === m.id ||
-                          m.id === profile?.uid
-                        }
-                        onClick={() =>
-                          handleDelete(m)
-                        }
-                        className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {deleting === m.id
-                          ? "Deleting..."
-                          : "Delete"}
-                      </button>
-                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -456,16 +640,33 @@ export default function TeamPage() {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg bg-white rounded-card shadow-xl max-h-[90vh] overflow-y-auto">
+            {/* MODAL HEADER */}
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-800">
-                Edit Team Member
-              </h2>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Edit Team Member
+                  </h2>
 
-              <p className="text-sm text-gray-500 mt-1">
-                Update this user's account information.
-              </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Update account information,
+                    permissions, or status.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={saving}
+                  className="text-gray-400 hover:text-gray-700 text-xl leading-none disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
+            {/* MODAL FORM */}
             <form
               onSubmit={handleUpdate}
               className="p-6 space-y-4"
@@ -489,6 +690,7 @@ export default function TeamPage() {
                 required
               />
 
+              {/* ROLE */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Role
@@ -496,25 +698,34 @@ export default function TeamPage() {
 
                 <select
                   value={editRole}
+                  disabled={
+                    editing.id === profile?.uid
+                  }
                   onChange={(e) =>
                     setEditRole(
-                      e.target.value as
-                        | "admin"
-                        | "super-admin"
+                      e.target.value as TeamRole
                     )
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:bg-gray-100 disabled:text-gray-500"
                 >
-                  <option value="super-admin">
-                    Director
-                  </option>
-
                   <option value="admin">
                     Administrator
                   </option>
+
+                  <option value="super-admin">
+                    Super Admin
+                  </option>
                 </select>
+
+                {editing.id === profile?.uid && (
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Your own Super Admin role cannot
+                    be removed from this screen.
+                  </p>
+                )}
               </div>
 
+              {/* STATUS */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Account Status
@@ -522,15 +733,15 @@ export default function TeamPage() {
 
                 <select
                   value={editStatus}
+                  disabled={
+                    editing.id === profile?.uid
+                  }
                   onChange={(e) =>
                     setEditStatus(
-                      e.target.value as
-                        | "active"
-                        | "suspended"
-                        | "disabled"
+                      e.target.value as TeamStatus
                     )
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option value="active">
                     Active
@@ -544,8 +755,16 @@ export default function TeamPage() {
                     Disabled
                   </option>
                 </select>
+
+                {editing.id === profile?.uid && (
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Your own account cannot be
+                    suspended or disabled.
+                  </p>
+                )}
               </div>
 
+              {/* PASSWORD */}
               <TextInput
                 label="New Password (optional)"
                 type="password"
@@ -557,11 +776,12 @@ export default function TeamPage() {
               />
 
               <p className="text-xs text-gray-500">
-                If you enter a new password, the team
-                member will be required to change it when
-                they next sign in.
+                Enter a new password only if you need
+                to reset this team member's login
+                password. Minimum 8 characters.
               </p>
 
+              {/* ACTIONS */}
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
                 <Button
                   type="button"
