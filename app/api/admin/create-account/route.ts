@@ -3,6 +3,13 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const SESSION_COOKIE_NAME = "jsa_session";
 
+type AllowedRole =
+  | "admin"
+  | "teacher"
+  | "student"
+  | "parent"
+  | "super-admin";
+
 export async function POST(
   request: NextRequest
 ) {
@@ -18,8 +25,7 @@ export async function POST(
     if (!sessionCookie) {
       return NextResponse.json(
         {
-          error:
-            "Not authenticated.",
+          error: "Not authenticated.",
         },
         {
           status: 401,
@@ -34,14 +40,11 @@ export async function POST(
       );
 
     /*
-     * 2. Get authoritative caller
-     * profile from Firestore.
+     * 2. Get authoritative caller profile.
      */
     const callerDoc =
       await adminDb()
-        .doc(
-          `users/${decoded.uid}`
-        )
+        .doc(`users/${decoded.uid}`)
         .get();
 
     if (!callerDoc.exists) {
@@ -66,8 +69,8 @@ export async function POST(
       callerData?.status;
 
     /*
-     * Only active Admin/Super Admin
-     * accounts may create login accounts.
+     * Only active Admin/Super Admin accounts
+     * may create login accounts.
      */
     if (
       ![
@@ -117,9 +120,10 @@ export async function POST(
     }
 
     /*
-     * 4. Allowed account types.
+     * 4. Validate role.
      */
-    const allowedRoles = [
+    const allowedRoles: AllowedRole[] = [
+      "admin",
       "teacher",
       "student",
       "parent",
@@ -127,7 +131,9 @@ export async function POST(
     ];
 
     if (
-      !allowedRoles.includes(role)
+      !allowedRoles.includes(
+        role as AllowedRole
+      )
     ) {
       return NextResponse.json(
         {
@@ -140,25 +146,40 @@ export async function POST(
       );
     }
 
+    const requestedRole =
+      role as AllowedRole;
+
     /*
-     * CRITICAL SECURITY RULE:
+     * 5. SECURITY RULES
      *
-     * A normal Admin may create:
+     * Normal Admin:
      * - Teacher
      * - Student
      * - Parent
      *
-     * ONLY Super Admin may create:
+     * Super Admin:
+     * - Administrator
      * - Super Admin
+     * - Teacher
+     * - Student
+     * - Parent
+     *
+     * This prevents a normal Admin from
+     * creating or escalating another
+     * administrative account.
      */
+    const isAdministrativeRole =
+      requestedRole === "admin" ||
+      requestedRole === "super-admin";
+
     if (
-      role === "super-admin" &&
+      isAdministrativeRole &&
       callerRole !== "super-admin"
     ) {
       return NextResponse.json(
         {
           error:
-            "Only a Super Admin can create another Super Admin account.",
+            "Only a Super Admin can create Administrator or Super Admin accounts.",
         },
         {
           status: 403,
@@ -167,7 +188,7 @@ export async function POST(
     }
 
     /*
-     * 5. Password validation.
+     * 6. Password validation.
      */
     if (
       String(password).length < 8
@@ -189,7 +210,7 @@ export async function POST(
         .toLowerCase();
 
     /*
-     * 6. If linked to a teacher,
+     * 7. If linked to a teacher,
      * student, or parent record,
      * read it before creating Auth.
      */
@@ -216,7 +237,7 @@ export async function POST(
     }
 
     /*
-     * 7. Create Firebase Auth account.
+     * 8. Create Firebase Auth account.
      */
     const userRecord =
       await adminAuth().createUser({
@@ -229,7 +250,7 @@ export async function POST(
       });
 
     /*
-     * 8. Create user profile.
+     * 9. Create Firestore user profile.
      */
     const userProfile:
       Record<string, unknown> = {
@@ -238,7 +259,7 @@ export async function POST(
         String(name).trim(),
       email:
         normalizedEmail,
-      role,
+      role: requestedRole,
       status:
         "active",
       mustChangePassword:
@@ -246,10 +267,10 @@ export async function POST(
     };
 
     /*
-     * 9. Teacher permissions.
+     * 10. Teacher permissions.
      */
     if (
-      role === "teacher" &&
+      requestedRole === "teacher" &&
       linkedRecordData
     ) {
       userProfile.classIds =
@@ -291,7 +312,7 @@ export async function POST(
     }
 
     /*
-     * 10. Save Firestore profile.
+     * 11. Save Firestore profile.
      */
     await adminDb()
       .doc(
@@ -300,7 +321,7 @@ export async function POST(
       .set(userProfile);
 
     /*
-     * 11. Link Auth account back
+     * 12. Link Auth account back
      * to the original record.
      */
     if (
@@ -318,7 +339,7 @@ export async function POST(
     }
 
     /*
-     * 12. Activity log.
+     * 13. Activity log.
      */
     await adminDb()
       .collection("activityLog")
@@ -330,7 +351,7 @@ export async function POST(
           callerData?.email ||
           "administrator",
         details:
-          `${role} — ${normalizedEmail}`,
+          `${requestedRole} — ${normalizedEmail}`,
         createdAt:
           new Date(),
       });
