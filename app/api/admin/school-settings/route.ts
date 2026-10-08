@@ -1,6 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-import { adminAuth, adminDb } from "@/services/firebaseAdmin";
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+/*
+ * Firebase Admin uses the Node.js runtime.
+ */
+export const runtime = "nodejs";
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 type SchoolIdentity = {
   schoolName: string;
@@ -15,9 +30,21 @@ type SchoolIdentity = {
 
   phone1: string;
   phone2: string;
+
   email: string;
   website: string;
 };
+
+type UserRole =
+  | "super-admin"
+  | "admin"
+  | "teacher"
+  | "student"
+  | "parent";
+
+/* -------------------------------------------------------------------------- */
+/* Default School Identity                                                    */
+/* -------------------------------------------------------------------------- */
 
 const DEFAULT_IDENTITY: SchoolIdentity = {
   schoolName: "Jidda Standard Academy",
@@ -34,17 +61,28 @@ const DEFAULT_IDENTITY: SchoolIdentity = {
 
   phone1: "08121414008",
   phone2: "08069121401",
+
   email: "",
   website: "",
 };
 
-type UserRole =
-  | "super-admin"
-  | "admin"
-  | "teacher"
-  | "student"
-  | "parent";
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
+function cleanString(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/**
+ * Verify the current server session and make sure
+ * the authenticated user is an active administrator.
+ *
+ * The role is always read from the authoritative
+ * Firestore users/{uid} document.
+ */
 async function verifyAdmin(
   request: NextRequest
 ) {
@@ -77,12 +115,13 @@ async function verifyAdmin(
       status?: string;
     };
 
+  const isAdmin =
+    profile.role === "admin" ||
+    profile.role === "super-admin";
+
   if (
     profile.status !== "active" ||
-    !profile.role ||
-    !["admin", "super-admin"].includes(
-      profile.role
-    )
+    !isAdmin
   ) {
     throw new Error("UNAUTHORIZED");
   }
@@ -93,14 +132,15 @@ async function verifyAdmin(
   };
 }
 
-function cleanString(
-  value: unknown
-): string {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
-}
+/* -------------------------------------------------------------------------- */
+/* GET                                                                        */
+/* -------------------------------------------------------------------------- */
 
+/**
+ * Returns the school's editable identity/contact settings.
+ *
+ * GET /api/admin/school-settings
+ */
 export async function GET(
   request: NextRequest
 ) {
@@ -117,9 +157,15 @@ export async function GET(
       ? snapshot.data() || {}
       : {};
 
-    const identity = {
+    const storedIdentity =
+      data.identity &&
+      typeof data.identity === "object"
+        ? data.identity
+        : {};
+
+    const identity: SchoolIdentity = {
       ...DEFAULT_IDENTITY,
-      ...(data.identity || {}),
+      ...(storedIdentity as Partial<SchoolIdentity>),
     };
 
     return NextResponse.json({
@@ -137,23 +183,58 @@ export async function GET(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "Authentication required.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
+    if (
+      message === "UNAUTHORIZED"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "You are not authorized to access school settings.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    console.error(
+      "GET school settings error:",
+      error
+    );
+
     return NextResponse.json(
       {
+        success: false,
         error:
-          "You are not authorized to access school settings.",
+          "Could not load school settings.",
       },
-      { status: 403 }
+      {
+        status: 500,
+      }
     );
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* PATCH                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Updates the school's editable identity/contact settings.
+ *
+ * PATCH /api/admin/school-settings
+ */
 export async function PATCH(
   request: NextRequest
 ) {
@@ -173,99 +254,164 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "School identity information is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
+    /* ---------------------------------------------------------------------- */
+    /* Clean and normalize submitted values                                   */
+    /* ---------------------------------------------------------------------- */
+
     const identity: SchoolIdentity = {
-      schoolName:
-        cleanString(
-          incoming.schoolName
-        ),
+      schoolName: cleanString(
+        incoming.schoolName
+      ),
 
-      shortName:
-        cleanString(
-          incoming.shortName
-        ),
+      shortName: cleanString(
+        incoming.shortName
+      ),
 
-      motto:
-        cleanString(
-          incoming.motto
-        ),
+      motto: cleanString(
+        incoming.motto
+      ),
 
-      mainCampusName:
-        cleanString(
-          incoming.mainCampusName
-        ),
+      mainCampusName: cleanString(
+        incoming.mainCampusName
+      ),
 
-      mainCampusAddress:
-        cleanString(
-          incoming.mainCampusAddress
-        ),
+      mainCampusAddress: cleanString(
+        incoming.mainCampusAddress
+      ),
 
-      annexName:
-        cleanString(
-          incoming.annexName
-        ),
+      annexName: cleanString(
+        incoming.annexName
+      ),
 
-      annexAddress:
-        cleanString(
-          incoming.annexAddress
-        ),
+      annexAddress: cleanString(
+        incoming.annexAddress
+      ),
 
-      phone1:
-        cleanString(
-          incoming.phone1
-        ),
+      phone1: cleanString(
+        incoming.phone1
+      ),
 
-      phone2:
-        cleanString(
-          incoming.phone2
-        ),
+      phone2: cleanString(
+        incoming.phone2
+      ),
 
-      email:
-        cleanString(
-          incoming.email
-        ),
+      email: cleanString(
+        incoming.email
+      ),
 
-      website:
-        cleanString(
-          incoming.website
-        ),
+      website: cleanString(
+        incoming.website
+      ),
     };
+
+    /* ---------------------------------------------------------------------- */
+    /* Required fields                                                        */
+    /* ---------------------------------------------------------------------- */
 
     if (!identity.schoolName) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "School name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     if (!identity.shortName) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "School short name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     if (!identity.motto) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "School motto is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* Basic email validation                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    if (identity.email) {
+      const emailPattern =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (
+        !emailPattern.test(
+          identity.email
+        )
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Please enter a valid school email address.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* Basic website validation                                               */
+    /* ---------------------------------------------------------------------- */
+
+    if (identity.website) {
+      const websitePattern =
+        /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/.*)?$/i;
+
+      if (
+        !websitePattern.test(
+          identity.website
+        )
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Please enter a valid website address.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* Preserve existing schoolSettings fields                                */
+    /* ---------------------------------------------------------------------- */
 
     const ref =
       adminDb()
@@ -280,33 +426,47 @@ export async function PATCH(
         ? snapshot.data() || {}
         : {};
 
+    /* ---------------------------------------------------------------------- */
+    /* Save identity                                                           */
+    /* ---------------------------------------------------------------------- */
+
     await ref.set(
       {
         ...existing,
+
         identity,
-        updatedAt:
-          new Date(),
+
+        updatedAt: new Date(),
+        updatedBy: admin.uid,
       },
       {
         merge: true,
       }
     );
 
-    const actor =
-      cleanString(body?.actor) ||
-      admin.uid;
+    /* ---------------------------------------------------------------------- */
+    /* Activity log                                                            */
+    /* ---------------------------------------------------------------------- */
 
     await adminDb()
       .collection("activityLog")
       .add({
         action:
           "School identity updated",
-        actor,
+
+        actor:
+          admin.uid,
+
         details:
           `${identity.schoolName} — ${identity.shortName}`,
+
         createdAt:
           new Date(),
       });
+
+    /* ---------------------------------------------------------------------- */
+    /* Response                                                               */
+    /* ---------------------------------------------------------------------- */
 
     return NextResponse.json({
       success: true,
@@ -323,10 +483,13 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "Authentication required.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
@@ -335,24 +498,30 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
             "Only active administrators can change school settings.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
     console.error(
-      "School settings error:",
+      "PATCH school settings error:",
       error
     );
 
     return NextResponse.json(
       {
+        success: false,
         error:
           "Could not save school settings.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
