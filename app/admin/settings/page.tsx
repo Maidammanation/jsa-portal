@@ -20,7 +20,9 @@ import { auth } from "@/services/firebase";
 import { useAuth } from "@/lib/useAuth";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
 
-import { updateSchoolSettings } from "@/services/database";
+import {
+  updateSchoolSettings,
+} from "@/services/database";
 
 import { updateResultStatus } from "@/services/resultSettings";
 
@@ -31,6 +33,42 @@ type ResultStatus =
   | "locked"
   | "published";
 
+type SchoolIdentity = {
+  schoolName: string;
+  shortName: string;
+  motto: string;
+
+  mainCampusName: string;
+  mainCampusAddress: string;
+
+  annexName: string;
+  annexAddress: string;
+
+  phone1: string;
+  phone2: string;
+  email: string;
+  website: string;
+};
+
+const DEFAULT_IDENTITY: SchoolIdentity = {
+  schoolName: SCHOOL.name || "Jidda Standard Academy",
+  shortName: SCHOOL.shortName || "JSA",
+  motto: "Knowledge is Light",
+
+  mainCampusName: "Main Campus — Zaria",
+  mainCampusAddress:
+    "No. 5 Hayin Dogo, Anguwan Rafi Danmagaji, Zaria",
+
+  annexName: "Annex — Gaskiya Road",
+  annexAddress:
+    "No. 5 Aminu Mai Kai Close, Behind Baba Kaduna's Garage, Gaskiya Road, Zaria",
+
+  phone1: "08121414008",
+  phone2: "08069121401",
+  email: "",
+  website: "",
+};
+
 export default function SettingsPage() {
   const { profile } = useAuth();
 
@@ -40,6 +78,22 @@ export default function SettingsPage() {
     resultStatus,
     loading: settingsLoading,
   } = useSchoolSettings();
+
+  // ============================================================
+  // SCHOOL IDENTITY
+  // ============================================================
+
+  const [identity, setIdentity] =
+    useState<SchoolIdentity>(DEFAULT_IDENTITY);
+
+  const [savingIdentity, setSavingIdentity] =
+    useState(false);
+
+  const [identityMessage, setIdentityMessage] =
+    useState("");
+
+  const [identityError, setIdentityError] =
+    useState("");
 
   // ============================================================
   // PASSWORD
@@ -93,6 +147,41 @@ export default function SettingsPage() {
     useState("");
 
   // ============================================================
+  // LOAD SCHOOL IDENTITY
+  // ============================================================
+
+  useEffect(() => {
+    const loadIdentity = async () => {
+      try {
+        const response = await fetch(
+          "/api/admin/school-settings",
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data?.settings) {
+          setIdentity({
+            ...DEFAULT_IDENTITY,
+            ...data.settings,
+          });
+        }
+      } catch {
+        // Keep default settings if the request fails.
+      }
+    };
+
+    loadIdentity();
+  }, []);
+
+  // ============================================================
   // SYNC LIVE SETTINGS
   // ============================================================
 
@@ -113,6 +202,130 @@ export default function SettingsPage() {
     profile?.name ||
     profile?.email ||
     "admin";
+
+  // ============================================================
+  // UPDATE IDENTITY FIELD
+  // ============================================================
+
+  const updateIdentity = (
+    field: keyof SchoolIdentity,
+    value: string
+  ) => {
+    setIdentity((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  // ============================================================
+  // SAVE SCHOOL IDENTITY
+  // ============================================================
+
+  const handleSaveIdentity = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    setIdentityMessage("");
+    setIdentityError("");
+
+    if (!identity.schoolName.trim()) {
+      setIdentityError(
+        "School name is required."
+      );
+      return;
+    }
+
+    if (!identity.shortName.trim()) {
+      setIdentityError(
+        "School short name is required."
+      );
+      return;
+    }
+
+    if (!identity.motto.trim()) {
+      setIdentityError(
+        "School motto is required."
+      );
+      return;
+    }
+
+    setSavingIdentity(true);
+
+    try {
+      const response = await fetch(
+        "/api/admin/school-settings",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            identity: {
+              schoolName:
+                identity.schoolName.trim(),
+
+              shortName:
+                identity.shortName.trim(),
+
+              motto:
+                identity.motto.trim(),
+
+              mainCampusName:
+                identity.mainCampusName.trim(),
+
+              mainCampusAddress:
+                identity.mainCampusAddress.trim(),
+
+              annexName:
+                identity.annexName.trim(),
+
+              annexAddress:
+                identity.annexAddress.trim(),
+
+              phone1:
+                identity.phone1.trim(),
+
+              phone2:
+                identity.phone2.trim(),
+
+              email:
+                identity.email.trim(),
+
+              website:
+                identity.website.trim(),
+            },
+
+            actor,
+          }),
+        }
+      );
+
+      const data =
+        await response.json().catch(
+          () => ({})
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Could not save school information."
+        );
+      }
+
+      setIdentityMessage(
+        "School information updated successfully. The saved information is now available to connected portal components."
+      );
+    } catch (err) {
+      setIdentityError(
+        err instanceof Error
+          ? err.message
+          : "Could not save school information."
+      );
+    } finally {
+      setSavingIdentity(false);
+    }
+  };
 
   // ============================================================
   // CHANGE PASSWORD
@@ -341,13 +554,13 @@ export default function SettingsPage() {
   // ============================================================
 
   return (
-    <div className="max-w-5xl space-y-6 pb-10">
+    <div className="max-w-6xl space-y-6 pb-10">
 
       {/* ======================================================
           HEADER
       ====================================================== */}
 
-      <div className="rounded-2xl bg-brand text-white p-5 sm:p-6 shadow-sm">
+      <div className="rounded-2xl bg-brand p-5 text-white shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
           <div>
@@ -360,7 +573,7 @@ export default function SettingsPage() {
             </h1>
 
             <p className="mt-1 text-sm text-white/75">
-              Manage your school settings, academic period,
+              Manage school identity, academic period,
               results and account security.
             </p>
           </div>
@@ -387,78 +600,345 @@ export default function SettingsPage() {
       <section>
         <div className="mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">
-            School Identity
+            School Identity & Contact
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Official information currently configured for this
-            school portal.
+            Edit the official information used by the
+            connected school portal.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {identityError && (
+          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {identityError}
+          </div>
+        )}
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        {identityMessage && (
+          <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {identityMessage}
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSaveIdentity}
+          className="space-y-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6"
+        >
+
+          {/* BASIC IDENTITY */}
+
+          <div>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
+              Basic Information
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-3">
+
+              <TextInput
+                label="School Name"
+                value={identity.schoolName}
+                onChange={(e) =>
+                  updateIdentity(
+                    "schoolName",
+                    e.target.value
+                  )
+                }
+                placeholder="Jidda Standard Academy"
+                required
+              />
+
+              <TextInput
+                label="Short Name"
+                value={identity.shortName}
+                onChange={(e) =>
+                  updateIdentity(
+                    "shortName",
+                    e.target.value
+                  )
+                }
+                placeholder="JSA"
+                required
+              />
+
+              <TextInput
+                label="School Motto"
+                value={identity.motto}
+                onChange={(e) =>
+                  updateIdentity(
+                    "motto",
+                    e.target.value
+                  )
+                }
+                placeholder="Knowledge is Light"
+                required
+              />
+
+            </div>
+          </div>
+
+          {/* MAIN CAMPUS */}
+
+          <div>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
+              Main Campus
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2">
+
+              <TextInput
+                label="Campus Name"
+                value={identity.mainCampusName}
+                onChange={(e) =>
+                  updateIdentity(
+                    "mainCampusName",
+                    e.target.value
+                  )
+                }
+                placeholder="Main Campus — Zaria"
+              />
+
+              <TextInput
+                label="Full Address"
+                value={identity.mainCampusAddress}
+                onChange={(e) =>
+                  updateIdentity(
+                    "mainCampusAddress",
+                    e.target.value
+                  )
+                }
+                placeholder="Full Main Campus address"
+              />
+
+            </div>
+          </div>
+
+          {/* ANNEX */}
+
+          <div>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
+              Annex
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2">
+
+              <TextInput
+                label="Annex Name"
+                value={identity.annexName}
+                onChange={(e) =>
+                  updateIdentity(
+                    "annexName",
+                    e.target.value
+                  )
+                }
+                placeholder="Annex — Gaskiya Road"
+              />
+
+              <TextInput
+                label="Full Address"
+                value={identity.annexAddress}
+                onChange={(e) =>
+                  updateIdentity(
+                    "annexAddress",
+                    e.target.value
+                  )
+                }
+                placeholder="Full Annex address"
+              />
+
+            </div>
+          </div>
+
+          {/* CONTACT */}
+
+          <div>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
+              Contact Information
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2">
+
+              <TextInput
+                label="Phone Number 1"
+                value={identity.phone1}
+                onChange={(e) =>
+                  updateIdentity(
+                    "phone1",
+                    e.target.value
+                  )
+                }
+                placeholder="08121414008"
+                type="tel"
+              />
+
+              <TextInput
+                label="Phone Number 2"
+                value={identity.phone2}
+                onChange={(e) =>
+                  updateIdentity(
+                    "phone2",
+                    e.target.value
+                  )
+                }
+                placeholder="08069121401"
+                type="tel"
+              />
+
+              <TextInput
+                label="School Email"
+                value={identity.email}
+                onChange={(e) =>
+                  updateIdentity(
+                    "email",
+                    e.target.value
+                  )
+                }
+                placeholder="school@example.com"
+                type="email"
+              />
+
+              <TextInput
+                label="Website"
+                value={identity.website}
+                onChange={(e) =>
+                  updateIdentity(
+                    "website",
+                    e.target.value
+                  )
+                }
+                placeholder="https://example.com"
+                type="url"
+              />
+
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+
+            <p className="text-xs leading-5 text-gray-500">
+              School identity changes are saved centrally
+              and recorded in the activity log.
+            </p>
+
+            <Button
+              type="submit"
+              disabled={savingIdentity}
+              className="w-full sm:w-auto"
+            >
+              {savingIdentity
+                ? "Saving School Information..."
+                : "Save School Information"}
+            </Button>
+
+          </div>
+
+        </form>
+      </section>
+
+      {/* ======================================================
+          SCHOOL PREVIEW
+      ====================================================== */}
+
+      <section>
+        <div className="mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">
+            School Information Preview
+          </h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               School
             </p>
 
-            <p className="mt-2 text-sm font-bold text-gray-800">
-              {SCHOOL.name}
+            <h3 className="mt-2 text-lg font-bold text-gray-800">
+              {identity.schoolName}
+            </h3>
+
+            <p className="mt-1 text-sm text-gray-500">
+              {identity.shortName}
             </p>
 
-            <p className="mt-1 text-xs text-gray-500">
-              {SCHOOL.shortName}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Motto
-            </p>
-
-            <p className="mt-2 text-sm font-bold text-gray-800">
-              Knowledge is Light
-            </p>
-
-            <p className="mt-1 text-xs text-gray-500">
-              School motto
+            <p className="mt-3 text-sm italic text-gray-600">
+              “{identity.motto}”
             </p>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Main Campus
             </p>
 
-            <p className="mt-2 text-sm font-bold text-gray-800">
-              Zaria
-            </p>
+            <h3 className="mt-2 text-sm font-bold text-gray-800">
+              {identity.mainCampusName}
+            </h3>
 
-            <p className="mt-1 text-xs text-gray-500">
-              Main Campus
+            <p className="mt-2 text-sm leading-5 text-gray-500">
+              {identity.mainCampusAddress}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Annex
             </p>
 
-            <p className="mt-2 text-sm font-bold text-gray-800">
-              Gaskiya Road
-            </p>
+            <h3 className="mt-2 text-sm font-bold text-gray-800">
+              {identity.annexName}
+            </h3>
 
-            <p className="mt-1 text-xs text-gray-500">
-              Zaria Annex
+            <p className="mt-2 text-sm leading-5 text-gray-500">
+              {identity.annexAddress}
             </p>
           </div>
 
         </div>
+
+        <div className="mt-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-3">
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Phone
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-gray-800">
+                {identity.phone1 || "—"}
+              </p>
+
+              <p className="text-sm text-gray-500">
+                {identity.phone2 || "—"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Email
+              </p>
+
+              <p className="mt-1 break-all text-sm font-semibold text-gray-800">
+                {identity.email || "Not configured"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Website
+              </p>
+
+              <p className="mt-1 break-all text-sm font-semibold text-gray-800">
+                {identity.website || "Not configured"}
+              </p>
+            </div>
+
+          </div>
+        </div>
       </section>
 
       {/* ======================================================
-          ACCOUNT
+          ADMINISTRATOR ACCOUNT
       ====================================================== */}
 
       <section>
@@ -531,7 +1011,7 @@ export default function SettingsPage() {
 
         <form
           onSubmit={handleSaveTerm}
-          className="rounded-2xl border border-gray-100 bg-white p-5 sm:p-6 shadow-sm"
+          className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6"
         >
           <div className="grid gap-4 md:grid-cols-2">
 
@@ -617,10 +1097,8 @@ export default function SettingsPage() {
 
         <form
           onSubmit={handleSaveResultStatus}
-          className="rounded-2xl border border-gray-100 bg-white p-5 sm:p-6 shadow-sm space-y-5"
+          className="space-y-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6"
         >
-
-          {/* CURRENT STATUS */}
 
           <div
             className={`rounded-2xl border p-4 ${activeStatus.color}`}
@@ -654,8 +1132,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* STATUS SELECT */}
-
           <SelectInput
             label="Result Status"
             value={selectedResultStatus}
@@ -682,8 +1158,6 @@ export default function SettingsPage() {
               },
             ]}
           />
-
-          {/* WORKFLOW */}
 
           <div>
             <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -789,7 +1263,7 @@ export default function SettingsPage() {
 
         <form
           onSubmit={handleChangePassword}
-          className="rounded-2xl border border-gray-100 bg-white p-5 sm:p-6 shadow-sm"
+          className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6"
         >
 
           <div className="grid gap-4 md:grid-cols-3">
@@ -889,7 +1363,7 @@ export default function SettingsPage() {
               </p>
 
               <p className="mt-1 text-sm font-semibold text-gray-800">
-                {SCHOOL.shortName}
+                {identity.shortName}
               </p>
             </div>
 
@@ -924,11 +1398,11 @@ export default function SettingsPage() {
             <p className="text-xs leading-5 text-gray-400">
               This control centre manages settings for{" "}
               <span className="font-semibold text-gray-500">
-                {SCHOOL.name}
+                {identity.schoolName}
               </span>
-              . Changes to academic settings and result
-              publication are reflected across the connected
-              school portal.
+              . Changes to academic settings, school identity
+              and result publication are reflected across the
+              connected school portal.
             </p>
           </div>
 
