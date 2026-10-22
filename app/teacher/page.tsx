@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -21,69 +22,45 @@ interface TeacherRecord {
   firstName?: string;
   lastName?: string;
   email?: string;
-
   classIds?: string[];
   subjectIds?: string[];
-
   formClassId?: string | null;
   formMasterClassId?: string | null;
   formMasterClassName?: string;
 }
 
-function normalize(
-  value: unknown
-): string {
+function normalize(value: unknown): string {
   return typeof value === "string"
     ? value.trim().toLowerCase()
     : "";
 }
 
-function isSecondaryClass(
-  classroom: ClassRoom
-): boolean {
-  const level =
-    normalize(classroom.level);
-
-  const name =
-    normalize(classroom.name)
-      .replace(/-/g, " ");
+function isSecondaryClass(classroom: ClassRoom): boolean {
+  const level = normalize(classroom.level);
+  const name = normalize(classroom.name).replace(/-/g, " ");
 
   return (
     level === "jss" ||
     level === "ss" ||
     level.includes("jss") ||
     level.includes("secondary") ||
-    /^(jss|ss)\s*[1-3]$/.test(
-      name
-    )
+    /^(jss|ss)\s*[1-3]$/.test(name)
   );
 }
 
 export default function TeacherDashboardPage() {
   const { profile } = useAuth();
 
-  const [teacher, setTeacher] =
-    useState<TeacherRecord | null>(
-      null
-    );
-
-  const [classes, setClasses] =
-    useState<ClassRoom[]>([]);
-
-  const [subjects, setSubjects] =
-    useState<Subject[]>([]);
-
-  const [attendanceClassIds, setAttendanceClassIds] =
-    useState<string[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [teacher, setTeacher] = useState<TeacherRecord | null>(null);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [attendanceClassIds, setAttendanceClassIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!profile?.uid) {
+      setLoading(false);
       return;
     }
 
@@ -93,71 +70,36 @@ export default function TeacherDashboardPage() {
     setError("");
 
     Promise.all([
-      getTeacherByAuthUid(
-        profile.uid
-      ),
-
+      getTeacherByAuthUid(profile.uid),
       getClasses(),
-
       getSubjects(),
-
-      fetch(
-        "/api/teacher/attendance-permissions",
-        {
-          method: "GET",
-          cache: "no-store",
-        }
-      ),
+      fetch("/api/teacher/attendance-permissions", {
+        method: "GET",
+        cache: "no-store",
+      }),
     ])
-      .then(
-        async ([
-          teacherRecord,
-          classList,
-          subjectList,
-          attendanceResponse,
-        ]) => {
-          if (!mounted) {
-            return;
-          }
+      .then(async ([teacherRecord, classList, subjectList, attendanceResponse]) => {
+        if (!mounted) return;
 
-          if (
-            !attendanceResponse.ok
-          ) {
-            throw new Error(
-              "Could not load attendance permissions."
-            );
-          }
-
-          const attendanceData =
-            await attendanceResponse.json();
-
-          setTeacher(
-            teacherRecord as
-              | TeacherRecord
-              | null
-          );
-
-          setClasses(
-            classList as ClassRoom[]
-          );
-
-          setSubjects(
-            subjectList as Subject[]
-          );
-
-          setAttendanceClassIds(
-            Array.isArray(
-              attendanceData.attendanceClassIds
-            )
-              ? attendanceData.attendanceClassIds
-              : []
-          );
+        if (!attendanceResponse.ok) {
+          throw new Error("Could not load attendance permissions.");
         }
-      )
+
+        const attendanceData = await attendanceResponse.json();
+
+        if (!mounted) return;
+
+        setTeacher(teacherRecord as TeacherRecord | null);
+        setClasses(classList as ClassRoom[]);
+        setSubjects(subjectList as Subject[]);
+        setAttendanceClassIds(
+          Array.isArray(attendanceData.attendanceClassIds)
+            ? attendanceData.attendanceClassIds
+            : []
+        );
+      })
       .catch((err) => {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         setError(
           err instanceof Error
@@ -166,9 +108,7 @@ export default function TeacherDashboardPage() {
         );
       })
       .finally(() => {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       });
 
     return () => {
@@ -182,7 +122,6 @@ export default function TeacherDashboardPage() {
         <h1 className="text-xl font-semibold text-gray-800">
           Teacher Dashboard
         </h1>
-
         <p className="text-sm text-gray-400">
           Loading your dashboard...
         </p>
@@ -196,11 +135,8 @@ export default function TeacherDashboardPage() {
         <h1 className="text-xl font-semibold text-gray-800">
           Teacher Dashboard
         </h1>
-
         <div className="rounded-lg bg-status-disabled/10 px-4 py-3">
-          <p className="text-sm text-status-disabled">
-            {error}
-          </p>
+          <p className="text-sm text-status-disabled">{error}</p>
         </div>
       </div>
     );
@@ -212,13 +148,11 @@ export default function TeacherDashboardPage() {
         <h1 className="text-xl font-semibold text-gray-800">
           Teacher Dashboard
         </h1>
-
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+        <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-600">
             Your account is not linked to a teacher record.
           </p>
-
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="mt-1 text-sm text-gray-400">
             Please contact the school administrator.
           </p>
         </div>
@@ -226,231 +160,184 @@ export default function TeacherDashboardPage() {
     );
   }
 
-  /*
-   * Only show classes assigned to this teacher.
-   */
-  const myClasses =
-    classes.filter((classRoom) =>
-      teacher.classIds?.includes(
-        classRoom.id
-      )
-    );
+  const myClasses = classes.filter((classRoom) =>
+    teacher.classIds?.some(
+      (id) => normalize(id) === normalize(classRoom.id)
+    )
+  );
 
-  /*
-   * Only show subjects assigned to this teacher.
-   */
-  const mySubjects =
-    subjects.filter((subject) =>
-      teacher.subjectIds?.includes(
-        subject.id
-      )
-    );
+  const mySubjects = subjects.filter((subject) =>
+    teacher.subjectIds?.some(
+      (id) => normalize(id) === normalize(subject.id)
+    )
+  );
 
-  /*
-   * Resolve Form Master class.
-   */
-  const formClassId =
+  const formClassIdentifier =
     teacher.formClassId ||
     teacher.formMasterClassId ||
+    teacher.formMasterClassName ||
     "";
 
-  const formClass =
-    classes.find(
-      (classRoom) =>
-        classRoom.id ===
-        formClassId
-    );
+  const formClass = classes.find(
+    (classRoom) =>
+      normalize(classRoom.id) === normalize(formClassIdentifier) ||
+      normalize(classRoom.name) === normalize(formClassIdentifier)
+  );
 
-  /*
-   * Determine whether this teacher
-   * can actually take attendance.
-   */
-  const canTakeAttendance =
-    attendanceClassIds.length > 0;
+  const formClassId = formClass?.id || "";
+  const isFormMaster = Boolean(formClass);
+  const canTakeAttendance = attendanceClassIds.length > 0;
 
-  /*
-   * Resolve attendance classes.
-   */
-  const attendanceClasses =
-    classes.filter((classRoom) =>
-      attendanceClassIds.includes(
-        classRoom.id
-      )
-    );
+  const attendanceClasses = classes.filter((classRoom) =>
+    attendanceClassIds.includes(classRoom.id)
+  );
 
   const teacherName =
-    `${teacher.firstName || ""} ${
-      teacher.lastName || ""
-    }`.trim() ||
+    `${teacher.firstName || ""} ${teacher.lastName || ""}`.trim() ||
     profile?.name ||
     "Teacher";
 
-  const isFormMaster =
-    Boolean(formClass);
-
   return (
     <div className="max-w-6xl space-y-6">
-
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
           Welcome, {teacherName}
         </h1>
-
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-gray-500">
           Teacher Dashboard
         </p>
       </div>
 
-      {/* Form Master notice */}
-      {isFormMaster &&
-        formClass && (
-          <div className="bg-brand/5 border border-brand/10 rounded-card p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Form Master notice and actions */}
+      {isFormMaster && formClass && (
+        <div className="rounded-card border border-brand/10 bg-brand/5 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-brand">
+                Form Master
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-gray-800">
+                {formClass.name}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                You can register students, enter results, and manage your assigned class.
+                {isSecondaryClass(formClass)
+                  ? " You are also authorized to manage this class's attendance."
+                  : ""}
+              </p>
+            </div>
 
-              <div>
-                <p className="text-xs uppercase tracking-wide font-medium text-brand">
-                  Form Master
-                </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/teacher/students/new"
+                className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                Register Student
+              </Link>
 
-                <h2 className="text-lg font-semibold text-gray-800 mt-1">
-                  {formClass.name}
-                </h2>
+              <Link
+                href={`/teacher/results?classId=${encodeURIComponent(formClass.id)}`}
+                className="inline-flex items-center justify-center rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand/5"
+              >
+                Enter Results
+              </Link>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  You are the Form Master of this class.
-                  {isSecondaryClass(
-                    formClass
-                  )
-                    ? " You are authorized to manage its attendance."
-                    : " You can manage its attendance."}
-                </p>
-              </div>
-
-              {attendanceClassIds.includes(
-                formClass.id
-              ) && (
+              {attendanceClassIds.includes(formClass.id) && (
                 <Link
                   href="/teacher/attendance"
-                  className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                 >
                   Take Attendance
                 </Link>
               )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Overview cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-        {/* Classes */}
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-card border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Assigned Classes
-            </p>
-
+            <p className="text-sm text-gray-500">Assigned Classes</p>
             <span className="text-2xl font-semibold text-gray-800">
               {myClasses.length}
             </span>
           </div>
-
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="mt-2 text-xs text-gray-400">
             Classes you are assigned to teach
           </p>
         </div>
 
-        {/* Subjects */}
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
+        <div className="rounded-card border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Assigned Subjects
-            </p>
-
+            <p className="text-sm text-gray-500">Assigned Subjects</p>
             <span className="text-2xl font-semibold text-gray-800">
               {mySubjects.length}
             </span>
           </div>
-
-          <p className="text-xs text-gray-400 mt-2">
-            Subjects you can enter results for
+          <p className="mt-2 text-xs text-gray-400">
+            Subjects assigned to your account
           </p>
         </div>
 
-        {/* Form Master */}
-        <div className="bg-white rounded-card border border-gray-100 shadow-sm p-5">
-          <p className="text-sm text-gray-500">
-            Form Master
+        <div className="rounded-card border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">Form Master</p>
+          <p className="mt-1 text-lg font-semibold text-gray-800">
+            {formClass?.name || "Not Assigned"}
           </p>
-
-          <p className="text-lg font-semibold text-gray-800 mt-1">
-            {formClass?.name ||
-              "Not Assigned"}
-          </p>
-
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="mt-2 text-xs text-gray-400">
             Your designated Form Master class
           </p>
         </div>
       </div>
 
-      {/* Attendance permission */}
-      <section className="bg-white rounded-card border border-gray-100 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">
-            Attendance Access
-          </h2>
-
-          <p className="text-xs text-gray-400 mt-1">
+      {/* Attendance permissions */}
+      <section className="rounded-card border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-5 py-4">
+          <h2 className="font-semibold text-gray-800">Attendance Access</h2>
+          <p className="mt-1 text-xs text-gray-400">
             Attendance permissions depend on your class role.
           </p>
         </div>
 
         <div className="p-5">
-
           {canTakeAttendance ? (
             <>
               <p className="text-sm text-gray-600">
                 You can take attendance for:
               </p>
 
-              <div className="flex flex-wrap gap-2 mt-3">
-                {attendanceClasses.map(
-                  (classRoom) => (
-                    <span
-                      key={
-                        classRoom.id
-                      }
-                      className="inline-flex items-center rounded-full bg-brand/5 border border-brand/10 px-3 py-1.5 text-sm text-gray-700"
-                    >
-                      {classRoom.name}
-
-                      {classRoom.id ===
-                        formClassId && (
-                        <span className="ml-2 text-xs text-brand font-medium">
-                          Form Master
-                        </span>
-                      )}
-                    </span>
-                  )
-                )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {attendanceClasses.map((classRoom) => (
+                  <span
+                    key={classRoom.id}
+                    className="inline-flex items-center rounded-full border border-brand/10 bg-brand/5 px-3 py-1.5 text-sm text-gray-700"
+                  >
+                    {classRoom.name}
+                    {classRoom.id === formClassId && (
+                      <span className="ml-2 text-xs font-medium text-brand">
+                        Form Master
+                      </span>
+                    )}
+                  </span>
+                ))}
               </div>
 
               <Link
                 href="/teacher/attendance"
-                className="inline-flex mt-4 items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+                className="mt-4 inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
               >
                 Open Attendance
               </Link>
             </>
           ) : (
-            <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-sm font-medium text-gray-700">
                 You do not have attendance entry permission.
               </p>
-
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="mt-1 text-xs text-gray-500">
                 For JSS1 to SS3, only the Form Master can take attendance.
               </p>
             </div>
@@ -459,13 +346,10 @@ export default function TeacherDashboardPage() {
       </section>
 
       {/* Assigned classes */}
-      <section className="bg-white rounded-card border border-gray-100 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">
-            My Classes
-          </h2>
-
-          <p className="text-xs text-gray-400 mt-1">
+      <section className="rounded-card border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-5 py-4">
+          <h2 className="font-semibold text-gray-800">My Classes</h2>
+          <p className="mt-1 text-xs text-gray-400">
             Only classes assigned to your account are shown.
           </p>
         </div>
@@ -476,63 +360,60 @@ export default function TeacherDashboardPage() {
               No classes have been assigned to you yet.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {myClasses.map(
-                (classRoom) => {
-                  const isFormClass =
-                    classRoom.id ===
-                    formClassId;
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {myClasses.map((classRoom) => {
+                const isFormClass = classRoom.id === formClassId;
 
-                  return (
-                    <div
-                      key={
-                        classRoom.id
-                      }
-                      className={`rounded-lg border p-4 ${
-                        isFormClass
-                          ? "border-brand/20 bg-brand/5"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-
-                        <div>
-                          <p className="font-medium text-gray-800">
-                            {classRoom.name}
+                return (
+                  <div
+                    key={classRoom.id}
+                    className={`rounded-lg border p-4 ${
+                      isFormClass
+                        ? "border-brand/20 bg-brand/5"
+                        : "border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-gray-800">
+                          {classRoom.name}
+                        </p>
+                        {isFormClass && (
+                          <p className="mt-1 text-xs font-medium text-brand">
+                            Form Master
                           </p>
-
-                          {isFormClass && (
-                            <p className="text-xs text-brand mt-1 font-medium">
-                              Form Master
-                            </p>
-                          )}
-                        </div>
-
-                        <Link
-                          href={`/teacher/results?classId=${classRoom.id}`}
-                          className="text-xs text-brand hover:underline"
-                        >
-                          Results
-                        </Link>
+                        )}
                       </div>
+                      <Link
+                        href={`/teacher/results?classId=${encodeURIComponent(classRoom.id)}`}
+                        className="text-xs text-brand hover:underline"
+                      >
+                        Results
+                      </Link>
                     </div>
-                  );
-                }
-              )}
+
+                    {isFormClass && (
+                      <Link
+                        href="/teacher/students/new"
+                        className="mt-3 inline-flex text-xs font-medium text-brand hover:underline"
+                      >
+                        + Register Student
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </section>
 
       {/* Assigned subjects */}
-      <section className="bg-white rounded-card border border-gray-100 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">
-            My Subjects
-          </h2>
-
-          <p className="text-xs text-gray-400 mt-1">
-            Only subjects assigned to your account are shown.
+      <section className="rounded-card border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-5 py-4">
+          <h2 className="font-semibold text-gray-800">My Subjects</h2>
+          <p className="mt-1 text-xs text-gray-400">
+            Subjects assigned to your account.
           </p>
         </div>
 
@@ -543,18 +424,14 @@ export default function TeacherDashboardPage() {
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {mySubjects.map(
-                (subject) => (
-                  <span
-                    key={
-                      subject.id
-                    }
-                    className="inline-flex items-center rounded-full bg-brand/5 border border-brand/10 px-3 py-1.5 text-sm text-gray-700"
-                  >
-                    {subject.name}
-                  </span>
-                )
-              )}
+              {mySubjects.map((subject) => (
+                <span
+                  key={subject.id}
+                  className="inline-flex items-center rounded-full border border-brand/10 bg-brand/5 px-3 py-1.5 text-sm text-gray-700"
+                >
+                  {subject.name}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -562,62 +439,56 @@ export default function TeacherDashboardPage() {
 
       {/* Quick actions */}
       <section>
-        <h2 className="font-semibold text-gray-800 mb-3">
-          Quick Actions
-        </h2>
+        <h2 className="mb-3 font-semibold text-gray-800">Quick Actions</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-          {/* Results */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/teacher/results"
-            className="bg-white rounded-card border border-gray-100 shadow-sm p-5 hover:border-brand/20 hover:shadow-md transition"
+            className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
           >
-            <h3 className="font-semibold text-gray-800">
-              Enter Results
-            </h3>
-
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-semibold text-gray-800">Enter Results</h3>
+            <p className="mt-1 text-sm text-gray-500">
               Enter results for your assigned subjects and classes.
             </p>
           </Link>
 
-          {/* Attendance */}
+          {isFormMaster && (
+            <Link
+              href="/teacher/students/new"
+              className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
+            >
+              <h3 className="font-semibold text-gray-800">Register Student</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Add a new student to your Form Master class.
+              </p>
+            </Link>
+          )}
+
           {canTakeAttendance ? (
             <Link
               href="/teacher/attendance"
-              className="bg-white rounded-card border border-gray-100 shadow-sm p-5 hover:border-brand/20 hover:shadow-md transition"
+              className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
             >
-              <h3 className="font-semibold text-gray-800">
-                Attendance
-              </h3>
-
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="font-semibold text-gray-800">Attendance</h3>
+              <p className="mt-1 text-sm text-gray-500">
                 Take and manage attendance for your authorized classes.
               </p>
             </Link>
           ) : (
-            <div className="bg-gray-50 rounded-card border border-gray-100 p-5">
-              <h3 className="font-semibold text-gray-700">
-                Attendance
-              </h3>
-
-              <p className="text-sm text-gray-500 mt-1">
+            <div className="rounded-card border border-gray-100 bg-gray-50 p-5">
+              <h3 className="font-semibold text-gray-700">Attendance</h3>
+              <p className="mt-1 text-sm text-gray-500">
                 For JSS1 to SS3, attendance can only be taken by the Form Master.
               </p>
             </div>
           )}
 
-          {/* Students */}
           <Link
             href="/teacher/students"
-            className="bg-white rounded-card border border-gray-100 shadow-sm p-5 hover:border-brand/20 hover:shadow-md transition"
+            className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
           >
-            <h3 className="font-semibold text-gray-800">
-              My Students
-            </h3>
-
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-semibold text-gray-800">My Students</h3>
+            <p className="mt-1 text-sm text-gray-500">
               View students in your assigned classes.
             </p>
           </Link>
@@ -625,58 +496,36 @@ export default function TeacherDashboardPage() {
       </section>
 
       {/* Assignment summary */}
-      <section className="bg-gray-50 rounded-card border border-gray-100 p-5">
+      <section className="rounded-card border border-gray-100 bg-gray-50 p-5">
         <h2 className="font-semibold text-gray-800">
           Your Teaching Assignment
         </h2>
 
         <div className="mt-4 space-y-3 text-sm">
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-            <span className="text-gray-500 sm:w-40">
-              Classes:
-            </span>
-
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+            <span className="text-gray-500 sm:w-40">Classes:</span>
             <span className="text-gray-700">
               {myClasses.length > 0
-                ? myClasses
-                    .map(
-                      (classRoom) =>
-                        classRoom.name
-                    )
-                    .join(", ")
+                ? myClasses.map((classRoom) => classRoom.name).join(", ")
                 : "None assigned"}
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-            <span className="text-gray-500 sm:w-40">
-              Subjects:
-            </span>
-
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+            <span className="text-gray-500 sm:w-40">Subjects:</span>
             <span className="text-gray-700">
               {mySubjects.length > 0
-                ? mySubjects
-                    .map(
-                      (subject) =>
-                        subject.name
-                    )
-                    .join(", ")
+                ? mySubjects.map((subject) => subject.name).join(", ")
                 : "None assigned"}
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-            <span className="text-gray-500 sm:w-40">
-              Form Master:
-            </span>
-
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+            <span className="text-gray-500 sm:w-40">Form Master:</span>
             <span className="text-gray-700">
-              {formClass?.name ||
-                "Not assigned"}
+              {formClass?.name || "Not assigned"}
             </span>
           </div>
-
         </div>
       </section>
     </div>
