@@ -221,7 +221,7 @@ export default function TeacherDashboardPage() {
                 {formClass.name}
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                You can register students, enter results, and manage your assigned class.
+                You can register students, enter results, generate report cards, and manage your assigned class.
                 {isSecondaryClass(formClass)
                   ? " You are also authorized to manage this class's attendance."
                   : ""}
@@ -241,6 +241,14 @@ export default function TeacherDashboardPage() {
                 className="inline-flex items-center justify-center rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand/5"
               >
                 Enter Results
+              </Link>
+
+              {/* NEW: Generate Report Cards */}
+              <Link
+                href="/teacher/results/report-cards"
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Generate Report Cards
               </Link>
 
               {attendanceClassIds.includes(formClass.id) && (
@@ -393,12 +401,20 @@ export default function TeacherDashboardPage() {
                     </div>
 
                     {isFormClass && (
-                      <Link
-                        href="/teacher/students/new"
-                        className="mt-3 inline-flex text-xs font-medium text-brand hover:underline"
-                      >
-                        + Register Student
-                      </Link>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <Link
+                          href="/teacher/students/new"
+                          className="inline-flex text-xs font-medium text-brand hover:underline"
+                        >
+                          + Register Student
+                        </Link>
+                        <Link
+                          href="/teacher/results/report-cards"
+                          className="inline-flex text-xs font-medium text-brand hover:underline"
+                        >
+                          Generate Report Cards
+                        </Link>
+                      </div>
                     )}
                   </div>
                 );
@@ -453,15 +469,27 @@ export default function TeacherDashboardPage() {
           </Link>
 
           {isFormMaster && (
-            <Link
-              href="/teacher/students/new"
-              className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
-            >
-              <h3 className="font-semibold text-gray-800">Register Student</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Add a new student to your Form Master class.
-              </p>
-            </Link>
+            <>
+              <Link
+                href="/teacher/students/new"
+                className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
+              >
+                <h3 className="font-semibold text-gray-800">Register Student</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Add a new student to your Form Master class.
+                </p>
+              </Link>
+
+              <Link
+                href="/teacher/results/report-cards"
+                className="rounded-card border border-gray-100 bg-white p-5 shadow-sm transition hover:border-brand/20 hover:shadow-md"
+              >
+                <h3 className="font-semibold text-gray-800">Generate Report Cards</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  View, print, or save report cards for students in your assigned class.
+                </p>
+              </Link>
+            </>
           )}
 
           {canTakeAttendance ? (
