@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Load classes with an explicit TypeScript type.
+    // Load classes using an explicit TypeScript type.
     const classesSnapshot = await db
       .collection("classes")
       .get();
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Read and validate the submitted student information.
+    // Read and validate submitted student information.
     const body = await request.json();
 
     const firstName = clean(body.firstName);
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find existing students in this class to determine the next number.
+    // Find existing students in this class.
     const existingStudents = await db
       .collection("students")
       .where("classId", "==", classroom.id)
@@ -194,11 +194,7 @@ export async function POST(request: NextRequest) {
     // Generate a unique admission number.
     let admissionNo = "";
 
-    for (
-      let i = highest + 1;
-      i <= highest + 100;
-      i++
-    ) {
+    for (let i = highest + 1; i <= highest + 100; i++) {
       const candidate =
         `JSA/${code}/${String(i).padStart(4, "0")}`;
 
