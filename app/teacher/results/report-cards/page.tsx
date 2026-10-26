@@ -129,6 +129,7 @@ export default function FormMasterReportCardsPage() {
 
         const teacher = teacherData as TeacherRecord;
         const allClasses = (classData || []) as ClassRoom[];
+
         const assignedIdentifier =
           teacher.formClassId ||
           teacher.formMasterClassId ||
@@ -165,7 +166,7 @@ export default function FormMasterReportCardsPage() {
     };
   }, [profile?.uid, profile?.role, authLoading]);
 
-  // Fetch only students in the assigned class.
+  // Fetch students from the assigned class.
   useEffect(() => {
     if (!classId) {
       setStudents([]);
@@ -193,7 +194,7 @@ export default function FormMasterReportCardsPage() {
     };
   }, [classId]);
 
-  // Load the selected student's results for the current term and session.
+  // Load the selected student's results.
   useEffect(() => {
     if (!studentId) {
       setResults([]);
@@ -382,6 +383,7 @@ export default function FormMasterReportCardsPage() {
           <p className="mt-2 text-xs text-gray-500">
             Only students from your assigned class are listed.
           </p>
+
           <Link className="mt-3 inline-block underline" href="/teacher">
             Return to teacher dashboard
           </Link>
@@ -397,7 +399,6 @@ export default function FormMasterReportCardsPage() {
           <div className="a4-report-wrapper w-full">
             <div className="box-border w-full border-[3px] border-gray-800 bg-white p-[1.5mm] text-black">
               <div className="relative border border-gray-800 p-1">
-                {/* School heading and branding */}
                 <header className="pt-1 text-center">
                   <h1 className="font-serif text-[21px] font-extrabold uppercase leading-none tracking-wider">
                     {SCHOOL.name || "JIDDA STANDARD ACADEMY"}
@@ -406,6 +407,7 @@ export default function FormMasterReportCardsPage() {
                   <div className="mx-1 mt-1 bg-gray-600 px-2 py-[1px] text-[8.5px] font-semibold text-white">
                     Main Campus: No. 5 Hayin Dogo Anguwan Rafi Danmagaji, Zaria
                   </div>
+
                   <div className="mx-1 mt-0.5 bg-gray-600 px-2 py-[1px] text-[8px] font-semibold text-white">
                     Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna Garage, Gaskiya Road, Zaria
                   </div>
@@ -428,6 +430,7 @@ export default function FormMasterReportCardsPage() {
                     </p>
                     <p className="mx-auto mt-0.5 w-3/5 bg-gray-400 py-[0.5px] text-[8.5px] font-bold text-white">
                       Email:
+                    </p>
 
                     <div className="absolute right-1 top-0 h-10 w-10">
                       <Image
@@ -446,7 +449,6 @@ export default function FormMasterReportCardsPage() {
                   </div>
                 </header>
 
-                {/* Student details */}
                 <section>
                   <div className="border-b border-gray-800 bg-gray-300 py-[1px] text-center text-[9.5px] font-bold italic">
                     Student Information
@@ -491,7 +493,6 @@ export default function FormMasterReportCardsPage() {
                   </table>
                 </section>
 
-                {/* Main subjects: CA 20 + CA 20 + Exam 60 */}
                 <section>
                   <div className="border-y border-gray-800 bg-gray-300 py-[1px] text-center text-[9.5px] font-bold uppercase">
                     Student Academic Performance
@@ -558,7 +559,6 @@ export default function FormMasterReportCardsPage() {
                   </table>
                 </section>
 
-                {/* Arabic subjects: CA 40 + Exam 60 */}
                 {student.attendsArabic && (
                   <section>
                     <div className="border-y border-gray-800 bg-gray-300 py-[1px] text-center text-[9.5px] font-bold uppercase">
@@ -621,7 +621,6 @@ export default function FormMasterReportCardsPage() {
                   </section>
                 )}
 
-                {/* Overall totals */}
                 <section className="border-b border-gray-800 text-[9.5px] font-bold uppercase">
                   <div className="grid grid-cols-2 text-center">
                     <div className="border-r border-gray-800 p-0.5">
@@ -633,7 +632,6 @@ export default function FormMasterReportCardsPage() {
                   </div>
                 </section>
 
-                {/* Behavioural assessment */}
                 <section>
                   <div className="border-b border-gray-800 bg-gray-300 py-[1px] text-center text-[9.5px] font-bold italic">
                     Behavioural Assessment (1–5)
@@ -675,7 +673,6 @@ export default function FormMasterReportCardsPage() {
                   </div>
                 </section>
 
-                {/* Guide and comment */}
                 <section className="grid grid-cols-3 border-b border-gray-800 text-[9.5px]">
                   <div className="border-r border-gray-800 p-1 italic">
                     <p className="text-center font-bold underline">GUIDE</p>
@@ -697,7 +694,6 @@ export default function FormMasterReportCardsPage() {
                   </div>
                 </section>
 
-                {/* Next term date */}
                 <section className="flex flex-wrap items-center justify-center gap-2 border-b border-gray-800 p-1 text-center text-[9.5px] font-bold italic">
                   <span>Next term begins on:</span>
                   <input
@@ -710,7 +706,6 @@ export default function FormMasterReportCardsPage() {
                   </span>
                 </section>
 
-                {/* Signatures and official stamp */}
                 <section className="relative grid min-h-[85px] grid-cols-2 text-center text-[9.5px] font-bold italic">
                   <div className="relative flex flex-col justify-between border-r border-gray-800 p-1">
                     <div>
