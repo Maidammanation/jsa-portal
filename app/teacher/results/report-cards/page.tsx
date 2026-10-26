@@ -427,8 +427,7 @@ export default function FormMasterReportCardsPage() {
                       Phone Numbers: 08121414008, 08069121401
                     </p>
                     <p className="mx-auto mt-0.5 w-3/5 bg-gray-400 py-[0.5px] text-[8.5px] font-bold text-white">
-                      Email: {SCHOOL.email || ""}
-                    </p>
+                      Email:
 
                     <div className="absolute right-1 top-0 h-10 w-10">
                       <Image
