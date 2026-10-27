@@ -19,7 +19,6 @@ function normalize(value: unknown): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify the teacher's session.
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
     if (!cookie) {
@@ -29,14 +28,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const decoded = await adminAuth().verifySessionCookie(
-      cookie,
-      true
-    );
-
+    const decoded = await adminAuth().verifySessionCookie(cookie, true);
     const db = adminDb();
-
-    // Confirm that the user account exists and is active.
     const userDoc = await db.doc(`users/${decoded.uid}`).get();
 
     if (!userDoc.exists) {
@@ -50,15 +43,11 @@ export async function POST(request: NextRequest) {
 
     if (user.role !== "teacher" || user.status !== "active") {
       return NextResponse.json(
-        {
-          error:
-            "Only active teacher accounts can use this feature."
-        },
+        { error: "Only active teacher accounts can use this feature." },
         { status: 403 }
       );
     }
 
-    // Find the teacher's record.
     const teachers = await db
       .collection("teachers")
       .where("authUid", "==", decoded.uid)
@@ -67,16 +56,12 @@ export async function POST(request: NextRequest) {
 
     if (teachers.empty) {
       return NextResponse.json(
-        {
-          error:
-            "Your account is not linked to a teacher record."
-        },
+        { error: "Your account is not linked to a teacher record." },
         { status: 403 }
       );
     }
 
     const teacher = teachers.docs[0].data();
-
     const assignment = clean(
       teacher.formClassId ||
       teacher.formMasterClassId ||
@@ -85,29 +70,22 @@ export async function POST(request: NextRequest) {
 
     if (!assignment) {
       return NextResponse.json(
-        {
-          error: "You are not assigned as a Form Master."
-        },
+        { error: "You are not assigned as a Form Master." },
         { status: 403 }
       );
     }
 
-    // Load classes using an explicit TypeScript type.
-    const classesSnapshot = await db
-      .collection("classes")
-      .get();
+    const classesSnapshot = await db.collection("classes").get();
 
     const classList: { id: string; name: string }[] =
       classesSnapshot.docs.map((classDoc) => {
         const data = classDoc.data() as Record<string, unknown>;
-
         return {
           id: classDoc.id,
-          name: clean(data.name)
+          name: clean(data.name),
         };
       });
 
-    // Match the Form Master's assigned class by ID or name.
     const classroom = classList.find(
       (item) =>
         normalize(item.id) === normalize(assignment) ||
@@ -116,43 +94,36 @@ export async function POST(request: NextRequest) {
 
     if (!classroom) {
       return NextResponse.json(
-        {
-          error: "Your assigned class could not be found."
-        },
+        { error: "Your assigned class could not be found." },
         { status: 403 }
       );
     }
 
-    // Read and validate submitted student information.
     const body = await request.json();
-
     const firstName = clean(body.firstName);
     const lastName = clean(body.lastName);
     const gender = clean(body.gender);
     const dateOfBirth = clean(body.dateOfBirth);
-    const attendsArabic = body.attendsArabic === true;
+
+    // Arabic is ON unless the request explicitly sets it to false.
+    const attendsArabic = body.attendsArabic !== false;
 
     if (!firstName || !lastName) {
       return NextResponse.json(
-        {
-          error: "First name and last name are required."
-        },
+        { error: "First name and last name are required." },
         { status: 400 }
       );
     }
 
     if (gender !== "male" && gender !== "female") {
       return NextResponse.json(
-        {
-          error: "Please select a valid gender."
-        },
+        { error: "Please select a valid gender." },
         { status: 400 }
       );
     }
 
     const className = classroom.name;
     const normalizedName = normalize(className);
-
     const match = normalizedName.match(
       /^(pre nursery|nursery|primary|jss|ss)\s*(\d+)?/
     );
@@ -171,7 +142,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find existing students in this class.
     const existingStudents = await db
       .collection("students")
       .where("classId", "==", classroom.id)
@@ -180,10 +150,7 @@ export async function POST(request: NextRequest) {
     let highest = 0;
 
     existingStudents.docs.forEach((studentDoc) => {
-      const admissionNo = clean(
-        studentDoc.data().admissionNo
-      );
-
+      const admissionNo = clean(studentDoc.data().admissionNo);
       const number = admissionNo.match(/\/(\d+)$/);
 
       if (number) {
@@ -191,12 +158,10 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Generate a unique admission number.
     let admissionNo = "";
 
     for (let i = highest + 1; i <= highest + 100; i++) {
-      const candidate =
-        `JSA/${code}/${String(i).padStart(4, "0")}`;
+      const candidate = `JSA/${code}/${String(i).padStart(4, "0")}`;
 
       const duplicate = await db
         .collection("students")
@@ -214,17 +179,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Could not generate an admission number. Contact the administrator."
+            "Could not generate an admission number. Contact the administrator.",
         },
         { status: 409 }
       );
     }
 
-    // Prepare the student record.
     const actor =
-      clean(user.name) ||
-      clean(user.email) ||
-      "Form Master";
+      clean(user.name) || clean(user.email) || "Form Master";
 
     const student: Record<string, unknown> = {
       admissionNo,
@@ -236,25 +198,20 @@ export async function POST(request: NextRequest) {
       status: "active",
       attendsArabic,
       createdBy: actor,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     if (dateOfBirth) {
       student.dateOfBirth = dateOfBirth;
     }
 
-    // Save the student.
-    const studentRef = await db
-      .collection("students")
-      .add(student);
+    const studentRef = await db.collection("students").add(student);
 
-    // Record the action in the school activity log.
     await db.collection("activityLog").add({
       action: "Student added by Form Master",
       actor,
-      details:
-        `${firstName} ${lastName} — ${className} — ${admissionNo}`,
-      createdAt: new Date()
+      details: `${firstName} ${lastName} — ${className} — ${admissionNo}`,
+      createdAt: new Date(),
     });
 
     return NextResponse.json(
@@ -267,23 +224,20 @@ export async function POST(request: NextRequest) {
           firstName,
           lastName,
           classId: classroom.id,
-          className
-        }
+          className,
+        },
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error(
-      "Form Master student creation failed:",
-      error
-    );
+    console.error("Form Master student creation failed:", error);
 
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Could not add student."
+            : "Could not add student.",
       },
       { status: 500 }
     );
