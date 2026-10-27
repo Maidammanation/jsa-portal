@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -29,7 +30,7 @@ export default function NewStudentPage() {
     gender: "male",
     classId: "",
     dateOfBirth: "",
-    attendsArabic: false,
+    attendsArabic: true,
   });
 
   useEffect(() => {
@@ -91,6 +92,12 @@ export default function NewStudentPage() {
         ...prev,
         admissionNo,
       }));
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not generate admission number."
+      );
     } finally {
       setGeneratingAdmissionNo(false);
     }
@@ -100,18 +107,15 @@ export default function NewStudentPage() {
     e: React.FormEvent
   ) => {
     e.preventDefault();
-
     setError("");
 
     if (
       !form.admissionNo ||
-      !form.firstName ||
-      !form.lastName ||
+      !form.firstName.trim() ||
+      !form.lastName.trim() ||
       !form.classId
     ) {
-      setError(
-        "Please fill in all required fields."
-      );
+      setError("Please fill in all required fields.");
       return;
     }
 
@@ -124,6 +128,8 @@ export default function NewStudentPage() {
 
       await createStudent({
         ...form,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
         className: selectedClass?.name || "",
         status: "active",
         createdBy:
@@ -167,10 +173,7 @@ export default function NewStudentPage() {
             value={form.classId}
             onChange={handleClassChange}
             options={[
-              {
-                label: "Select a class",
-                value: "",
-              },
+              { label: "Select a class", value: "" },
               ...classes.map((c) => ({
                 label: c.name,
                 value: c.id,
@@ -210,14 +213,8 @@ export default function NewStudentPage() {
             value={form.gender}
             onChange={handleChange("gender")}
             options={[
-              {
-                label: "Male",
-                value: "male",
-              },
-              {
-                label: "Female",
-                value: "female",
-              },
+              { label: "Male", value: "male" },
+              { label: "Female", value: "female" },
             ]}
           />
 
@@ -230,11 +227,7 @@ export default function NewStudentPage() {
 
           <SelectInput
             label="Arabic Section"
-            value={
-              form.attendsArabic
-                ? "yes"
-                : "no"
-            }
+            value={form.attendsArabic ? "yes" : "no"}
             onChange={handleArabicChange}
             options={[
               {
@@ -253,35 +246,25 @@ export default function NewStudentPage() {
           <p className="text-xs text-gray-500">
             Arabic Section
           </p>
-
           <p className="mt-1 text-sm text-gray-700">
             {form.attendsArabic
-              ? "This student will receive Arabic subjects and an Arabic section on the report card."
-              : "This student will not receive Arabic subjects or the Arabic section on the report card."}
+              ? "Arabic subjects and the Arabic report-card section are enabled by default. Switch to No for students who do not attend Arabic."
+              : "Arabic subjects and the Arabic report-card section are disabled for this student."}
           </p>
         </div>
 
         <div className="mt-4 flex gap-3">
           <Button
             type="submit"
-            disabled={
-              saving ||
-              generatingAdmissionNo
-            }
+            disabled={saving || generatingAdmissionNo}
           >
-            {saving
-              ? "Saving..."
-              : "Save Student"}
+            {saving ? "Saving..." : "Save Student"}
           </Button>
 
           <Button
             type="button"
             variant="ghost"
-            onClick={() =>
-              router.push(
-                "/admin/students"
-              )
-            }
+            onClick={() => router.push("/admin/students")}
           >
             Cancel
           </Button>
