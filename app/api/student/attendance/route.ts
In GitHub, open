@@ -1,0 +1,124 @@
+
+import { NextResponse, type NextRequest } from "next/server";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+
+export const runtime = "nodejs";
+
+const SESSION_COOKIE_NAME = "jsa_session";
+
+export async function GET(request: NextRequest) {
+  try {
+    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+
+    if (!sessionCookie) {
+      return NextResponse.json(
+        { error: "Not authenticated." },
+        { status: 401 }
+      );
+    }
+
+    const decoded = await adminAuth().verifySessionCookie(
+      sessionCookie,
+      true
+    );
+
+    const db = adminDb();
+    const userSnapshot = await db.doc(`users/${decoded.uid}`).get();
+
+    if (!userSnapshot.exists) {
+      return NextResponse.json(
+        { error: "User profile not found." },
+        { status: 403 }
+      );
+    }
+
+    const user = userSnapshot.data()!;
+
+    if (user.status !== "active" || user.role !== "student") {
+      return NextResponse.json(
+        { error: "Only active student accounts can access this endpoint." },
+        { status: 403 }
+      );
+    }
+
+    // The student ID must come from the trusted user profile,
+    // not from a student ID supplied by the browser.
+    const studentId =
+      typeof user.studentId === "string" ? user.studentId.trim() : "";
+
+    if (!studentId) {
+      return NextResponse.json(
+        { error: "Your account is not linked to a student record." },
+        { status: 404 }
+      );
+    }
+
+    const studentSnapshot = await db.doc(`students/${studentId}`).get();
+
+    if (!studentSnapshot.exists) {
+      return NextResponse.json(
+        { error: "Student record not found." },
+        { status: 404 }
+      );
+    }
+
+    const student = studentSnapshot.data()!;
+
+    const attendanceSnapshot = await db
+      .collection("attendance")
+      .where("classId", "==", student.classId)
+      .get();
+
+    const records: { date: string; status: string }[] = [];
+
+    for (const attendanceDoc of attendanceSnapshot.docs) {
+      const attendance = attendanceDoc.data();
+
+      if (typeof attendance.date !== "string") continue;
+      if (!Array.isArray(attendance.records)) continue;
+
+      const ownRecord = attendance.records.find(
+        (record: unknown) =>
+          record !== null &&
+          typeof record === "object" &&
+          "studentId" in record &&
+          record.studentId === studentId
+      );
+
+      if (
+        ownRecord &&
+        typeof ownRecord.status === "string" &&
+        ["present", "absent", "late"].includes(ownRecord.status)
+      ) {
+        records.push({
+          date: attendance.date,
+          status: ownRecord.status,
+        });
+      }
+    }
+
+    records.sort((a, b) => b.date.localeCompare(a.date));
+
+    return NextResponse.json(
+      {
+        student: {
+          id: studentId,
+          classId: String(student.classId ?? ""),
+          className: String(student.className ?? student.classId ?? ""),
+        },
+        records,
+      },
+      {
+        status: 200,
+        headers: { "Cache-Control": "private, no-store" },
+      }
+    );
+  } catch (error) {
+    console.error("Student attendance endpoint failed:", error);
+
+    return NextResponse.json(
+      { error: "Unable to load attendance. Please try again." },
+      { status: 500 }
+    );
+  }
+}
