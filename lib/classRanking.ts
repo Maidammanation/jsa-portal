@@ -3,23 +3,12 @@ import type {
   ResultEntry,
   Student,
   Subject,
-  SchoolLevel,
 } from "@/lib/types";
 
-function getClassLevel(
-  classroom: ClassRoom
-): SchoolLevel | "" {
-  const value = `${classroom.level || ""} ${classroom.name || ""}`
-    .toLowerCase();
-
-  if (value.includes("pre nursery") || value.includes("pre-nursery") || value.includes("prenursery")) return "pre-nursery";
-  if (value.includes("nursery")) return "nursery";
-  if (value.includes("primary")) return "primary";
-  if (value.includes("jss") || value.includes("junior")) return "jss";
-  if (value.startsWith("ss") || value.includes("senior")) return "ss";
-
-  return "";
-}
+import {
+  getClassLevel,
+  subjectAppliesToClass,
+} from "@/lib/curriculum";
 
 export function getMainSubjectsForClass(
   classroom: ClassRoom,
@@ -27,11 +16,20 @@ export function getMainSubjectsForClass(
 ): Subject[] {
   const level = getClassLevel(classroom);
 
+  // Never calculate rankings for an unidentified class level.
+  if (!level) {
+    return [];
+  }
+
   return subjects.filter((subject) => {
     const name = subject.name.trim().toLowerCase();
 
-    if (name === "music") return false;
+    // Music is excluded from result ranking.
+    if (name === "music") {
+      return false;
+    }
 
+    // Arabic is displayed separately and excluded from ranking.
     if (
       subject.section === "arabic" ||
       subject.scoringType === "arabic-40-60"
@@ -39,13 +37,11 @@ export function getMainSubjectsForClass(
       return false;
     }
 
-    if (!level) return true;
-
-    if (Array.isArray(subject.levels) && subject.levels.length > 0) {
-      return subject.levels.includes(level);
-    }
-
-    return true;
+    // A subject must explicitly include this class level.
+    return subjectAppliesToClass(
+      subject.levels,
+      level
+    );
   });
 }
 
@@ -57,7 +53,10 @@ export function calculateClassPositions(
   const positions = new Map<string, number | null>();
 
   if (requiredSubjects.length === 0) {
-    students.forEach((student) => positions.set(student.id, null));
+    students.forEach((student) => {
+      positions.set(student.id, null);
+    });
+
     return positions;
   }
 
@@ -71,24 +70,32 @@ export function calculateClassPositions(
       (result) => result.studentId === student.id
     );
 
-    const subjectTotals = requiredSubjects.map((subject) => {
-      const result = studentResults.find(
-        (item) => item.subjectId === subject.id
-      );
+    const subjectTotals = requiredSubjects.map(
+      (subject) => {
+        const result = studentResults.find(
+          (item) => item.subjectId === subject.id
+        );
 
-      if (
-        !result ||
-        result.total === undefined ||
-        result.total === null ||
-        !Number.isFinite(Number(result.total))
-      ) {
-        return null;
+        if (
+          !result ||
+          result.total === undefined ||
+          result.total === null ||
+          !Number.isFinite(Number(result.total))
+        ) {
+          return null;
+        }
+
+        const total = Number(result.total);
+
+        if (total < 0 || total > 100) {
+          return null;
+        }
+
+        return total;
       }
+    );
 
-      return Number(result.total);
-    });
-
-    // Do not rank students with missing Main-subject results.
+    // Students missing any required Main subject remain Pending.
     if (subjectTotals.some((total) => total === null)) {
       positions.set(student.id, null);
       return;
@@ -101,40 +108,68 @@ export function calculateClassPositions(
 
     completed.push({
       studentId: student.id,
-      average: Number((total / requiredSubjects.length).toFixed(2)),
+      average: Number(
+        (total / requiredSubjects.length).toFixed(2)
+      ),
     });
   });
 
-  completed.sort((a, b) => b.average - a.average);
+  completed.sort(
+    (a, b) => b.average - a.average
+  );
 
   let previousAverage: number | null = null;
   let currentPosition = 0;
 
   completed.forEach((entry, index) => {
-    if (previousAverage === null || entry.average !== previousAverage) {
+    if (
+      previousAverage === null ||
+      entry.average !== previousAverage
+    ) {
       currentPosition = index + 1;
     }
 
-    positions.set(entry.studentId, currentPosition);
+    positions.set(
+      entry.studentId,
+      currentPosition
+    );
+
     previousAverage = entry.average;
   });
 
   return positions;
 }
 
-export function formatPosition(position: number | null | undefined): string {
-  if (position === null || position === undefined) return "Pending";
+export function formatPosition(
+  position: number | null | undefined
+): string {
+  if (
+    position === null ||
+    position === undefined
+  ) {
+    return "Pending";
+  }
 
   const remainder100 = position % 100;
 
-  if (remainder100 >= 11 && remainder100 <= 13) {
+  if (
+    remainder100 >= 11 &&
+    remainder100 <= 13
+  ) {
     return `${position}th`;
   }
 
   switch (position % 10) {
-    case 1: return `${position}st`;
-    case 2: return `${position}nd`;
-    case 3: return `${position}rd`;
-    default: return `${position}th`;
+    case 1:
+      return `${position}st`;
+
+    case 2:
+      return `${position}nd`;
+
+    case 3:
+      return `${position}rd`;
+
+    default:
+      return `${position}th`;
   }
 }
