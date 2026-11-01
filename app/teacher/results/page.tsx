@@ -473,46 +473,19 @@ export default function TeacherResultsPage() {
         classroom.name
       );
 
-    return subjects.filter(
-      (subject) => {
-        /*
-         * Music is excluded from
-         * result entry.
-         */
-        if (
-          subject.name
-            .trim()
-            .toLowerCase() ===
-          "music"
-        ) {
-          return false;
-        }
-
-        /*
-         * If class level cannot be detected,
-         * allow configured non-Music subjects.
-         */
-        if (!level) {
-          return true;
-        }
-
-        /*
-         * Respect explicit subject levels.
-         */
-        if (
-          Array.isArray(
-            subject.levels
-          ) &&
-          subject.levels.length > 0
-        ) {
-          return subject.levels.includes(
-            level
-          );
-        }
-
-        return true;
+    return subjects.filter((subject) => {
+      // Music is not available for result upload.
+      if (subject.name.trim().toLowerCase() === "music") {
+        return false;
       }
-    );
+
+      // A subject must have an explicit level assignment.
+      if (!level || !Array.isArray(subject.levels)) {
+        return false;
+      }
+
+      return subject.levels.includes(level);
+    });
   };
 
   /*
@@ -543,35 +516,17 @@ export default function TeacherResultsPage() {
        * Normal teacher gets only assigned
        * subjects applicable to this class.
        */
-      return mySubjects.filter(
-        (subject) => {
-          if (
-            subject.name
-              .trim()
-              .toLowerCase() ===
-            "music"
-          ) {
-            return false;
-          }
-
-          if (!selectedClassLevel) {
-            return true;
-          }
-
-          if (
-            !Array.isArray(
-              subject.levels
-            ) ||
-            subject.levels.length === 0
-          ) {
-            return true;
-          }
-
-          return subject.levels.includes(
-            selectedClassLevel
-          );
+      return mySubjects.filter((subject) => {
+        if (subject.name.trim().toLowerCase() === "music") {
+          return false;
         }
-      );
+
+        if (!selectedClassLevel || !Array.isArray(subject.levels)) {
+          return false;
+        }
+
+        return subject.levels.includes(selectedClassLevel);
+      });
     }, [
       classId,
       selectedClassHasElevatedResultAccess,
