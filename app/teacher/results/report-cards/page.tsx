@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,12 +11,19 @@ import {
   getClasses,
   getStudentsByClass,
   getResultsForStudent,
+  getResultsFor,
   getSubjects,
 } from "@/services/database";
 
 import { useAuth } from "@/lib/useAuth";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
 import { SCHOOL } from "@/settings/config";
+
+import {
+  calculateClassPositions,
+  formatPosition,
+  getMainSubjectsForClass,
+} from "@/lib/classRanking";
 
 import type {
   ClassRoom,
@@ -94,6 +100,10 @@ export default function FormMasterReportCardsPage() {
   const [classId, setClassId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [results, setResults] = useState<ResultEntry[]>([]);
+
+  const [classResults, setClassResults] = useState<ResultEntry[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
   const [behaviour, setBehaviour] = useState<Behaviour>(emptyBehaviour);
   const [nextTermDate, setNextTermDate] = useState("To be announced");
   const [signatureDate, setSignatureDate] = useState("");
@@ -166,33 +176,77 @@ export default function FormMasterReportCardsPage() {
     };
   }, [profile?.uid, profile?.role, authLoading]);
 
-  // Fetch students from the assigned class.
+  // Fetch students from the assigned class & load ranking data for all main subjects.
   useEffect(() => {
-    if (!classId) {
+    let active = true;
+
+    async function loadClassData() {
+      if (!classId) {
+        setStudents([]);
+        setStudentId("");
+        setClassResults([]);
+        setRankingLoading(false);
+        return;
+      }
+
+      setRankingLoading(true);
       setStudents([]);
       setStudentId("");
       setResults([]);
-      return;
+      setBehaviour(emptyBehaviour);
+
+      try {
+        const studentData = await getStudentsByClass(classId);
+
+        if (!active) return;
+
+        setStudents((studentData || []) as Student[]);
+
+        const classroom = classes.find(
+          (item) => item.id === classId
+        );
+
+        if (!classroom || subjects.length === 0) {
+          setClassResults([]);
+          return;
+        }
+
+        const requiredSubjects = getMainSubjectsForClass(
+          classroom,
+          subjects
+        );
+
+        const resultGroups = await Promise.all(
+          requiredSubjects.map((subject) =>
+            getResultsFor(classId, subject.id, term, session)
+          )
+        );
+
+        if (!active) return;
+
+        setClassResults(
+          resultGroups.flat() as ResultEntry[]
+        );
+      } catch (err) {
+        console.error("Could not load class ranking data:", err);
+
+        if (active) {
+          setClassResults([]);
+          setError("Could not load class ranking data.");
+        }
+      } finally {
+        if (active) {
+          setRankingLoading(false);
+        }
+      }
     }
 
-    let active = true;
-    setStudents([]);
-    setStudentId("");
-    setResults([]);
-    setBehaviour(emptyBehaviour);
-
-    getStudentsByClass(classId)
-      .then((data) => {
-        if (active) setStudents((data || []) as Student[]);
-      })
-      .catch(() => {
-        if (active) setError("Could not load students in your assigned class.");
-      });
+    loadClassData();
 
     return () => {
       active = false;
     };
-  }, [classId]);
+  }, [classId, classes, subjects, term, session]);
 
   // Load the selected student's results.
   useEffect(() => {
@@ -224,6 +278,28 @@ export default function FormMasterReportCardsPage() {
 
   const student = students.find((item) => item.id === studentId);
   const classroom = classes.find((item) => item.id === classId);
+
+  const requiredMainSubjects = useMemo(
+    () =>
+      classroom
+        ? getMainSubjectsForClass(classroom, subjects)
+        : [],
+    [classroom, subjects]
+  );
+
+  const classPositions = useMemo(
+    () =>
+      calculateClassPositions(
+        students,
+        classResults,
+        requiredMainSubjects
+      ),
+    [students, classResults, requiredMainSubjects]
+  );
+
+  const studentPosition = formatPosition(
+    student ? classPositions.get(student.id) : null
+  );
 
   const mainSubjects = useMemo(() => {
     return results
@@ -409,7 +485,7 @@ export default function FormMasterReportCardsPage() {
                   </div>
 
                   <div className="mx-1 mt-0.5 bg-gray-600 px-2 py-[1px] text-[8px] font-semibold text-white">
-                    Annex: No. 5 Aminu Mai Kai Close, Behind Baba Kaduna Garage, Gaskiya Road, Zaria
+                    Annex: No. 5 Aminu Mai Kaji Close, Behind Baba Kaduna Garage, Gaskiya Road, Zaria
                   </div>
 
                   <div className="relative mt-1 px-10">
@@ -481,6 +557,12 @@ export default function FormMasterReportCardsPage() {
                         </td>
                         <td className="border-r border-gray-800 p-0.5 text-center font-bold">
                           {students.length}
+                        </td>
+                        <td className="border-r border-gray-800 p-0.5 font-bold">
+                          Position:
+                        </td>
+                        <td className="border-r border-gray-800 p-0.5 text-center font-bold">
+                          {rankingLoading ? "Loading..." : studentPosition}
                         </td>
                         <td className="border-r border-gray-800 p-0.5 font-bold">
                           Term:
