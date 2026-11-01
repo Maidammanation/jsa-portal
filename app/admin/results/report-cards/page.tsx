@@ -54,7 +54,7 @@ function gradeRemark(grade?: string): string {
     case "C":
       return "Good";
     case "D":
-      return "Pass"; // FIX: was "Fair" — sample shows D = Pass
+  return "Fair"; 
     case "E":
       return "Pass";
     case "F":
