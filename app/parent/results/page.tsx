@@ -30,6 +30,162 @@ interface ChildRecord {
   classId: string;
 }
 
+function isArabicSubject(subject?: Subject) {
+  return (
+    subject?.section === "arabic" ||
+    subject?.scoringType === "arabic-40-60"
+  );
+}
+
+function ResultsTable({
+  results,
+  subjects,
+}: {
+  results: ResultEntry[];
+  subjects: Subject[];
+}) {
+  const subjectFor = (id: string) =>
+    subjects.find((subject) => subject.id === id);
+
+  const mainResults = results.filter(
+    (result) => !isArabicSubject(subjectFor(result.subjectId))
+  );
+
+  const arabicResults = results.filter(
+    (result) => isArabicSubject(subjectFor(result.subjectId))
+  );
+
+  return (
+    <div className="space-y-5">
+      {mainResults.length > 0 && (
+        <div className="overflow-x-auto rounded-card border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Main Subjects
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              CA1 /20 + CA2 /20 + Exam /60
+            </p>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 font-medium">Subject</th>
+                <th className="px-4 py-3 font-medium">CA1 /20</th>
+                <th className="px-4 py-3 font-medium">CA2 /20</th>
+                <th className="px-4 py-3 font-medium">Exam /60</th>
+                <th className="px-4 py-3 font-medium">Total</th>
+                <th className="px-4 py-3 font-medium">Grade</th>
+                <th className="px-4 py-3 font-medium">Remark</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-100">
+              {mainResults.map((result) => (
+                <tr
+                  key={
+                    result.id ||
+                    `${result.studentId}-${result.subjectId}`
+                  }
+                >
+                  <td className="px-4 py-2 text-gray-700">
+                    {subjectFor(result.subjectId)?.name ||
+                      result.subjectId}
+                  </td>
+                  <td className="px-4 py-2">
+                    {result.ca1 ?? "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    {result.ca2 ?? "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    {result.exam ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 font-medium">
+                    {result.total ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 font-medium">
+                    {result.grade ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 text-gray-500">
+                    {result.remark ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {arabicResults.length > 0 && (
+        <div className="overflow-x-auto rounded-card border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Arabic Subjects
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              CA /40 + Exam /60
+            </p>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 font-medium">Subject</th>
+                <th className="px-4 py-3 font-medium">CA /40</th>
+                <th className="px-4 py-3 font-medium">Exam /60</th>
+                <th className="px-4 py-3 font-medium">Total /100</th>
+                <th className="px-4 py-3 font-medium">Grade</th>
+                <th className="px-4 py-3 font-medium">Remark</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-100">
+              {arabicResults.map((result) => (
+                <tr
+                  key={
+                    result.id ||
+                    `${result.studentId}-${result.subjectId}`
+                  }
+                >
+                  <td className="px-4 py-2 text-gray-700">
+                    {subjectFor(result.subjectId)?.name ||
+                      result.subjectId}
+                  </td>
+                  <td className="px-4 py-2">
+                    {result.ca1 ?? "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    {result.exam ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 font-medium">
+                    {result.total ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 font-medium">
+                    {result.grade ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 text-gray-500">
+                    {result.remark ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {results.length === 0 && (
+        <div className="rounded-card border border-gray-100 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm text-gray-400">
+            No results have been recorded for this term.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ParentResultsPage() {
   const { profile } = useAuth();
 
@@ -42,8 +198,7 @@ export default function ParentResultsPage() {
   const [children, setChildren] =
     useState<ChildRecord[]>([]);
 
-  const [childId, setChildId] =
-    useState("");
+  const [childId, setChildId] = useState("");
 
   const [results, setResults] =
     useState<ResultEntry[]>([]);
@@ -51,14 +206,12 @@ export default function ParentResultsPage() {
   const [subjects, setSubjects] =
     useState<Subject[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [loadingResults, setLoadingResults] =
     useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!profile?.uid) return;
@@ -70,55 +223,32 @@ export default function ParentResultsPage() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getParentByAuthUid(
-            profile.uid
-          );
+        const data = await getParentByAuthUid(profile.uid);
 
         if (!mounted) return;
 
-        const p =
-          data as ParentRecord | null;
+        const parent = data as ParentRecord | null;
 
-        if (!p) {
-          setLoading(false);
-          return;
-        }
+        if (!parent) return;
 
         /*
-         * IMPORTANT:
-         * students.parentUid stores the
-         * authenticated parent's UID.
-         *
-         * Do NOT use p.id here.
+         * students.parentUid stores the authenticated
+         * parent's UID. Do not use parent.id here.
          */
-        const [
-          kids,
-          subjectList,
-        ] = await Promise.all([
-          getChildrenForParent(
-            profile.uid
-          ),
+        const [kids, subjectList] = await Promise.all([
+          getChildrenForParent(profile.uid),
           getSubjects(),
         ]);
 
         if (!mounted) return;
 
-        const childList =
-          kids as ChildRecord[];
+        const childList = kids as ChildRecord[];
 
         setChildren(childList);
+        setSubjects(subjectList as Subject[]);
 
-        setSubjects(
-          subjectList as Subject[]
-        );
-
-        if (
-          childList.length === 1
-        ) {
-          setChildId(
-            childList[0].id
-          );
+        if (childList.length === 1) {
+          setChildId(childList[0].id);
         } else {
           setChildId("");
         }
@@ -131,9 +261,7 @@ export default function ParentResultsPage() {
             : "Could not load your children."
         );
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     };
 
@@ -152,9 +280,8 @@ export default function ParentResultsPage() {
     }
 
     /*
-     * Parents can select children before
-     * publication, but actual result data
-     * is not requested until published.
+     * Parents may select a child before publication,
+     * but result data is not requested until published.
      */
     if (resultStatus !== "published") {
       setResults([]);
@@ -169,18 +296,15 @@ export default function ParentResultsPage() {
         setLoadingResults(true);
         setError("");
 
-        const data =
-          await getResultsForStudent(
-            childId,
-            term,
-            session
-          );
+        const data = await getResultsForStudent(
+          childId,
+          term,
+          session
+        );
 
         if (!mounted) return;
 
-        setResults(
-          data as ResultEntry[]
-        );
+        setResults(data as ResultEntry[]);
       } catch (err) {
         if (!mounted) return;
 
@@ -192,9 +316,7 @@ export default function ParentResultsPage() {
             : "Could not load student results."
         );
       } finally {
-        if (mounted) {
-          setLoadingResults(false);
-        }
+        if (mounted) setLoadingResults(false);
       }
     };
 
@@ -203,40 +325,20 @@ export default function ParentResultsPage() {
     return () => {
       mounted = false;
     };
-  }, [
-    childId,
-    term,
-    session,
-    resultStatus,
-  ]);
+  }, [childId, term, session, resultStatus]);
 
-  const subjectName = (
-    id: string
-  ) =>
-    subjects.find(
-      (s) => s.id === id
-    )?.name || id;
+  const totalScore = results.reduce(
+    (sum, result) => sum + (result.total || 0),
+    0
+  );
 
-  const totalScore =
-    results.reduce(
-      (sum, r) =>
-        sum + (r.total || 0),
-      0
-    );
+  const average = results.length
+    ? Math.round((totalScore / results.length) * 10) / 10
+    : 0;
 
-  const average =
-    results.length
-      ? Math.round(
-          (totalScore /
-            results.length) *
-            10
-        ) / 10
-      : 0;
-
-  const child =
-    children.find(
-      (c) => c.id === childId
-    );
+  const child = children.find(
+    (item) => item.id === childId
+  );
 
   if (loading) {
     return (
@@ -253,8 +355,7 @@ export default function ParentResultsPage() {
       <div className="max-w-3xl">
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
           <p className="text-sm text-amber-800">
-            No children are linked to
-            your account yet.
+            No children are linked to your account yet.
           </p>
         </div>
       </div>
@@ -263,8 +364,6 @@ export default function ParentResultsPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-
-      {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800">
           Results
@@ -275,55 +374,42 @@ export default function ParentResultsPage() {
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-700">
-            {error}
-          </p>
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
-      {/* Child selector */}
       {children.length > 1 && (
         <div className="max-w-xs">
           <SelectInput
             label="Child"
             value={childId}
-            onChange={(e) =>
-              setChildId(
-                e.target.value
-              )
+            onChange={(event) =>
+              setChildId(event.target.value)
             }
             options={[
               {
-                label:
-                  "Select a child",
+                label: "Select a child",
                 value: "",
               },
-
-              ...children.map(
-                (c) => ({
-                  label: `${c.firstName} ${c.lastName}`,
-                  value: c.id,
-                })
-              ),
+              ...children.map((item) => ({
+                label: `${item.firstName} ${item.lastName}`,
+                value: item.id,
+              })),
             ]}
           />
         </div>
       )}
 
-      {/* Result status */}
       {resultStatus === "open" && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4">
           <p className="text-sm font-semibold text-blue-800">
             Results are being prepared
           </p>
-
           <p className="mt-1 text-xs text-blue-700">
-            Results for the current term
-            have not been published yet.
-            Please check again later.
+            Results for the current term have not been
+            published yet. Please check again later.
           </p>
         </div>
       )}
@@ -333,164 +419,51 @@ export default function ParentResultsPage() {
           <p className="text-sm font-semibold text-amber-800">
             Results are being finalized
           </p>
-
           <p className="mt-1 text-xs text-amber-700">
-            Results are currently locked
-            for checking and have not been
-            published yet.
+            Results are currently locked for checking and
+            have not been published yet.
           </p>
         </div>
       )}
 
-      {/* Child selected */}
       {childId && (
         <>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
             <p className="text-sm font-medium text-gray-700">
-              {child?.firstName}{" "}
-              {child?.lastName}
+              {child?.firstName} {child?.lastName}
             </p>
 
-            <p className="text-xs text-gray-500 mt-1">
-              {child?.className ||
-                child?.classId}
+            <p className="mt-1 text-xs text-gray-500">
+              {child?.className || child?.classId}
             </p>
           </div>
 
-          {/* Published */}
-          {resultStatus ===
-            "published" && (
+          {resultStatus === "published" && (
             <>
               <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
                 <p className="text-sm font-semibold text-green-800">
                   Results Published
                 </p>
-
                 <p className="mt-1 text-xs text-green-700">
-                  Official results for{" "}
-                  {term} are now
-                  available.
+                  Official results for {term} are now available.
                 </p>
               </div>
 
               {loadingResults ? (
-                <div className="bg-white rounded-card border border-gray-100 shadow-sm p-6">
+                <div className="rounded-card border border-gray-100 bg-white p-6 shadow-sm">
                   <p className="text-sm text-gray-500">
                     Loading results...
                   </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-card border border-gray-100 shadow-sm overflow-x-auto">
-
-                  <table className="w-full text-sm">
-
-                    <thead>
-                      <tr className="bg-gray-50 text-left text-gray-500 uppercase text-xs tracking-wide">
-
-                        <th className="px-4 py-3 font-medium">
-                          Subject
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          CA1
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          CA2
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          Exam
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          Total
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          Grade
-                        </th>
-
-                        <th className="px-4 py-3 font-medium">
-                          Remark
-                        </th>
-
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-gray-100">
-
-                      {results.length ===
-                      0 ? (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            className="px-4 py-6 text-center text-gray-400"
-                          >
-                            No results have
-                            been recorded
-                            for this term.
-                          </td>
-                        </tr>
-                      ) : (
-                        results.map(
-                          (r) => (
-                            <tr
-                              key={
-                                r.id ||
-                                `${r.studentId}-${r.subjectId}`
-                              }
-                            >
-
-                              <td className="px-4 py-2 text-gray-700">
-                                {subjectName(
-                                  r.subjectId
-                                )}
-                              </td>
-
-                              <td className="px-4 py-2">
-                                {r.ca1 ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-2">
-                                {r.ca2 ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-2">
-                                {r.exam ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-2 font-medium">
-                                {r.total ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-2 font-medium">
-                                {r.grade ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-2 text-gray-500">
-                                {r.remark ??
-                                  "—"}
-                              </td>
-
-                            </tr>
-                          )
-                        )
-                      )}
-
-                    </tbody>
-                  </table>
-                </div>
+                <ResultsTable
+                  results={results}
+                  subjects={subjects}
+                />
               )}
 
-              {results.length > 0 && (
-                <div className="flex flex-wrap gap-8 text-sm bg-white rounded-card border border-gray-100 shadow-sm p-4">
-
+              {!loadingResults && results.length > 0 && (
+                <div className="flex flex-wrap gap-8 rounded-card border border-gray-100 bg-white p-4 text-sm shadow-sm">
                   <p>
                     <span className="text-gray-500">
                       Total Score:
@@ -504,7 +477,6 @@ export default function ParentResultsPage() {
                     </span>{" "}
                     {average}
                   </p>
-
                 </div>
               )}
             </>
