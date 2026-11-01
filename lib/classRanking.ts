@@ -94,7 +94,7 @@ export function calculateClassPositions(
       return;
     }
 
-    const total = subjectTotals.reduce(
+    const total = subjectTotals.reduce<number>(
       (sum, score) => sum + (score ?? 0),
       0
     );
