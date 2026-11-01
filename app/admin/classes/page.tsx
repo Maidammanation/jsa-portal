@@ -157,70 +157,70 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
 
   {
     name: "Literacy",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"],
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Numeracy",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Social Habits",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Social Norms",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "General Knowledge",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Jolly Phonics",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Rhythms",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Creative Arts",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Handwriting",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
 
   {
     name: "Health Habits",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "main",
     scoringType: "main-20-20-60",
   },
@@ -231,56 +231,56 @@ const DEFAULT_SUBJECTS: CurriculumSubject[] = [
 
   {
     name: "اللغة العربية",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "الحروف",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "الحديث",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "التوحيد",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "الأرقام",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "القرآن الكريم",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "الحوار",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
 
   {
     name: "الأذكار",
-    levels: ["nursery"],
+    levels: ["pre-nursery", "nursery"], 
     section: "arabic",
     scoringType: "arabic-40-60",
   },
