@@ -80,6 +80,35 @@ function asStringArray(
     .map((item) => item.trim());
 }
 
+class ResultValidationError extends Error {}
+
+function readScore(
+  value: unknown,
+  label: string,
+  maximum: number
+): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim() !== ""
+      ? Number(value)
+      : Number.NaN;
+
+  if (!Number.isFinite(parsed)) {
+    throw new ResultValidationError(
+      `${label} must be a valid number.`
+    );
+  }
+
+  if (parsed < 0 || parsed > maximum) {
+    throw new ResultValidationError(
+      `${label} must be between 0 and ${maximum}.`
+    );
+  }
+
+  return parsed;
+}
+
 /*
  * Resolve a class using either:
  *
@@ -869,6 +898,20 @@ export async function POST(
         );
       }
 
+      const arabic = isArabicSubject(subject);
+
+      if (arabic && student.attendsArabic !== true) {
+        return NextResponse.json(
+          {
+            error:
+              "Arabic results can only be submitted for students registered for Arabic.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
       /*
        * =======================================================
        * SCORING
@@ -881,49 +924,21 @@ export async function POST(
        * CA 40 + Exam 60
        */
 
-      const arabic =
-        isArabicSubject(
-          subject
-        );
+      const ca1 = readScore(
+        item.ca1,
+        arabic ? "Arabic CA" : "CA1",
+        arabic ? 40 : 20
+      );
 
-      const maxCa1 =
-        arabic ? 40 : 20;
+      const ca2 = arabic
+        ? readScore(item.ca2 ?? 0, "Arabic CA2", 0)
+        : readScore(item.ca2, "CA2", 20);
 
-      const maxCa2 =
-        arabic ? 0 : 20;
-
-      const ca1 =
-        Math.min(
-          maxCa1,
-          Math.max(
-            0,
-            Number(
-              item.ca1
-            ) || 0
-          )
-        );
-
-      const ca2 =
-        Math.min(
-          maxCa2,
-          Math.max(
-            0,
-            Number(
-              item.ca2
-            ) || 0
-          )
-        );
-
-      const exam =
-        Math.min(
-          60,
-          Math.max(
-            0,
-            Number(
-              item.exam
-            ) || 0
-          )
-        );
+      const exam = readScore(
+        item.exam,
+        "Exam",
+        60
+      );
 
       /*
        * Server calculates the total.
@@ -1168,7 +1183,10 @@ export async function POST(
             : "Could not save results.",
       },
       {
-        status: 500,
+        status:
+          error instanceof ResultValidationError
+            ? 400
+            : 500,
       }
     );
   }
