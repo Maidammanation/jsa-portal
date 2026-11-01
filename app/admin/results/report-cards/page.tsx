@@ -10,11 +10,18 @@ import {
   getClasses,
   getStudentsByClass,
   getResultsForStudent,
+  getResultsFor,
   getSubjects,
 } from "@/services/database";
 
 import { SCHOOL } from "@/settings/config";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
+
+import {
+  calculateClassPositions,
+  formatPosition,
+  getMainSubjectsForClass,
+} from "@/lib/classRanking";
 
 import type { ClassRoom, ResultEntry, Student, Subject } from "@/lib/types";
 
@@ -54,7 +61,7 @@ function gradeRemark(grade?: string): string {
     case "C":
       return "Good";
     case "D":
-  return "Fair"; 
+      return "Fair"; 
     case "E":
       return "Pass";
     case "F":
@@ -75,9 +82,6 @@ function generateGeneralComment(
     return "No academic results have been recorded for this student.";
   }
 
-  // FIX: tiers were shifted by one level (80+ had the 70+ phrase, etc).
-  // Each phrase now sits one bracket lower so quality ascends correctly,
-  // and 67.68 (your sample) now correctly returns the "very good result" line.
   if (overallAverage >= 80) {
     return "Excellent performance! Continue striving for excellence.";
   } else if (overallAverage >= 70) {
@@ -106,12 +110,12 @@ export default function ReportCardsPage() {
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [classResults, setClassResults] = useState<ResultEntry[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
   const [behaviour, setBehaviour] = useState<Behaviour>(emptyBehaviour);
   const [nextTermDate, setNextTermDate] = useState("30th MARCH, 2026");
 
-  // ADDED: single shared date for BOTH signature lines. Director's and
-  // Headmaster's date inputs both read/write this one value, so editing
-  // either one updates the other automatically (as requested).
   const [signatureDate, setSignatureDate] = useState("26 February, 2026");
 
   useEffect(() => {
@@ -135,29 +139,69 @@ export default function ReportCardsPage() {
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    if (!classId) {
-      setStudents([]);
-      setStudentId("");
-      setResults([]);
-      return;
+    async function loadClassData() {
+      if (!classId) {
+        setStudents([]);
+        setStudentId("");
+        setClassResults([]);
+        setRankingLoading(false);
+        return;
+      }
+
+      setRankingLoading(true);
+
+      try {
+        const studentData = await getStudentsByClass(classId);
+
+        if (!active) return;
+
+        const classStudents = (studentData || []) as Student[];
+        setStudents(classStudents);
+
+        const classroom = classes.find((item) => item.id === classId);
+
+        if (!classroom || subjects.length === 0) {
+          setClassResults([]);
+          return;
+        }
+
+        const requiredSubjects = getMainSubjectsForClass(
+          classroom,
+          subjects
+        );
+
+        const resultGroups = await Promise.all(
+          requiredSubjects.map((subject) =>
+            getResultsFor(classId, subject.id, term, session)
+          )
+        );
+
+        if (!active) return;
+
+        setClassResults(
+          resultGroups.flat() as ResultEntry[]
+        );
+      } catch (error) {
+        console.error("Could not load class ranking data:", error);
+
+        if (active) {
+          setClassResults([]);
+        }
+      } finally {
+        if (active) {
+          setRankingLoading(false);
+        }
+      }
     }
 
-    getStudentsByClass(classId)
-      .then((data) => {
-        if (!mounted) return;
-        setStudents((data || []) as Student[]);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setStudents([]);
-      });
+    loadClassData();
 
     return () => {
-      mounted = false;
+      active = false;
     };
-  }, [classId]);
+  }, [classId, classes, subjects, term, session]);
 
   useEffect(() => {
     let mounted = true;
@@ -192,6 +236,28 @@ export default function ReportCardsPage() {
 
   const student = students.find((item) => item.id === studentId);
   const classRoom = classes.find((item) => item.id === student?.classId);
+
+  const requiredMainSubjects = useMemo(
+    () =>
+      classRoom
+        ? getMainSubjectsForClass(classRoom, subjects)
+        : [],
+    [classRoom, subjects]
+  );
+
+  const classPositions = useMemo(
+    () =>
+      calculateClassPositions(
+        students,
+        classResults,
+        requiredMainSubjects
+      ),
+    [students, classResults, requiredMainSubjects]
+  );
+
+  const studentPosition = formatPosition(
+    student ? classPositions.get(student.id) : null
+  );
 
   const mainSubjects = useMemo(() => {
     return results
@@ -273,10 +339,6 @@ export default function ReportCardsPage() {
         @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
 
         @page {
-          /* FIX: "portrait" alone leaves paper size up to the browser/printer
-             default. If that default is Letter (279mm tall) instead of
-             A4 (297mm tall), this content — sized for A4 — overflows onto
-             a second page. Naming the size removes that ambiguity. */
           size: A4 portrait;
           margin: 6mm;
         }
@@ -311,9 +373,6 @@ export default function ReportCardsPage() {
             top: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
-            /* FIX: reduced from 4mm now that @page margin (6mm) also applies,
-               so the two don't stack into an oversized combined margin that
-               eats into the usable page height. */
             padding: 2mm !important;
           }
 
@@ -403,7 +462,6 @@ export default function ReportCardsPage() {
                       Email:
                     </div>
 
-                    {/* Mirrored crest (same logo on both sides, per confirmed direction) */}
                     <div className="absolute right-1 top-0 h-10 w-10">
                       <Image
                         src={SCHOOL.logoPath}
@@ -441,6 +499,10 @@ export default function ReportCardsPage() {
                         <td className="p-0.5 border-r border-gray-800 text-center font-bold">{session}</td>
                         <td className="font-bold p-0.5 border-r border-gray-800">Number in Class:</td>
                         <td className="p-0.5 border-r border-gray-800 text-center font-bold">{students.length}</td>
+                        <td className="font-bold p-0.5 border-r border-gray-800">Position:</td>
+                        <td className="p-0.5 border-r border-gray-800 text-center font-bold">
+                          {rankingLoading ? "Loading..." : studentPosition}
+                        </td>
                         <td className="w-12 font-bold p-0.5 border-r border-gray-800">Term:</td>
                         <td className="p-0.5 text-center font-bold uppercase">{term}</td>
                       </tr>
@@ -612,10 +674,7 @@ export default function ReportCardsPage() {
                   </div>
                 </div>
 
-                {/* NEXT TERM — ADDED: now an editable input (print:hidden) backed
-                    by the existing nextTermDate state, with a plain printable
-                    span for the actual printed page. Previously this state
-                    existed but had no input anywhere, so it could never change. */}
+                {/* NEXT TERM */}
                 <div className="border-b border-gray-800 p-0.5 text-center text-[9.5px] font-bold italic flex items-center justify-center gap-2 flex-wrap">
                   <span>Next term begins on:</span>
                   <input
@@ -634,7 +693,6 @@ export default function ReportCardsPage() {
                       <p>Director&apos;s</p>
                       <p>Signature and Date</p>
                     </div>
-                    {/* ADDED: editable, synced to the shared signatureDate state */}
                     <div className="relative z-10 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       <input
                         type="text"
@@ -651,8 +709,6 @@ export default function ReportCardsPage() {
                       <p>Headmaster&apos;s/Headmistress</p>
                       <p>Signature and Date</p>
                     </div>
-                    {/* ADDED: same shared signatureDate — editing this one updates
-                        the Director's field above automatically, and vice versa */}
                     <div className="relative z-10 border-t border-gray-500 pt-0.5 mt-3 text-[8.5px]">
                       <input
                         type="text"
@@ -663,12 +719,6 @@ export default function ReportCardsPage() {
                       <span className="hidden print:inline">{signatureDate}</span>
                     </div>
 
-                    {/* FIX: swapped stacking order — stamp is now z-20, the
-                        label/date text above dropped to z-10, so the stamp
-                        prints ON TOP of the text instead of hiding underneath
-                        it, like a real stamp pressed over a signature line.
-                        Still pointer-events-none so the date input stays
-                        clickable on screen even though visually covered. */}
                     <div className="absolute left-1/2 top-[44px] -translate-x-1/2 -translate-y-1/2 h-36 w-36 z-20 pointer-events-none opacity-90">
                       <Image
                         src={SCHOOL.stampPath}
