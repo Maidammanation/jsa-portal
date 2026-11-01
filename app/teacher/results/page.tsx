@@ -420,6 +420,15 @@ export default function TeacherResultsPage() {
         resolvedFormMasterClassId
     );
 
+  const selectedClassHasElevatedResultAccess =
+    selectedClassIsFormMasterClass ||
+    Boolean(
+      teacher?.canUploadAllResults === true &&
+      assignedClasses.some(
+        (classRoom) => classRoom.id === classId
+      )
+    );
+
   const selectedClass = useMemo(() => {
     return classes.find(
       (classRoom) =>
@@ -523,7 +532,7 @@ export default function TeacherResultsPage() {
        * configured for the Form Master class.
        */
       if (
-        selectedClassIsFormMasterClass
+        selectedClassHasElevatedResultAccess
       ) {
         return getSubjectsForClass(
           classId
@@ -565,7 +574,7 @@ export default function TeacherResultsPage() {
       );
     }, [
       classId,
-      selectedClassIsFormMasterClass,
+      selectedClassHasElevatedResultAccess,
       selectedClassLevel,
       mySubjects,
       subjects,
@@ -722,7 +731,7 @@ export default function TeacherResultsPage() {
           return;
         }
 
-        const list: TeacherStudent[] =
+        const mappedStudents: TeacherStudent[] =
           studentList.map(
             (student) => ({
               id: String(
@@ -800,6 +809,14 @@ export default function TeacherResultsPage() {
                 true,
             })
           );
+
+        const list = isArabicSubject(
+          subjects.find((subject) => subject.id === subjectId)
+        )
+          ? mappedStudents.filter(
+              (student) => student.attendsArabic === true
+            )
+          : mappedStudents;
 
         setStudents(list);
 
@@ -881,6 +898,7 @@ export default function TeacherResultsPage() {
     session,
     myClasses,
     availableSubjects,
+    subjects,
   ]);
 
   /*
@@ -1284,21 +1302,13 @@ export default function TeacherResultsPage() {
          */
       }
 
-      /*
-       * IMPORTANT:
-       *
-       * Parentheses are intentional here.
-       * This fixes the previous ternary
-       * operator-precedence bug.
-       */
       setMessage(
         responseData.message ||
           (
-            isFormMaster &&
-            selectedClassIsFormMasterClass
+            selectedClassHasElevatedResultAccess
+              ? "Results saved successfully with elevated access."
+              : "Results saved successfully."
           )
-            ? "Results saved successfully by Form Master."
-            : "Results saved successfully."
       );
     } catch (err) {
       setError(
@@ -1547,7 +1557,7 @@ export default function TeacherResultsPage() {
 
             {/* FORM MASTER CLASS NOTICE */}
 
-            {selectedClassIsFormMasterClass && (
+            {selectedClassHasElevatedResultAccess && (
               <div className="mt-4 rounded-lg border border-brand/10 bg-brand/5 px-4 py-3">
 
                 <p className="text-xs font-medium text-brand">
@@ -1568,7 +1578,7 @@ export default function TeacherResultsPage() {
 
             {/* NORMAL TEACHER NOTICE */}
 
-            {!selectedClassIsFormMasterClass &&
+            {!selectedClassHasElevatedResultAccess &&
               classId && (
                 <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3">
 
