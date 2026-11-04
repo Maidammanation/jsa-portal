@@ -199,7 +199,7 @@ export default function FormMasterReportCardsPage() {
 
         if (!active) return;
 
-        setStudents((studentData || []) as Student[]);
+        setStudents(studentData || []);
 
         const classroom = classes.find(
           (item) => item.id === classId
