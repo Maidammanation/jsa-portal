@@ -71,8 +71,8 @@ function gradeRemark(grade?: string): string {
   switch (grade) {
     case "A": return "Excellent";
     case "B": return "Very Good";
-    case "C": return "Good";
-    case "D": return "Fair";
+    case "C": return "Good / Credit";
+    case "D": return "Fair / Pass";
     case "E": return "Pass";
     case "F": return "Fail";
     default: return "—";
