@@ -394,6 +394,7 @@ service cloud.firestore {
         (
           isStudent()
           && resultsArePublished()
+          && resource.data.studentId is string
           && exists(
             /databases/$(database)/documents/students/$(resource.data.studentId)
           )
@@ -405,6 +406,7 @@ service cloud.firestore {
         (
           isParent()
           && resultsArePublished()
+          && resource.data.studentId is string
           && exists(
             /databases/$(database)/documents/students/$(resource.data.studentId)
           )
@@ -550,21 +552,24 @@ service cloud.firestore {
         ||
         (
           isStudent()
-          && resource.data.studentId ==
-            myUser().studentId
+          && resource.data.studentId is string
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.authUid == request.auth.uid
         )
         ||
         (
           isParent()
-          &&
-          exists(
+          && resource.data.studentId is string
+          && exists(
             /databases/$(database)/documents/students/$(resource.data.studentId)
           )
-          &&
-          get(
+          && get(
             /databases/$(database)/documents/students/$(resource.data.studentId)
-          ).data.parentUid ==
-            request.auth.uid
+          ).data.parentUid == request.auth.uid
         );
 
       /*
