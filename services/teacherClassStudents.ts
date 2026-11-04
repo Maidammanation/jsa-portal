@@ -1,4 +1,4 @@
-type StudentRecord = Record<string, unknown>;
+import type { Student } from "@/lib/types";
 
 /**
  * Loads students through the authenticated server endpoint.
@@ -7,7 +7,7 @@ type StudentRecord = Record<string, unknown>;
  */
 export async function getTeacherStudentsByClass(
   classId: string
-): Promise<StudentRecord[]> {
+): Promise<Student[]> {
   const normalizedClassId = classId.trim();
 
   if (!normalizedClassId) {
@@ -34,6 +34,6 @@ export async function getTeacherStudentsByClass(
   }
 
   return Array.isArray(data.students)
-    ? data.students as StudentRecord[]
+    ? data.students as Student[]
     : [];
 }
