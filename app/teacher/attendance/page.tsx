@@ -8,7 +8,6 @@ import { Button } from "@/components/Buttons";
 import {
   getTeacherByAuthUid,
   getClasses,
-  getAttendanceSession,
 } from "@/services/database";
 
 import {
@@ -342,10 +341,21 @@ export default function TeacherAttendancePage() {
         selectedClassId
       ),
 
-      getAttendanceSession(
-        selectedClassId,
-        date
-      ),
+      fetch(
+        `/api/teacher/attendance-session?classId=${encodeURIComponent(selectedClassId)}&date=${encodeURIComponent(date)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      ).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            data.error || "Could not load existing attendance."
+          );
+        }
+        return data.attendance ?? null;
+      }),
     ])
       .then(
         ([
