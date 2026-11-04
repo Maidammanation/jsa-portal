@@ -84,11 +84,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "You are not assigned to this class." }, { status: 403 });
       }
 
-      const assignedTeacherCount = new Set(
-        teachers.flatMap((item) => strings(item.classIds)
-          .map((value) => resolveClass(value, classes)?.id)
-          .filter((id): id is string => !!id))
-      );
       const count = teachers.filter((item) =>
         new Set(strings(item.classIds).map((value) => resolveClass(value, classes)?.id).filter(Boolean))
           .has(selectedClass.id)
