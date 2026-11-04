@@ -3,10 +3,23 @@ import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 const SESSION_COOKIE_NAME = "jsa_session";
 
+function getErrorCode(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error
+  ) {
+    return String((error as { code: unknown }).code);
+  }
+
+  return "";
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // 1. Verify that the person making the request is an admin.
-    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    // 1. Verify the caller's server session and authoritative profile.
+    const sessionCookie =
+      request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
     if (!sessionCookie) {
       return NextResponse.json(
@@ -24,160 +37,137 @@ export async function POST(request: NextRequest) {
       .doc(`users/${decoded.uid}`)
       .get();
 
-    const callerRole = callerDoc.data()?.role;
+    const callerData = callerDoc.data();
+    const callerRole = callerData?.role;
 
-    if (callerRole !== "admin" && callerRole !== "super-admin") {
+    if (
+      !callerDoc.exists ||
+      callerData?.status !== "active" ||
+      (callerRole !== "admin" && callerRole !== "super-admin")
+    ) {
       return NextResponse.json(
-        { error: "Only admins can delete accounts." },
+        { error: "Only active administrators can remove teacher accounts." },
         { status: 403 }
       );
     }
 
-    // 2. Read the account details.
+    // 2. This endpoint is exclusively for deleting a teacher record.
+    // Requiring teacherId prevents a caller from targeting an arbitrary UID/email.
     const body = await request.json();
+    const teacherId =
+      typeof body?.teacherId === "string"
+        ? body.teacherId.trim()
+        : "";
+    const suppliedUid =
+      typeof body?.uid === "string"
+        ? body.uid.trim()
+        : "";
 
-    const {
-      uid,
-      teacherId,
-      email,
-    }: {
-      uid?: string;
-      teacherId?: string;
-      email?: string;
-    } = body;
-
-    if (!uid && !teacherId && !email) {
+    if (!teacherId) {
       return NextResponse.json(
-        {
-          error:
-            "Please provide the account UID, teacher ID, or email address.",
-        },
+        { error: "A valid teacher ID is required." },
         { status: 400 }
       );
     }
 
-    let authUid = uid || "";
+    const db = adminDb();
+    const teacherRef = db.doc(`teachers/${teacherId}`);
+    const teacherDoc = await teacherRef.get();
 
-    // 3. If we only received the teacher ID, find the Auth UID
-    // from the teacher record.
-    if (!authUid && teacherId) {
-      const teacherDoc = await adminDb()
-        .doc(`teachers/${teacherId}`)
-        .get();
-
-      if (teacherDoc.exists) {
-        authUid = teacherDoc.data()?.authUid || "";
-      }
+    if (!teacherDoc.exists) {
+      return NextResponse.json(
+        { error: "Teacher record not found." },
+        { status: 404 }
+      );
     }
 
-    // 4. If we still don't have a UID but have an email,
-    // find the Firebase Auth account by email.
-    if (!authUid && email) {
-      try {
-        const userRecord = await adminAuth().getUserByEmail(
-          email.trim().toLowerCase()
+    const teacherData = teacherDoc.data() || {};
+    const linkedUid =
+      typeof teacherData.authUid === "string"
+        ? teacherData.authUid.trim()
+        : "";
+
+    if (suppliedUid && suppliedUid !== linkedUid) {
+      return NextResponse.json(
+        { error: "The supplied login account is not linked to this teacher." },
+        { status: 403 }
+      );
+    }
+
+    const teacherEmail =
+      typeof teacherData.email === "string"
+        ? teacherData.email.trim().toLowerCase()
+        : "";
+
+    const teacherName = [
+      teacherData.firstName,
+      teacherData.lastName,
+    ]
+      .filter((part) => typeof part === "string" && part.trim())
+      .join(" ")
+      .trim();
+
+    // 3. If the teacher has a linked login, verify that its profile is
+    // actually a teacher profile before deleting anything.
+    if (linkedUid) {
+      const userRef = db.doc(`users/${linkedUid}`);
+      const userDoc = await userRef.get();
+
+      if (userDoc.exists && userDoc.data()?.role !== "teacher") {
+        return NextResponse.json(
+          {
+            error:
+              "Deletion blocked: this login is not registered as a teacher account.",
+          },
+          { status: 409 }
         );
+      }
 
-        authUid = userRecord.uid;
-      } catch (err) {
-        const code =
-          err && typeof err === "object" && "code" in err
-            ? String((err as { code: unknown }).code)
-            : "";
-
-        // No Firebase Auth account exists for this email.
-        // That's okay — we can still remove the Firestore record.
-        if (code !== "auth/user-not-found") {
-          throw err;
+      // Delete only the Auth UID explicitly linked on this teacher record.
+      try {
+        await adminAuth().deleteUser(linkedUid);
+      } catch (error) {
+        if (getErrorCode(error) !== "auth/user-not-found") {
+          throw error;
         }
       }
+
+      // Remove the matching teacher user profile, never an arbitrary UID.
+      await userRef.delete();
     }
 
-    // 5. Get email/name information for the activity log.
-    let accountEmail = email || "";
-    let accountName = "";
+    // 4. Remove only the teacher record supplied and verified above.
+    await teacherRef.delete();
 
-    if (authUid) {
-      try {
-        const authUser = await adminAuth().getUser(authUid);
-
-        accountEmail = authUser.email || accountEmail;
-        accountName = authUser.displayName || "";
-      } catch {
-        // The Auth account may already have been removed.
-      }
-    }
-
-    // 6. Delete Firebase Authentication account.
-    if (authUid) {
-      try {
-        await adminAuth().deleteUser(authUid);
-      } catch (err) {
-        const code =
-          err && typeof err === "object" && "code" in err
-            ? String((err as { code: unknown }).code)
-            : "";
-
-        // If the Auth account is already gone, continue cleaning up.
-        if (code !== "auth/user-not-found") {
-          throw err;
-        }
-      }
-    }
-
-    // 7. Delete the users profile.
-    if (authUid) {
-      await adminDb()
-        .doc(`users/${authUid}`)
-        .delete();
-    }
-
-    // 8. Remove the teacher record.
-    if (teacherId) {
-      await adminDb()
-        .doc(`teachers/${teacherId}`)
-        .delete();
-    } else if (authUid) {
-      // Fallback: find a teacher record linked to this Auth UID.
-      const teacherSnapshot = await adminDb()
-        .collection("teachers")
-        .where("authUid", "==", authUid)
-        .limit(10)
-        .get();
-
-      for (const teacherDoc of teacherSnapshot.docs) {
-        await teacherDoc.ref.delete();
-      }
-    }
-
-    // 9. Write an audit log.
-    await adminDb().collection("activityLog").add({
-      action: "Login account deleted",
+    // 5. Keep an audit trail.
+    await db.collection("activityLog").add({
+      action: "Teacher account deleted",
       actor:
-        callerDoc.data()?.name ||
-        callerDoc.data()?.email ||
-        "admin",
-      details: accountName
-        ? `Teacher account deleted — ${accountName} (${accountEmail})`
-        : `Teacher account deleted — ${accountEmail || authUid || teacherId}`,
+        callerData?.name ||
+        callerData?.email ||
+        "administrator",
+      details: linkedUid
+        ? `Teacher deleted — ${teacherName || teacherEmail || teacherId} (login: ${teacherEmail || linkedUid})`
+        : `Teacher record deleted — ${teacherName || teacherEmail || teacherId} (no linked login)`,
       createdAt: new Date(),
     });
 
     return NextResponse.json({
       ok: true,
-      message:
-        "Account and linked teacher record deleted successfully.",
+      message: linkedUid
+        ? "Teacher and linked login account deleted successfully."
+        : "Teacher record deleted successfully.",
     });
-  } catch (err) {
-    console.error("Delete account error:", err);
-
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Could not delete account.";
+  } catch (error) {
+    console.error("Delete teacher account error:", error);
 
     return NextResponse.json(
-      { error: message },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not delete the teacher account.",
+      },
       { status: 500 }
     );
   }
