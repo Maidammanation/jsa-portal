@@ -143,8 +143,11 @@ service cloud.firestore {
           signedIn()
           && request.auth.uid == userId
           && accountIsActive()
-          && request.resource.data.role == resource.data.role
-          && request.resource.data.status == resource.data.status
+          // Self-service updates are limited to the password-change flag.
+          // Identity, role, status, student links and permissions stay admin-controlled.
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["mustChangePassword"])
+          && request.resource.data.mustChangePassword == false
         );
 
       /*
@@ -202,14 +205,10 @@ service cloud.firestore {
        * Students can update their own record,
        * but cannot change their class.
        */
+      // Student records contain school-controlled identity and academic links.
+      // Students may read their own record but cannot edit it directly.
       allow update: if
-        isAdminOrSuperAdmin()
-        ||
-        (
-          isStudent()
-          && myUser().studentId == studentId
-          && request.resource.data.classId == resource.data.classId
-        );
+        isAdminOrSuperAdmin();
 
       /*
        * Only Admin/Super Admin can delete students.
@@ -533,7 +532,6 @@ service cloud.firestore {
        */
       allow read: if
         isAdminOrSuperAdmin()
-        || isTeacher()
         ||
         (
           isStudent()
