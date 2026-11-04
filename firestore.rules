@@ -380,7 +380,6 @@ service cloud.firestore {
        */
       allow read: if
         isAdminOrSuperAdmin()
-        || isTeacher()
         ||
         (
           isStudent()
