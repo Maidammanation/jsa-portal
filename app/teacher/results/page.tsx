@@ -9,12 +9,10 @@ import {
   getTeacherByAuthUid,
   getClasses,
   getSubjects,
-  getResultsFor,
 } from "@/services/database";
 
-import {
-  getTeacherStudentsByClass,
-} from "@/services/teacherClassStudents";
+import { getTeacherStudentsByClass } from "@/services/teacherClassStudents";
+import { getTeacherResultsFor } from "@/services/teacherResults";
 
 import {
   computeTotal,
@@ -674,7 +672,7 @@ export default function TeacherResultsPage() {
           getTeacherStudentsByClass(
             classId
           ),
-          getResultsFor(
+          getTeacherResultsFor(
             classId,
             subjectId,
             term,
@@ -1191,7 +1189,7 @@ export default function TeacherResultsPage() {
        */
       try {
         const refreshedResults =
-          await getResultsFor(
+          await getTeacherResultsFor(
             classId,
             subjectId,
             term,
