@@ -27,7 +27,7 @@ export default function CreateStudentLoginPage() {
   const [student, setStudent] = useState<StudentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("kaduna");
+  const [password, setPassword] = useState("12345678");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
