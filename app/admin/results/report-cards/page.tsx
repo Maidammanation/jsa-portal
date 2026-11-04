@@ -539,7 +539,7 @@ export default function ReportCardsPage() {
                           <td className="border-r border-gray-800 p-0.5 text-center">{item.result.exam ?? "—"}</td>
                           <td className="border-r border-gray-800 p-0.5 text-center font-bold">{item.result.total ?? "—"}</td>
                           <td className="border-r border-gray-800 p-0.5 text-center font-bold">{item.result.grade ?? "—"}</td>
-                          <td className="p-0.5 text-center italic">{item.result.remark || gradeRemark(item.result.grade)}</td>
+                          <td className="p-0.5 text-center italic">{gradeRemark(item.result.grade)}</td>
                         </tr>
                       ))}
                       <tr className="border-b border-gray-800 font-bold">
