@@ -2,6 +2,7 @@ import {
   NextResponse,
   type NextRequest,
 } from "next/server";
+import { createHash } from "crypto";
 
 import {
   adminAuth,
@@ -16,6 +17,7 @@ import {
 export const runtime = "nodejs";
 
 const SESSION_COOKIE_NAME = "jsa_session";
+const MAX_RESULT_ENTRIES = 450;
 
 type ClassData = {
   id: string;
@@ -244,6 +246,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (entries.length > MAX_RESULT_ENTRIES) {
+      return NextResponse.json(
+        {
+          error: `A maximum of ${MAX_RESULT_ENTRIES} students can be submitted at once. Please split the class into smaller uploads.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 4. Check Result Control Centre.
     const settingsDoc = await db
       .doc("schoolSettings/current")
@@ -310,6 +321,13 @@ export async function POST(request: NextRequest) {
 
     const teacher =
       teacherQuery.docs[0].data() as TeacherData;
+
+    if (teacher.status && teacher.status !== "active") {
+      return NextResponse.json(
+        { error: "Your teacher record is not active." },
+        { status: 403 }
+      );
+    }
 
     // 6. Load all classes for legacy name-based assignments.
     const allClasses = await db
@@ -558,8 +576,20 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .get();
 
+      // Stable IDs prevent concurrent submissions from creating
+      // duplicate records for the same student/subject/term/session.
+      // Existing legacy records keep their current document IDs.
+      const stableKey = createHash("sha256")
+        .update(JSON.stringify([
+          entry.studentId,
+          entry.subjectId,
+          entry.term,
+          entry.session,
+        ]))
+        .digest("hex");
+
       const resultRef = existing.empty
-        ? db.collection("results").doc()
+        ? db.collection("results").doc(`teacher_${stableKey}`)
         : existing.docs[0].ref;
 
       const resultData = {
