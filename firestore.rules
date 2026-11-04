@@ -193,7 +193,7 @@ service cloud.firestore {
         ||
         (
           isStudent()
-          && myUser().studentId == studentId
+          && resource.data.authUid == request.auth.uid
         )
         ||
         (
@@ -394,7 +394,12 @@ service cloud.firestore {
         (
           isStudent()
           && resultsArePublished()
-          && resource.data.studentId == myUser().studentId
+          && exists(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          )
+          && get(
+            /databases/$(database)/documents/students/$(resource.data.studentId)
+          ).data.authUid == request.auth.uid
         )
         ||
         (
