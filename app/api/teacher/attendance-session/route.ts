@@ -8,6 +8,7 @@ const SESSION_COOKIE_NAME = "jsa_session";
 type ClassData = { id: string; name?: string; level?: string };
 type TeacherData = {
   authUid?: string;
+  status?: string;
   classIds?: unknown;
   formClassId?: string | null;
   formMasterClassId?: string | null;
