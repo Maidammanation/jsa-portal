@@ -462,13 +462,15 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
 
       /*
-       * Active users can read attendance.
+       * Attendance records contain the whole class roster.
+       *
+       * Teachers and students must use their authenticated
+       * server endpoints, which return only the records they
+       * are permitted to access. Direct collection reads are
+       * reserved for administrators.
        */
       allow read: if
-        isAdminOrSuperAdmin()
-        || isTeacher()
-        || isStudent()
-        || isParent();
+        isAdminOrSuperAdmin();
 
       /*
        * Teachers cannot directly create attendance.
