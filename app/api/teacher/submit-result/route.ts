@@ -158,9 +158,9 @@ function computeRemark(grade: string): string {
     case "B":
       return "Very Good";
     case "C":
-      return "Good / Credit";
+      return "Good";
     case "D":
-      return "Fair / Pass";
+      return "Pass";
     case "E":
       return "Pass";
     default:
