@@ -98,9 +98,17 @@ export async function GET(request: NextRequest) {
       .where("date", "==", date)
       .limit(1).get();
 
-    if (snapshot.empty) return NextResponse.json({ attendance: null });
+    if (snapshot.empty) {
+      return NextResponse.json(
+        { attendance: null },
+        { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+      );
+    }
     const doc = snapshot.docs[0];
-    return NextResponse.json({ attendance: { id: doc.id, ...doc.data() } });
+    return NextResponse.json(
+      { attendance: { id: doc.id, ...doc.data() } },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+    );
   } catch (error) {
     console.error("Teacher attendance read error:", error);
     return NextResponse.json({ error: "Could not load attendance." }, { status: 500 });
