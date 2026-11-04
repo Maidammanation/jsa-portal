@@ -618,7 +618,7 @@ export default function FormMasterReportCardsPage() {
                             {item.result.grade ?? "—"}
                           </td>
                           <td className="p-0.5 text-center italic">
-                            {item.result.remark || gradeRemark(item.result.grade)}
+                            {gradeRemark(item.result.grade)}
                           </td>
                         </tr>
                       ))}
@@ -679,7 +679,7 @@ export default function FormMasterReportCardsPage() {
                               {item.result.grade ?? "—"}
                             </td>
                             <td className="p-0.5 text-center italic">
-                              {item.result.remark || gradeRemark(item.result.grade)}
+                              {gradeRemark(item.result.grade)}
                             </td>
                           </tr>
                         ))}
