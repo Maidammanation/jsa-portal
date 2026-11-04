@@ -288,40 +288,55 @@ export async function POST(request: NextRequest) {
      * 7. Find an existing attendance session
      * for this class and date.
      */
-    const attendanceQuery = await adminDb()
-      .collection("attendance")
+    const attendanceCollection = adminDb().collection("attendance");
+    const attendanceQuery = attendanceCollection
       .where("classId", "==", classId)
-      .where("date", "==", date)
-      .get();
+      .where("date", "==", date);
+    const takenBy = userData.name || userData.email || "admin";
 
-    const takenBy =
-      userData.name ||
-      userData.email ||
-      "admin";
+    // Serialize concurrent saves for this class/date.
+    const hasDuplicateSessions = await adminDb().runTransaction(async (transaction) => {
+      const existing = await transaction.get(attendanceQuery);
 
-    if (!attendanceQuery.empty) {
-      /*
-       * Update existing attendance.
-       */
-      const attendanceDoc =
-        attendanceQuery.docs[0];
+      if (existing.size > 1) return true;
 
-      await attendanceDoc.ref.update({
-        records: normalizedRecords,
-        takenBy,
-      });
-    } else {
-      /*
-       * Create new attendance session.
-       */
-      await adminDb()
-        .collection("attendance")
-        .add({
+      if (!existing.empty) {
+        transaction.update(existing.docs[0].ref, {
+          records: normalizedRecords,
+          takenBy,
+          updatedAt: new Date(),
+        });
+        return false;
+      }
+
+      const deterministicId = `attendance_${Buffer.from(classId).toString("base64url")}_${date}`;
+      const attendanceRef = attendanceCollection.doc(deterministicId);
+      const deterministicDoc = await transaction.get(attendanceRef);
+
+      if (deterministicDoc.exists) {
+        transaction.update(attendanceRef, {
+          records: normalizedRecords,
+          takenBy,
+          updatedAt: new Date(),
+        });
+      } else {
+        transaction.create(attendanceRef, {
           classId,
           date,
           records: normalizedRecords,
           takenBy,
+          createdAt: new Date(),
         });
+      }
+
+      return false;
+    });
+
+    if (hasDuplicateSessions) {
+      return NextResponse.json(
+        { error: "Multiple attendance sessions already exist for this class and date. Please ask an administrator to reconcile them before editing." },
+        { status: 409 }
+      );
     }
 
     /*
