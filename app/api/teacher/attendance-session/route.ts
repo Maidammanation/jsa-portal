@@ -73,6 +73,9 @@ export async function GET(request: NextRequest) {
     const teachers = teachersSnap.docs.map((doc) => doc.data() as TeacherData);
     const teacher = teachers.find((item) => item.authUid === decoded.uid);
     if (!teacher) return NextResponse.json({ error: "Teacher record not found." }, { status: 404 });
+    if (teacher.status && teacher.status !== "active") {
+      return NextResponse.json({ error: "Your teacher record is not active." }, { status: 403 });
+    }
 
     const formIdentifier = clean(teacher.formClassId) || clean(teacher.formMasterClassId) || clean(teacher.formMasterClassName);
     const formClass = resolveClass(formIdentifier, classes);
@@ -103,8 +106,14 @@ export async function GET(request: NextRequest) {
     const snapshot = await adminDb().collection("attendance")
       .where("classId", "==", selectedClass.id)
       .where("date", "==", date)
-      .limit(1).get();
+      .get();
 
+    if (snapshot.size > 1) {
+      return NextResponse.json(
+        { error: "Multiple attendance sessions exist for this class and date. Please ask an administrator to reconcile them." },
+        { status: 409, headers: { "Cache-Control": "private, no-store, max-age=0" } }
+      );
+    }
     if (snapshot.empty) {
       return NextResponse.json(
         { attendance: null },
