@@ -111,7 +111,7 @@ function ResultsTable({
                     {result.grade ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-gray-500">
-                    {computeRemark(result.grade)}
+                    {result.grade ? computeRemark(result.grade) : "—"}
                   </td>
                 </tr>
               ))}
@@ -168,7 +168,7 @@ function ResultsTable({
                     {result.grade ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-gray-500">
-                    {computeRemark(result.grade)}
+                    {result.grade ? computeRemark(result.grade) : "—"}
                   </td>
                 </tr>
               ))}
