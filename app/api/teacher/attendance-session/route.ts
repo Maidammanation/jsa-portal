@@ -51,8 +51,15 @@ export async function GET(request: NextRequest) {
 
     const classId = clean(request.nextUrl.searchParams.get("classId"));
     const date = clean(request.nextUrl.searchParams.get("date"));
-    if (!classId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json({ error: "A valid class and date are required." }, { status: 400 });
+    const parsedDate = new Date(`${date}T00:00:00.000Z`);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+      && !Number.isNaN(parsedDate.getTime())
+      && parsedDate.toISOString().slice(0, 10) === date;
+    if (!classId || !validDate) {
+      return NextResponse.json(
+        { error: "A valid class and date are required." },
+        { status: 400, headers: { "Cache-Control": "private, no-store, max-age=0" } }
+      );
     }
 
     const [classSnap, teachersSnap] = await Promise.all([
