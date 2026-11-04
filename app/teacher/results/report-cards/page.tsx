@@ -9,11 +9,10 @@ import { Button } from "@/components/Buttons";
 import {
   getTeacherByAuthUid,
   getClasses,
-  getStudentsByClass,
-  getResultsForStudent,
-  getResultsFor,
   getSubjects,
 } from "@/services/database";
+import { getTeacherStudentsByClass } from "@/services/teacherClassStudents";
+import { getTeacherResultsFor, getTeacherResultsForStudent } from "@/services/teacherResults";
 
 import { useAuth } from "@/lib/useAuth";
 import { useSchoolSettings } from "@/lib/useSchoolSettings";
@@ -196,7 +195,7 @@ export default function FormMasterReportCardsPage() {
       setBehaviour(emptyBehaviour);
 
       try {
-        const studentData = await getStudentsByClass(classId);
+        const studentData = await getTeacherStudentsByClass(classId);
 
         if (!active) return;
 
@@ -218,7 +217,7 @@ export default function FormMasterReportCardsPage() {
 
         const resultGroups = await Promise.all(
           requiredSubjects.map((subject) =>
-            getResultsFor(classId, subject.id, term, session)
+            getTeacherResultsFor(classId, subject.id, term, session)
           )
         );
 
@@ -260,7 +259,7 @@ export default function FormMasterReportCardsPage() {
     setResultsLoading(true);
     setResults([]);
 
-    getResultsForStudent(studentId, term, session)
+    getTeacherResultsForStudent(studentId, term, session)
       .then((data) => {
         if (active) setResults((data || []) as ResultEntry[]);
       })
