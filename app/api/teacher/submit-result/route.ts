@@ -27,6 +27,7 @@ type ClassData = {
 
 type TeacherData = {
   authUid?: string;
+  status?: string;
   classIds?: unknown;
   subjectIds?: unknown;
   formClassId?: string | null;
