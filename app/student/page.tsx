@@ -30,7 +30,7 @@ interface AttendanceRecord {
 export default function StudentDashboardPage() {
   const router = useRouter();
   const { profile } = useAuth();
-  const { session, term } = useSchoolSettings();
+  const { session, term, resultStatus } = useSchoolSettings();
   const [student, setStudent] = useState<StudentRecord | null>(null);
   const [average, setAverage] = useState<number | null>(null);
   const [attendancePct, setAttendancePct] = useState<number | null>(null);
@@ -69,7 +69,9 @@ export default function StudentDashboardPage() {
         // section must not prevent the rest of the dashboard from showing.
         const [resultsResult, attendanceResult, feesResult, paymentsResult] =
           await Promise.allSettled([
-            getResultsForStudent(currentStudent.id, term, session),
+            resultStatus === "published"
+              ? getResultsForStudent(currentStudent.id, term, session)
+              : Promise.resolve([] as ResultEntry[]),
             fetch("/api/student/attendance", {
               method: "GET",
               cache: "no-store",
@@ -172,7 +174,7 @@ export default function StudentDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [profile?.uid, term, session]);
+  }, [profile?.uid, term, session, resultStatus]);
 
   if (loading) {
     return <p className="text-sm text-gray-400">Loading student dashboard...</p>;
