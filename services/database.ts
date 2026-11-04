@@ -637,8 +637,8 @@ export async function saveResult(
   let resultId = "";
 
   if (!snap.empty) {
-    resultId =
-      snap.docs[0].id;
+    // Preserve the document ID of an existing legacy result.
+    resultId = snap.docs[0].id;
 
     await update(
       "results",
@@ -646,9 +646,36 @@ export async function saveResult(
       entry
     );
   } else {
-    resultId = await create(
-      "results",
-      entry
+    // Use the same deterministic ID as the protected teacher API.
+    // This prevents an admin save and a teacher submission happening
+    // at the same time from creating two records for the same result.
+    const identity = JSON.stringify([
+      entry.studentId,
+      entry.subjectId,
+      entry.term,
+      entry.session,
+    ]);
+
+    const digest = await globalThis.crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(identity)
+    );
+
+    const stableKey = Array.from(
+      new Uint8Array(digest),
+      (byte) => byte.toString(16).padStart(2, "0")
+    ).join("");
+
+    resultId = `teacher_${stableKey}`;
+
+    await setDoc(
+      doc(db, "results", resultId),
+      {
+        ...entry,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
     );
   }
 
