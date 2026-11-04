@@ -24,11 +24,13 @@ export async function POST(request: NextRequest) {
       .doc(`users/${decoded.uid}`)
       .get();
 
-    const callerRole = callerDoc.data()?.role;
+    const callerData = callerDoc.data();
+    const callerRole = callerData?.role;
 
     if (
-      callerRole !== "admin" &&
-      callerRole !== "super-admin"
+      !callerDoc.exists ||
+      callerData?.status !== "active" ||
+      (callerRole !== "admin" && callerRole !== "super-admin")
     ) {
       return NextResponse.json(
         {
