@@ -370,7 +370,8 @@ service cloud.firestore {
        * always allowed.
        *
        * Teacher:
-       * can read results.
+       * must use the authenticated server API, which checks
+       * class and subject assignments.
        *
        * Student:
        * can only read their own results AFTER publication.
