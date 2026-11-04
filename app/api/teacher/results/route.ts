@@ -147,17 +147,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "The selected subject could not be found." }, { status: 404 });
     }
 
-    const subject = subjectSnap.data() || {};
-    const level = clean(classroom.name).toLowerCase();
-    const configuredLevels = Array.isArray(subject.levels) ? subject.levels.map((item: unknown) => normalize(item)) : [];
-    const classLevel = level.includes("nursery") || level.includes("primary") || level.includes("jss") || level.includes("ss")
-      ? (level.includes("pre-nursery") ? "pre-nursery" : level.match(/^(nursery|primary|jss|ss)/)?.[1])
-      : undefined;
-
-    // Do not return results for a subject that is not configured for this class level.
-    if (classLevel && configuredLevels.length > 0 && !configuredLevels.includes(classLevel)) {
-      return NextResponse.json({ error: "This subject is not configured for the selected class level." }, { status: 403 });
-    }
+    // The authenticated teacher assignment above is the read boundary.
+    // Subject/class curriculum validation remains enforced on submission.
 
     const resultsSnap = await db.collection("results")
       .where("classId", "==", classId)
