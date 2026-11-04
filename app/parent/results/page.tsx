@@ -1,5 +1,7 @@
 "use client";
 
+import { computeRemark } from "@/lib/grading";
+
 import { useEffect, useState } from "react";
 import { SelectInput } from "@/components/Forms";
 
@@ -109,7 +111,7 @@ function ResultsTable({
                     {result.grade ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-gray-500">
-                    {result.remark ?? "—"}
+                    {computeRemark(result.grade)}
                   </td>
                 </tr>
               ))}
@@ -166,7 +168,7 @@ function ResultsTable({
                     {result.grade ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-gray-500">
-                    {result.remark ?? "—"}
+                    {computeRemark(result.grade)}
                   </td>
                 </tr>
               ))}
