@@ -77,14 +77,17 @@ export async function GET(request: NextRequest) {
       return [{ date: String(data.date || ""), status: match.status as "present" | "absent" | "late" }];
     }).sort((a, b) => b.date.localeCompare(a.date));
 
-    return NextResponse.json({
-      student: {
-        id: studentDoc.id,
-        classId: attendanceClassId,
-        className: className || (classDoc.exists ? String(classDoc.data()?.name || "") : ""),
+    return NextResponse.json(
+      {
+        student: {
+          id: studentDoc.id,
+          classId: attendanceClassId,
+          className: className || (classDoc.exists ? String(classDoc.data()?.name || "") : ""),
+        },
+        records,
       },
-      records,
-    });
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+    );
   } catch (error) {
     console.error("Student attendance read error:", error);
     return NextResponse.json({ error: "Could not load attendance." }, { status: 500 });
