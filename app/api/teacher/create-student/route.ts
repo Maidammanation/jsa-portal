@@ -1,4 +1,3 @@
-
 import { NextResponse, type NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
@@ -142,54 +141,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const existingStudents = await db
-      .collection("students")
-      .where("classId", "==", classroom.id)
-      .get();
-
-    let highest = 0;
-
-    existingStudents.docs.forEach((studentDoc) => {
-      const admissionNo = clean(studentDoc.data().admissionNo);
-      const number = admissionNo.match(/\/(\d+)$/);
-
-      if (number) {
-        highest = Math.max(highest, Number(number[1]));
-      }
-    });
-
-    let admissionNo = "";
-
-    for (let i = highest + 1; i <= highest + 100; i++) {
-      const candidate = `JSA/${code}/${String(i).padStart(4, "0")}`;
-
-      const duplicate = await db
-        .collection("students")
-        .where("admissionNo", "==", candidate)
-        .limit(1)
-        .get();
-
-      if (duplicate.empty) {
-        admissionNo = candidate;
-        break;
-      }
-    }
-
-    if (!admissionNo) {
-      return NextResponse.json(
-        {
-          error:
-            "Could not generate an admission number. Contact the administrator.",
-        },
-        { status: 409 }
-      );
-    }
-
     const actor =
       clean(user.name) || clean(user.email) || "Form Master";
 
     const student: Record<string, unknown> = {
-      admissionNo,
       firstName,
       lastName,
       classId: classroom.id,
@@ -205,7 +160,99 @@ export async function POST(request: NextRequest) {
       student.dateOfBirth = dateOfBirth;
     }
 
-    const studentRef = await db.collection("students").add(student);
+    // Allocate the admission number and create the student atomically.
+    // The per-class counter serializes requests for the same class.
+    // The global registry also prevents collisions across different classes
+    // that may happen to use the same class code.
+    const counterRef = db
+      .collection("studentAdmissionCounters")
+      .doc(encodeURIComponent(classroom.id));
+
+    const studentRef = db.collection("students").doc();
+
+    const admissionNo = await db.runTransaction(async (transaction) => {
+      const [counterSnapshot, classStudents] = await Promise.all([
+        transaction.get(counterRef),
+        transaction.get(
+          db.collection("students").where("classId", "==", classroom.id)
+        ),
+      ]);
+
+      let highestExistingNumber = 0;
+
+      classStudents.docs.forEach((studentDoc) => {
+        const existingAdmissionNo = clean(studentDoc.data().admissionNo);
+        const number = existingAdmissionNo.match(/\/(\d+)$/);
+
+        if (number) {
+          highestExistingNumber = Math.max(
+            highestExistingNumber,
+            Number(number[1])
+          );
+        }
+      });
+
+      const storedNextNumber = Number(
+        counterSnapshot.data()?.nextNumber || 1
+      );
+
+      let candidateNumber = Math.max(
+        highestExistingNumber + 1,
+        Number.isFinite(storedNextNumber) && storedNextNumber > 0
+          ? storedNextNumber
+          : 1
+      );
+
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const candidate =
+          `JSA/${code}/${String(candidateNumber).padStart(4, "0")}`;
+
+        const registryRef = db
+          .collection("studentAdmissionNumbers")
+          .doc(encodeURIComponent(candidate));
+
+        const [registrySnapshot, legacyDuplicate] = await Promise.all([
+          transaction.get(registryRef),
+          transaction.get(
+            db.collection("students")
+              .where("admissionNo", "==", candidate)
+              .limit(1)
+          ),
+        ]);
+
+        if (!registrySnapshot.exists && legacyDuplicate.empty) {
+          transaction.create(registryRef, {
+            admissionNo: candidate,
+            studentId: studentRef.id,
+            classId: classroom.id,
+            createdAt: new Date(),
+          });
+
+          transaction.create(studentRef, {
+            ...student,
+            admissionNo: candidate,
+          });
+
+          transaction.set(
+            counterRef,
+            {
+              nextNumber: candidateNumber + 1,
+              classId: classroom.id,
+              updatedAt: new Date(),
+            },
+            { merge: true }
+          );
+
+          return candidate;
+        }
+
+        candidateNumber += 1;
+      }
+
+      throw new Error(
+        "Could not generate a unique admission number. Contact the administrator."
+      );
+    });
 
     await db.collection("activityLog").add({
       action: "Student added by Form Master",
