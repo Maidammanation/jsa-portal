@@ -11,7 +11,7 @@ import {
 } from "@/services/database";
 
 import {
-  getTeacherStudentsByClass,
+  getTeacherAttendanceStudentsByClass,
 } from "@/services/teacherClassStudents";
 
 import { useAuth } from "@/lib/useAuth";
@@ -337,7 +337,7 @@ export default function TeacherAttendancePage() {
        * IMPORTANT:
        * Use the new robust loader.
        */
-      getTeacherStudentsByClass(
+      getTeacherAttendanceStudentsByClass(
         selectedClassId
       ),
 
