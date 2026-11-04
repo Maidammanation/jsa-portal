@@ -80,7 +80,7 @@ export default function StudentDashboardPage() {
 
         if (cancelled) return;
 
-        let sectionFailed = false;
+        const failedSections: string[] = [];
 
         if (resultsResult.status === "fulfilled") {
           const resultList = resultsResult.value as ResultEntry[];
@@ -92,7 +92,7 @@ export default function StudentDashboardPage() {
             setAverage(Math.round((total / resultList.length) * 10) / 10);
           }
         } else {
-          sectionFailed = true;
+          failedSections.push("Average Score / Results");
           console.error("Student dashboard results error:", resultsResult.reason);
         }
 
@@ -119,11 +119,11 @@ export default function StudentDashboardPage() {
               );
             }
           } catch (error) {
-            sectionFailed = true;
+            failedSections.push("Attendance");
             console.error("Student dashboard attendance error:", error);
           }
         } else {
-          sectionFailed = true;
+          failedSections.push("Attendance");
           console.error("Student dashboard attendance request error:", attendanceResult.reason);
         }
 
@@ -140,18 +140,19 @@ export default function StudentDashboardPage() {
           );
           setBalance(amountDue - totalPaid);
         } else {
-          sectionFailed = true;
           if (feesResult.status === "rejected") {
+            failedSections.push("Fee Structure");
             console.error("Student dashboard fee structure error:", feesResult.reason);
           }
           if (paymentsResult.status === "rejected") {
+            failedSections.push("Fee Payments");
             console.error("Student dashboard payments error:", paymentsResult.reason);
           }
         }
 
-        if (sectionFailed) {
+        if (failedSections.length > 0) {
           setDashboardError(
-            "Some dashboard figures could not be loaded. You can still use the links below."
+            `Could not load: ${failedSections.join(", ")}. You can still use the links below.`
           );
         }
       } catch (error) {
