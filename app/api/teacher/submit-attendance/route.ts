@@ -68,6 +68,13 @@ function cleanString(
     : "";
 }
 
+function isValidAttendanceDate(value: string): boolean {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime())
+    && parsed.toISOString().slice(0, 10) === value;
+}
+
 function isAttendanceStatus(
   value: unknown
 ): value is
@@ -255,12 +262,26 @@ export async function POST(
       );
     }
 
+    if (!isValidAttendanceDate(date)) {
+      return NextResponse.json(
+        { error: "Attendance date must be a valid date in YYYY-MM-DD format." },
+        { status: 400 }
+      );
+    }
+
     if (!Array.isArray(records)) {
       return NextResponse.json(
         {
           error:
             "Attendance records are required.",
         },
+        { status: 400 }
+      );
+    }
+
+    if (records.length > 500) {
+      return NextResponse.json(
+        { error: "A single attendance submission cannot exceed 500 students." },
         { status: 400 }
       );
     }
@@ -444,6 +465,16 @@ export async function POST(
             "Your teacher record could not be found.",
         },
         { status: 404 }
+      );
+    }
+
+    if (
+      currentTeacher.data.status &&
+      currentTeacher.data.status !== "active"
+    ) {
+      return NextResponse.json(
+        { error: "Your teacher record is not active." },
+        { status: 403 }
       );
     }
 
