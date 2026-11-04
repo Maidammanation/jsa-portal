@@ -6,7 +6,6 @@ import { InfoCard, ActionCard } from "@/components/Cards";
 import {
   getStudentByAuthUid,
   getResultsForStudent,
-  getAttendanceForStudent,
   getFeeStructure,
   getPaymentsForStudent,
 } from "@/services/database";
@@ -43,12 +42,25 @@ export default function StudentDashboardPage() {
         return;
       }
 
-      const [results, attendance, feeStructure, payments] = await Promise.all([
+      const [results, attendanceResponse, feeStructure, payments] = await Promise.all([
         getResultsForStudent(s.id, term, session),
-        getAttendanceForStudent(s.classId, s.id),
+        fetch("/api/student/attendance", {
+          method: "GET",
+          cache: "no-store",
+        }),
         getFeeStructure(term, session),
         getPaymentsForStudent(s.id, term, session),
       ]);
+
+      const attendanceData = await attendanceResponse.json().catch(() => ({}));
+      if (!attendanceResponse.ok) {
+        throw new Error(
+          attendanceData.error || "Could not load attendance."
+        );
+      }
+      const attendance = Array.isArray(attendanceData.records)
+        ? attendanceData.records as { date: string; status: "present" | "absent" | "late" }[]
+        : [];
 
       const resultList = results as ResultEntry[];
       if (resultList.length > 0) {
