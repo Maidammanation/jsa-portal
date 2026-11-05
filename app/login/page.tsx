@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -20,6 +20,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "session-check-timeout") {
+      setError("Your credentials were accepted, but the portal took too long to verify your session. Please try again; if it repeats, the server session configuration needs attention.");
+    } else if (params.get("error") === "session-check-failed") {
+      setError("Your login was interrupted while the portal checked your session. Please try again.");
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -35,6 +44,7 @@ export default function LoginPage() {
         return;
       }
 
+      setLoading(false);
       router.push(ROLE_HOME[profile.role]);
     } catch (err) {
       setError(
