@@ -16,114 +16,57 @@ const ROLE_HOME: Record<UserRole, string> = {
 };
 
 function isAllowed(role: UserRole, pathname: string): boolean {
-  // Super Admin dashboard is Super Admin only.
-  if (pathname.startsWith("/super-admin")) {
-    return role === "super-admin";
-  }
-
-  // Team/User Management is Super Admin only.
-  if (pathname.startsWith("/admin/team")) {
-    return role === "super-admin";
-  }
-
-  // Normal admin area remains available to Admin + Super Admin.
-  if (pathname.startsWith("/admin")) {
-    return role === "admin" || role === "super-admin";
-  }
-
-  if (pathname.startsWith("/teacher")) {
-    return role === "teacher";
-  }
-
-  if (pathname.startsWith("/student")) {
-    return role === "student";
-  }
-
-  if (pathname.startsWith("/parent")) {
-    return role === "parent";
-  }
-
+  if (pathname.startsWith("/super-admin")) return role === "super-admin";
+  if (pathname.startsWith("/admin/team")) return role === "super-admin";
+  if (pathname.startsWith("/admin")) return role === "admin" || role === "super-admin";
+  if (pathname.startsWith("/teacher")) return role === "teacher";
+  if (pathname.startsWith("/student")) return role === "student";
+  if (pathname.startsWith("/parent")) return role === "parent";
   return false;
 }
 
-export async function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+function loginRedirect(request: NextRequest, reason?: string) {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+  if (reason) loginUrl.searchParams.set("error", reason);
+  return NextResponse.redirect(loginUrl);
+}
 
-  const verifyUrl = new URL(
-    "/api/auth/verify",
-    request.url
-  );
+export async function middleware(request: NextRequest) {
+  const verifyUrl = new URL("/api/auth/verify", request.url);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const verifyResponse = await fetch(
-      verifyUrl,
-      {
-        method: "GET",
-        headers: {
-          cookie:
-            request.headers.get("cookie") || "",
-        },
-        cache: "no-store",
-      }
-    );
+    const verifyResponse = await fetch(verifyUrl, {
+      method: "GET",
+      headers: { cookie: request.headers.get("cookie") || "" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
 
-    if (!verifyResponse.ok) {
-      const loginUrl = new URL(
-        "/login",
-        request.url
-      );
-
-      loginUrl.searchParams.set(
-        "redirect",
-        pathname
-      );
-
-      return NextResponse.redirect(loginUrl);
-    }
+    if (!verifyResponse.ok) return loginRedirect(request);
 
     const data = await verifyResponse.json();
-
-    if (
-      !data?.authenticated ||
-      !data?.role
-    ) {
-      const loginUrl = new URL(
-        "/login",
-        request.url
-      );
-
-      loginUrl.searchParams.set(
-        "redirect",
-        pathname
-      );
-
-      return NextResponse.redirect(loginUrl);
+    if (!data?.authenticated || !data?.role) {
+      return loginRedirect(request);
     }
 
     const role = data.role as UserRole;
-
-    if (!isAllowed(role, pathname)) {
-      return NextResponse.redirect(
-        new URL(
-          ROLE_HOME[role],
-          request.url
-        )
-      );
+    if (!ROLE_HOME[role] || !isAllowed(role, request.nextUrl.pathname)) {
+      return ROLE_HOME[role]
+        ? NextResponse.redirect(new URL(ROLE_HOME[role], request.url))
+        : loginRedirect(request);
     }
 
     return NextResponse.next();
-  } catch {
-    const loginUrl = new URL(
-      "/login",
-      request.url
-    );
-
-    loginUrl.searchParams.set(
-      "redirect",
-      pathname
-    );
-
-    return NextResponse.redirect(loginUrl);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return loginRedirect(request, "session-check-timeout");
+    }
+    return loginRedirect(request, "session-check-failed");
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
