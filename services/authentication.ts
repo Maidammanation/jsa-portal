@@ -24,46 +24,76 @@ export interface UserProfile {
   mustChangePassword: boolean;
 }
 
+/** Stop a stalled network operation from leaving the login screen spinning forever. */
+async function withTimeout<T>(
+  operation: Promise<T>,
+  message: string,
+  timeoutMs = 15000
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(message)),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 /** Logs a user in and returns their profile (including role) from Firestore. */
 export async function login(
   email: string,
   password: string
 ): Promise<UserProfile> {
-  const credential = await signInWithEmailAndPassword(
-    auth,
-    email,
-    password
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const credential = await withTimeout(
+    signInWithEmailAndPassword(auth, normalizedEmail, password),
+    "Login is taking too long. Check your internet connection and try again."
   );
 
-  const profile = await getUserProfile(
-    credential.user.uid
-  );
-
-  if (!profile) {
-    throw new Error(
-      "No user profile found. Contact your administrator."
+  try {
+    const profile = await withTimeout(
+      getUserProfile(credential.user.uid),
+      "Your account was verified, but your user profile could not be loaded. Please try again."
     );
+
+    if (!profile) {
+      throw new Error(
+        "No user profile found. Contact your administrator."
+      );
+    }
+
+    if (profile.status === "suspended") {
+      throw new Error(
+        "This account is suspended. Contact your administrator."
+      );
+    }
+
+    if (profile.status === "disabled") {
+      throw new Error(
+        "This account has been disabled."
+      );
+    }
+
+    await establishServerSession(credential.user);
+    return profile;
+  } catch (error) {
+    // Avoid leaving Firebase signed in when the secure portal session failed.
+    try {
+      await signOut(auth);
+    } catch {
+      // Preserve the original, more useful login error.
+    }
+    throw error;
   }
-
-  if (profile.status === "suspended") {
-    await signOut(auth);
-
-    throw new Error(
-      "This account is suspended. Contact your administrator."
-    );
-  }
-
-  if (profile.status === "disabled") {
-    await signOut(auth);
-
-    throw new Error(
-      "This account has been disabled."
-    );
-  }
-
-  await establishServerSession(credential.user);
-
-  return profile;
 }
 
 export async function logout(): Promise<void> {
@@ -74,20 +104,46 @@ export async function logout(): Promise<void> {
 export async function establishServerSession(
   user: User
 ): Promise<void> {
-  const idToken = await user.getIdToken();
+  const idToken = await withTimeout(
+    user.getIdToken(),
+    "Firebase took too long to verify your account. Please try again."
+  );
 
-  const res = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ idToken }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  if (!res.ok) {
-    throw new Error(
-      "Could not establish a secure session. Please try again."
-    );
+  try {
+    const res = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ idToken }),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const data = await res.json();
+        detail = typeof data.error === "string" ? data.error : "";
+      } catch {
+        // The endpoint may return an empty or non-JSON response.
+      }
+      throw new Error(
+        detail || "Could not establish a secure session. Please try again."
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        "Secure login timed out. Check your connection and try again."
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
