@@ -586,6 +586,11 @@ export default function StudentsListPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link href="/admin/students/enable-arabic">
+            <Button variant="secondary">
+              Enable Arabic for All
+            </Button>
+          </Link>
           <Link href="/admin/students/new">
             <Button>
               + Add Student
